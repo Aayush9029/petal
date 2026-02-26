@@ -22,6 +22,8 @@ final class SettingsViewModel {
     @ObservationIgnored @Shared(.logsEnabled) var logsEnabled = false
     @ObservationIgnored @Shared(.restoreClipboardAfterPaste) var restoreClipboardAfterPaste = true
     @ObservationIgnored @Shared(.pushToTalkThreshold) var pushToTalkThreshold: PushToTalkThreshold = .long
+    @ObservationIgnored @Shared(.doubleTapModifierEnabled) var doubleTapModifierEnabled = false
+    @ObservationIgnored @Shared(.doubleTapModifierKey) var doubleTapModifierKey: DoubleTapModifierKey = .fn
     @ObservationIgnored @Shared(.transcriptHistoryDays) private var transcriptHistoryDays: [TranscriptHistoryDay] = []
 
     var microphoneAuthorized = false
@@ -122,6 +124,16 @@ final class SettingsViewModel {
         $historyRetentionMode.withLock { $0 = mode }
         let applied = historyClient.applyRetention(mode, transcriptHistoryDays)
         $transcriptHistoryDays.withLock { $0 = applied }
+    }
+
+    func doubleTapModifierEnabledChanged(_ enabled: Bool) {
+        $doubleTapModifierEnabled.withLock { $0 = enabled }
+        appModel.registerDoubleTapMonitor()
+    }
+
+    func doubleTapModifierKeyChanged(_ key: DoubleTapModifierKey) {
+        $doubleTapModifierKey.withLock { $0 = key }
+        appModel.registerDoubleTapMonitor()
     }
 
     func openHistoryInFinder() {

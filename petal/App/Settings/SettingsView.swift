@@ -50,6 +50,28 @@ struct GeneralPane: View {
                     .frame(width: 180)
                     .labelsHidden()
                 }
+
+                Toggle("Double-tap modifier key", isOn: Binding(
+                    get: { viewModel.doubleTapModifierEnabled },
+                    set: { viewModel.doubleTapModifierEnabledChanged($0) }
+                ))
+                Text("Quickly double-tap a modifier key to toggle recording.")
+                    .settingDescription()
+
+                if viewModel.doubleTapModifierEnabled {
+                    LabeledContent("Modifier Key") {
+                        Picker("Modifier Key", selection: Binding(
+                            get: { viewModel.doubleTapModifierKey },
+                            set: { viewModel.doubleTapModifierKeyChanged($0) }
+                        )) {
+                            ForEach(DoubleTapModifierKey.allCases) { key in
+                                Text(key.displayName).tag(key)
+                            }
+                        }
+                        .frame(width: 180)
+                        .labelsHidden()
+                    }
+                }
             }
 
             Section("Permissions") {

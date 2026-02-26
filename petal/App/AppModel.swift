@@ -47,6 +47,8 @@ final class AppModel {
     @ObservationIgnored @Shared(.historyRetentionMode) var historyRetentionMode: HistoryRetentionMode = .both
     @ObservationIgnored @Shared(.pushToTalkThreshold) var pushToTalkThreshold: PushToTalkThreshold = .long
     @ObservationIgnored @Shared(.restoreClipboardAfterPaste) var restoreClipboardAfterPaste = true
+    @ObservationIgnored @Shared(.doubleTapModifierEnabled) var doubleTapModifierEnabled = false
+    @ObservationIgnored @Shared(.doubleTapModifierKey) var doubleTapModifierKey: DoubleTapModifierKey = .fn
     @ObservationIgnored @Shared(.transcriptHistoryDays) var transcriptHistoryDays: [TranscriptHistoryDay] = []
 
     let modelDownloadViewModel: ModelDownloadModel
@@ -103,6 +105,7 @@ final class AppModel {
     @ObservationIgnored private var downloadStateObserverTask: Task<Void, Never>?
     @ObservationIgnored private var isShowingMiniDownload = false
     @ObservationIgnored private var activeHistorySessionID: UUID?
+    @ObservationIgnored private var doubleTapMonitor: DoubleTapModifierMonitor?
     var menuBarFlashOn = true
     @ObservationIgnored private var estimatedTranscriptionRTF = 2.2
     private var toggleActivationThresholdSeconds: Double { pushToTalkThreshold.seconds }
@@ -136,6 +139,7 @@ final class AppModel {
 
         registerShortcutHandlers()
         registerKeyboardMonitor()
+        registerDoubleTapMonitor()
         refreshPermissionStatus()
         startPermissionMonitoring()
         logger.info("AppModel initialized. setupCompleted=\(self.hasCompletedSetup, privacy: .public), model=\(self.selectedModelID, privacy: .public)")
@@ -883,6 +887,27 @@ final class AppModel {
                 }
             }
         }
+    }
+
+    func registerDoubleTapMonitor() {
+        if isPreviewMode { return }
+
+        doubleTapMonitor?.stop()
+
+        guard doubleTapModifierEnabled else {
+            doubleTapMonitor = nil
+            return
+        }
+
+        let monitor = DoubleTapModifierMonitor(modifierKey: doubleTapModifierKey) { [weak self] in
+            Task { @MainActor [weak self] in
+                await self?.pushToTalkKeyDown()
+                // Treat double-tap as a toggle (equivalent to a short tap).
+                await self?.pushToTalkKeyUp()
+            }
+        }
+        monitor.start()
+        doubleTapMonitor = monitor
     }
 
     /// Decides synchronously whether to swallow the event, then dispatches async handling.

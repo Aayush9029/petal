@@ -14,6 +14,7 @@ import Testing
 func modulesCompile() {
     _ = ModelOption.defaultOption
     _ = TranscriptionMode.verbatim
+    _ = DoubleTapModifierKey.fn
     _ = FloatingCapsuleView.self
     _ = AudioClient.self
     _ = PermissionsClient.self

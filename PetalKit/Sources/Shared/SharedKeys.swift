@@ -29,6 +29,10 @@ public extension SharedKey where Self == AppStorageKey<Bool>.Default {
     static var restoreClipboardAfterPaste: Self {
         Self[.appStorage("restore_clipboard_after_paste"), default: true]
     }
+
+    static var doubleTapModifierEnabled: Self {
+        Self[.appStorage("double_tap_modifier_enabled"), default: false]
+    }
 }
 
 public extension SharedKey where Self == AppStorageKey<String>.Default {
@@ -49,6 +53,12 @@ public extension SharedKey where Self == AppStorageKey<TranscriptionMode>.Defaul
 public extension SharedKey where Self == AppStorageKey<PushToTalkThreshold>.Default {
     static var pushToTalkThreshold: Self {
         Self[.appStorage("push_to_talk_threshold"), default: .long]
+    }
+}
+
+public extension SharedKey where Self == AppStorageKey<DoubleTapModifierKey>.Default {
+    static var doubleTapModifierKey: Self {
+        Self[.appStorage("double_tap_modifier_key"), default: .fn]
     }
 }
 
