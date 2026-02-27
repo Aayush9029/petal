@@ -49,6 +49,7 @@ extension KeyboardShortcuts {
 					onChange: onChange
 				)
 				.frame(width: 0, height: 0)
+			.allowsHitTesting(false)
 				HStack {
 					ZStack {
 						switch mode {
