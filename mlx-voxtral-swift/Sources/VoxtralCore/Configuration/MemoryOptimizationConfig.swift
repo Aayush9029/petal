@@ -49,7 +49,7 @@ public struct MemoryOptimizationConfig: Sendable {
         evalFrequency: 4,
         clearCacheOnEval: true,
         resetPeakMemory: true,
-        maxKVCacheSize: 4096
+        maxKVCacheSize: 8192
     )
 
     /// Ultra - extreme memory savings (for 8-16GB RAM)
@@ -57,7 +57,7 @@ public struct MemoryOptimizationConfig: Sendable {
         evalFrequency: 2,
         clearCacheOnEval: true,
         resetPeakMemory: true,
-        maxKVCacheSize: 2048
+        maxKVCacheSize: 4096
     )
 
     // MARK: - Auto-detection

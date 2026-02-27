@@ -267,7 +267,7 @@ private actor LiveMLXRuntime {
         case .mini3b, .mini3b8bit:
             log("prepare.voxtral.begin model=\(model.rawValue)")
             var config = VoxtralPipeline.Configuration.default
-            config.maxTokens = 256
+            config.maxTokens = 1024
             config.temperature = 0.0
             config.topP = 0.95
             config.repetitionPenalty = 1.15
