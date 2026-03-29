@@ -48,6 +48,7 @@ func modelCatalogIncludesBothBackends() {
     #expect(ModelOption.allCases.contains(.mini3b8bit))
     #expect(ModelOption.allCases.contains(.qwen3ASR06B4bit))
     #expect(ModelOption.allCases.contains(.parakeetTDT06BV3))
+    #expect(ModelOption.allCases.contains(.cohereTranscribe))
     #expect(ModelOption.allCases.contains(.whisperLargeV3Turbo))
 }
 
@@ -89,6 +90,26 @@ func voxtralSupportsSmartAndVerbatim() {
     #expect(ModelOption.mini3b.supportedTranscriptionModes.contains(.verbatim))
     #expect(ModelOption.mini3b.supportedTranscriptionModes.contains(.smart))
     #expect(ModelOption.mini3b.supportsSmartTranscription)
+}
+
+@Test
+func cohereModelIDsMapToCohereOption() {
+    #expect(ModelOption.from(modelID: "cohere-transcribe") == .cohereTranscribe)
+    #expect(ModelOption.from(modelID: "cohere-transcribe-2b") == .cohereTranscribe)
+    #expect(ModelOption.from(modelID: "onnx-community/cohere-transcribe-03-2026-onnx") == .cohereTranscribe)
+}
+
+@Test
+func cohereSupportsVerbatimOnly() {
+    #expect(ModelOption.cohereTranscribe.supportedTranscriptionModes == [.verbatim])
+    #expect(!ModelOption.cohereTranscribe.supportsSmartTranscription)
+    #expect(ModelOption.cohereTranscribe.providerDisplayName == "Cohere")
+}
+
+@Test
+func cohereRequiresDownload() {
+    #expect(ModelOption.cohereTranscribe.requiresDownload)
+    #expect(ModelOption.cohereTranscribe.descriptor.parameters == "2B")
 }
 
 @Test

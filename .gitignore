@@ -11,3 +11,14 @@ ops/private/
 
 build-release/
 secret_keys/
+
+# Local dependency clones
+fluid-audio-local/
+mlx-swift-lm-local/
+whisperkit-local/
+onnxruntime-local/
+
+# CoreML conversion artifacts
+coreml-cohere-transcribe/
+scripts/
+.venv-coreml/

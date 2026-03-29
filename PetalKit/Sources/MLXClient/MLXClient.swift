@@ -15,6 +15,7 @@ public enum MLXModelBackend: String, Sendable, Equatable {
     case voxtral
     case fluidAudio
     case whisperKit
+    case onnxRuntime
 }
 
 public struct MLXModelInfo: Sendable, Equatable {
@@ -56,6 +57,8 @@ public enum MLXPipelineModel: String, Sendable {
     case mini3b8bit
     case qwen3ASR06B4bit
     case parakeetTDT06BV3
+    case cohereTranscribe
+    case cohereTranscribeFP16
     case whisperLargeV3Turbo
     case whisperTiny
 }
@@ -110,6 +113,9 @@ extension MLXClient: DependencyKey {
                     return FluidAudioCache.isModelDownloaded(info: info)
                 case .whisperKit:
                     return WhisperKitCache.isModelDownloaded(variant: info.id)
+                case .onnxRuntime:
+                    let variant: CohereONNXVariant = info.id.contains("fp16") ? .fp16 : .q4f16
+                    return CohereONNXCache.isModelDownloaded(variant: variant)
                 }
             },
             downloadModel: { info, progress in
@@ -121,6 +127,9 @@ extension MLXClient: DependencyKey {
                         try await FluidAudioCache.downloadIfNeeded(info: info, progress: progress)
                     case .whisperKit:
                         try await WhisperKitCache.downloadIfNeeded(variant: info.id, progress: progress)
+                    case .onnxRuntime:
+                        let variant: CohereONNXVariant = info.id.contains("fp16") ? .fp16 : .q4f16
+                        try await CohereONNXCache.downloadIfNeeded(variant: variant, progress: progress)
                     }
                 } catch {
                     throw normalizeDownloadError(error)
@@ -140,6 +149,9 @@ extension MLXClient: DependencyKey {
                     return FluidAudioCache.modelDirectoryURL(info: info)
                 case .whisperKit:
                     return WhisperKitCache.modelDirectoryURL(variant: info.id)
+                case .onnxRuntime:
+                    let variant: CohereONNXVariant = info.id.contains("fp16") ? .fp16 : .q4f16
+                    return CohereONNXCache.modelDirectoryURL(variant: variant)
                 }
             },
             deleteModel: { info in
@@ -152,6 +164,9 @@ extension MLXClient: DependencyKey {
                     try FluidAudioCache.deleteModel(info: info)
                 case .whisperKit:
                     try WhisperKitCache.deleteModel(variant: info.id)
+                case .onnxRuntime:
+                    let variant: CohereONNXVariant = info.id.contains("fp16") ? .fp16 : .q4f16
+                    try CohereONNXCache.deleteModel(variant: variant)
                 }
             },
             prepareModelIfNeeded: { model in
@@ -245,6 +260,7 @@ private actor LiveMLXRuntime {
     private var qwen3AsrManager: Qwen3AsrManager?
     private var parakeetAsrManager: AsrManager?
     private var whisperKitInstance: WhisperKit?
+    private var cohereSession: CohereONNXSession?
 
     func prepareModelIfNeeded(
         model: MLXPipelineModel,
@@ -323,6 +339,22 @@ private actor LiveMLXRuntime {
             let managerInitElapsed = ProcessInfo.processInfo.systemUptime - managerInitStart
             log("prepare.parakeet.manager-initialized elapsed=\(formatElapsedSeconds(managerInitElapsed))")
             parakeetAsrManager = manager
+
+        case .cohereTranscribe:
+            log("prepare.cohere.begin variant=q4f16")
+            let cohereStart = ProcessInfo.processInfo.systemUptime
+            let modelDir = CohereONNXCache.modelDirectory
+            cohereSession = try CohereONNXSession(modelDirectory: modelDir, variant: .q4f16)
+            let cohereElapsed = ProcessInfo.processInfo.systemUptime - cohereStart
+            log("prepare.cohere.loaded elapsed=\(formatElapsedSeconds(cohereElapsed))")
+
+        case .cohereTranscribeFP16:
+            log("prepare.cohere.begin variant=fp16")
+            let cohereStart = ProcessInfo.processInfo.systemUptime
+            let modelDir = CohereONNXCache.modelDirectory
+            cohereSession = try CohereONNXSession(modelDirectory: modelDir, variant: .fp16)
+            let cohereElapsed = ProcessInfo.processInfo.systemUptime - cohereStart
+            log("prepare.cohere.loaded elapsed=\(formatElapsedSeconds(cohereElapsed))")
 
         case .whisperLargeV3Turbo, .whisperTiny:
             guard let variant = model.whisperKitVariant else {
@@ -425,6 +457,25 @@ private actor LiveMLXRuntime {
                 log("transcribe.parakeet.normalized chars=\(text.count)")
                 transcript = text
 
+            case .cohereTranscribe, .cohereTranscribeFP16:
+                guard let cohereSession else {
+                    throw MLXError.pipelineUnavailable
+                }
+
+                nonisolated(unsafe) let session = cohereSession
+                let cohereStart = ProcessInfo.processInfo.systemUptime
+                let text = try session.transcribe(audioURL: audioURL)
+                let cohereElapsed = ProcessInfo.processInfo.systemUptime - cohereStart
+                log(
+                    "transcribe.cohere.backend completed elapsed=\(formatElapsedSeconds(cohereElapsed))"
+                )
+
+                guard !text.isEmpty else {
+                    log("transcribe.cohere.empty-output")
+                    throw MLXError.pipelineUnavailable
+                }
+                transcript = text
+
             case .whisperLargeV3Turbo, .whisperTiny:
                 guard let whisperKitInstance else {
                     throw MLXError.pipelineUnavailable
@@ -467,6 +518,7 @@ private actor LiveMLXRuntime {
         qwen3AsrManager = nil
         parakeetAsrManager = nil
         whisperKitInstance = nil
+        cohereSession = nil
         loadedModel = nil
     }
 
@@ -502,7 +554,7 @@ private func normalizeDownloadError(_ error: any Error) -> MLXDownloadError {
         return downloadError
     }
 
-    if let downloaderError = error as? ModelDownloaderError {
+    if let downloaderError = error as? VoxtralCore.ModelDownloaderError {
         switch downloaderError {
         case .downloadPaused:
             return .paused
@@ -707,7 +759,7 @@ private extension MLXPipelineModel {
             return .qwen3Asr
         case .parakeetTDT06BV3:
             return .parakeetTdt06BV3
-        case .mini3b, .mini3b8bit, .whisperLargeV3Turbo, .whisperTiny:
+        case .mini3b, .mini3b8bit, .cohereTranscribe, .cohereTranscribeFP16, .whisperLargeV3Turbo, .whisperTiny:
             return nil
         }
     }
@@ -718,7 +770,7 @@ private extension MLXPipelineModel {
             return "openai_whisper-large-v3_turbo"
         case .whisperTiny:
             return "openai_whisper-tiny"
-        case .mini3b, .mini3b8bit, .qwen3ASR06B4bit, .parakeetTDT06BV3:
+        case .mini3b, .mini3b8bit, .qwen3ASR06B4bit, .parakeetTDT06BV3, .cohereTranscribe, .cohereTranscribeFP16:
             return nil
         }
     }
@@ -729,7 +781,7 @@ private extension MLXPipelineModel {
             return .mini3b
         case .mini3b8bit:
             return .mini3b8bit
-        case .qwen3ASR06B4bit, .parakeetTDT06BV3, .whisperLargeV3Turbo, .whisperTiny:
+        case .qwen3ASR06B4bit, .parakeetTDT06BV3, .cohereTranscribe, .cohereTranscribeFP16, .whisperLargeV3Turbo, .whisperTiny:
             return .mini3b
         }
     }
