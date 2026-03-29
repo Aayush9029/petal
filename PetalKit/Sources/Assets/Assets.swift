@@ -9,5 +9,6 @@ public extension Image {
     static let mistral = Image("mistral", bundle: .module)
     static let nvidia = Image("nvidia", bundle: .module)
     static let swiftLogo = Image("swift", bundle: .module)
+    static let cohere = Image("cohere", bundle: .module)
     static let appleIntelligence = Image("appleIntelligence", bundle: .module)
 }

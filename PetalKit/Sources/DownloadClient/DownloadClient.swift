@@ -196,6 +196,8 @@ private extension ModelOption {
             return .voxtral
         case .qwen3ASR06B4bit, .parakeetTDT06BV3:
             return .fluidAudio
+        case .cohereTranscribe, .cohereTranscribeFP16:
+            return .onnxRuntime
         case .whisperLargeV3Turbo, .whisperTiny:
             return .whisperKit
         }

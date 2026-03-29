@@ -264,6 +264,10 @@ private extension ModelOption {
             return .qwen3ASR06B4bit
         case .parakeetTDT06BV3:
             return .parakeetTDT06BV3
+        case .cohereTranscribe:
+            return .cohereTranscribe
+        case .cohereTranscribeFP16:
+            return .cohereTranscribeFP16
         case .whisperLargeV3Turbo:
             return .whisperLargeV3Turbo
         case .whisperTiny:

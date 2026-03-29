@@ -253,6 +253,7 @@ struct TranscriptionPane: View {
         case .appleSpeech: .swiftLogo
         case .fluidAudio: .qwen
         case .nvidia: .nvidia
+        case .cohere: .cohere
         case .whisperKit: .openai
         case .voxtralCore: .mistral
         }

@@ -8,6 +8,7 @@ public enum ModelProvider: String, Sendable, Equatable {
     case appleSpeech = "Apple Speech"
     case fluidAudio = "FluidAudio"
     case nvidia = "NVIDIA"
+    case cohere = "Cohere"
     case whisperKit = "WhisperKit"
 }
 
@@ -59,6 +60,8 @@ public enum ModelOption: String, CaseIterable, Identifiable, Sendable {
     case parakeetTDT06BV3 = "parakeet-tdt-0.6b-v3"
     case whisperLargeV3Turbo = "whisper-large-v3-turbo"
     case whisperTiny = "whisper-tiny"
+    case cohereTranscribe = "cohere-transcribe"
+    case cohereTranscribeFP16 = "cohere-transcribe-fp16"
     case mini3b = "mini-3b"
     case mini3b8bit = "mini-3b-8bit"
 
@@ -66,6 +69,8 @@ public enum ModelOption: String, CaseIterable, Identifiable, Sendable {
         var options: [ModelOption] = [
             .qwen3ASR06B4bit,
             .parakeetTDT06BV3,
+            .cohereTranscribe,
+            .cohereTranscribeFP16,
             .whisperLargeV3Turbo,
             .whisperTiny,
             .mini3b,
@@ -133,6 +138,34 @@ public enum ModelOption: String, CaseIterable, Identifiable, Sendable {
                 recommended: false,
                 speedScore: 5,
                 smartScore: 4
+            )
+        case .cohereTranscribe:
+            return ModelDescriptor(
+                id: rawValue,
+                repoID: "onnx-community/cohere-transcribe-03-2026-ONNX",
+                name: "Cohere Transcribe 2B (q4f16)",
+                summary: "#1 on Open ASR Leaderboard. 14 languages, 5.42% WER.",
+                size: "~1.5 GB",
+                quantization: "Q4F16 ONNX",
+                parameters: "2B",
+                provider: .cohere,
+                recommended: false,
+                speedScore: 3,
+                smartScore: 5
+            )
+        case .cohereTranscribeFP16:
+            return ModelDescriptor(
+                id: rawValue,
+                repoID: "onnx-community/cohere-transcribe-03-2026-ONNX",
+                name: "Cohere Transcribe 2B (fp16)",
+                summary: "#1 on Open ASR Leaderboard. Full precision, highest accuracy.",
+                size: "~4.1 GB",
+                quantization: "FP16 ONNX",
+                parameters: "2B",
+                provider: .cohere,
+                recommended: false,
+                speedScore: 2,
+                smartScore: 5
             )
         case .whisperLargeV3Turbo:
             return ModelDescriptor(
@@ -221,14 +254,14 @@ public enum ModelOption: String, CaseIterable, Identifiable, Sendable {
         switch self {
         case .appleSpeech:
             return false
-        case .qwen3ASR06B4bit, .parakeetTDT06BV3, .whisperLargeV3Turbo, .whisperTiny, .mini3b, .mini3b8bit:
+        case .qwen3ASR06B4bit, .parakeetTDT06BV3, .cohereTranscribe, .cohereTranscribeFP16, .whisperLargeV3Turbo, .whisperTiny, .mini3b, .mini3b8bit:
             return true
         }
     }
 
     public var supportedTranscriptionModes: [TranscriptionMode] {
         switch self {
-        case .appleSpeech, .qwen3ASR06B4bit, .parakeetTDT06BV3, .whisperLargeV3Turbo, .whisperTiny:
+        case .appleSpeech, .qwen3ASR06B4bit, .parakeetTDT06BV3, .cohereTranscribe, .cohereTranscribeFP16, .whisperLargeV3Turbo, .whisperTiny:
             return [.verbatim]
         case .mini3b, .mini3b8bit:
             return TranscriptionMode.allCases
@@ -272,6 +305,14 @@ public enum ModelOption: String, CaseIterable, Identifiable, Sendable {
              "mlx-community/parakeet-ctc-0.6b":
             // Keep backward compatibility with old persisted IDs, but force TDT-only behavior.
             return .parakeetTDT06BV3
+        case Self.cohereTranscribe.rawValue,
+             "cohere-transcribe-2b",
+             "cohere-transcribe-q4f16",
+             "onnx-community/cohere-transcribe-03-2026-onnx":
+            return .cohereTranscribe
+        case Self.cohereTranscribeFP16.rawValue,
+             "cohere-transcribe-2b-fp16":
+            return .cohereTranscribeFP16
         case Self.whisperLargeV3Turbo.rawValue,
              "whisper-large-v3-turbo-asr-fp16",
              "whisper-large-v3",

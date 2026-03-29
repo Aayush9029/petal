@@ -1639,6 +1639,10 @@ final class AppModel {
             return 0.8
         case .mini3b8bit:
             return 1.1
+        case .cohereTranscribe:
+            return 1.5
+        case .cohereTranscribeFP16:
+            return 1.0
         case .appleSpeech:
             return 2.6
         }
