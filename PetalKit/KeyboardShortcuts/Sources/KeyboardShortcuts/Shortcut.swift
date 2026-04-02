@@ -154,6 +154,15 @@ extension KeyboardShortcuts.Shortcut {
 }
 
 private let keyToCharacterMapping: [KeyboardShortcuts.Key: String] = [
+	.command: "⌘",
+	.rightCommand: "⌘",
+	.option: "⌥",
+	.rightOption: "⌥",
+	.control: "⌃",
+	.rightControl: "⌃",
+	.shift: "⇧",
+	.rightShift: "⇧",
+
 	.return: "↩",
 	.delete: "⌫",
 	.deleteForward: "⌦",
@@ -215,6 +224,15 @@ private let keyToCharacterMapping: [KeyboardShortcuts.Key: String] = [
 ]
 
 private let humanKeyToCharacterMapping: [KeyboardShortcuts.Key: String] = [
+	.command: "Command",
+	.rightCommand: "Command",
+	.option: "Option",
+	.rightOption: "Option",
+	.control: "Control",
+	.rightControl: "Control",
+	.shift: "Shift",
+	.rightShift: "Shift",
+
 	.return: "Return",
 	.delete: "Delete",
 	.deleteForward: "Delete Forward",

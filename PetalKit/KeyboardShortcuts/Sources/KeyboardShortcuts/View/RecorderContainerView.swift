@@ -234,6 +234,9 @@ final class RecorderContainerView: NSView {
             mode = .preRecording
         } else {
             mode = .recording(event.modifiers.description)
+            if let shortcut = shortcutFromModifierEvent(event) {
+                saveShortcut(shortcut)
+            }
         }
     }
 
@@ -255,6 +258,30 @@ final class RecorderContainerView: NSView {
             event.specialKey == .delete
                 || event.specialKey == .deleteForward
                 || event.specialKey == .backspace
+        )
+    }
+
+    private func shortcutFromModifierEvent(_ event: NSEvent) -> KeyboardShortcuts.Shortcut? {
+        let key = KeyboardShortcuts.Key(rawValue: Int(event.keyCode))
+        guard
+            let modifierKey = key.modifierFlag
+        else {
+            return nil
+        }
+
+        // Record only on key-up so modifier + letter/number shortcuts can still be entered.
+        guard !event.modifiers.contains(modifierKey) else {
+            return nil
+        }
+
+        let remainingModifiers = event.modifiers.subtracting(modifierKey)
+        guard !remainingModifiers.isEmpty else {
+            return nil
+        }
+
+        return KeyboardShortcuts.Shortcut(
+            carbonKeyCode: key.rawValue,
+            carbonModifiers: remainingModifiers.carbon
         )
     }
 
@@ -285,6 +312,28 @@ final class RecorderContainerView: NSView {
     deinit {
         NotificationCenter.default.removeObserver(shortcutsNameChangeObserver as Any)
         NotificationCenter.default.removeObserver(windowDidResignKeyObserver as Any)
+    }
+}
+
+private extension KeyboardShortcuts.Key {
+    var modifierFlag: NSEvent.ModifierFlags? {
+        if self == .command || self == .rightCommand {
+            return .command
+        }
+
+        if self == .option || self == .rightOption {
+            return .option
+        }
+
+        if self == .control || self == .rightControl {
+            return .control
+        }
+
+        if self == .shift || self == .rightShift {
+            return .shift
+        }
+
+        return nil
     }
 }
 
