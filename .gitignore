@@ -1,6 +1,8 @@
 .derived/
 .DS_Store
 PetalKit/.build/
+PetalKit/**/.build/
+PetalKit/**/.swiftpm/
 
 ops/*.p8
 ops/*.p12
