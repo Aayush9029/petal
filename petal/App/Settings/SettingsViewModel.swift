@@ -23,6 +23,7 @@ final class SettingsViewModel {
     @ObservationIgnored @Shared(.appleIntelligenceEnabled) var appleIntelligenceEnabled = false
     @ObservationIgnored @Shared(.logsEnabled) var logsEnabled = false
     @ObservationIgnored @Shared(.restoreClipboardAfterPaste) var restoreClipboardAfterPaste = true
+    @ObservationIgnored @Shared(.pausePlaybackDuringRecording) var pausePlaybackDuringRecording = false
     @ObservationIgnored @Shared(.pushToTalkThreshold) var pushToTalkThreshold: PushToTalkThreshold = .long
     @ObservationIgnored @Shared(.shortcutTriggerMode) var shortcutTriggerMode: ShortcutTriggerMode = .combo
     @ObservationIgnored @Shared(.doubleTapKey) var doubleTapKey: DoubleTapKey = .unconfigured

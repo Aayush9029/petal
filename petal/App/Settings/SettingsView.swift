@@ -191,6 +191,9 @@ struct TranscriptionPane: View {
                 Toggle("Auto speed-up", isOn: Binding(viewModel.$autoSpeedEnabled))
                 Text("Speeds up quiet or low-energy audio to reduce transcription time.")
                     .settingDescription()
+                Toggle("Pause playback while recording", isOn: Binding(viewModel.$pausePlaybackDuringRecording))
+                Text("Sends a play/pause media command when recording starts, then resumes when recording stops.")
+                    .settingDescription()
             }
 
             Section {

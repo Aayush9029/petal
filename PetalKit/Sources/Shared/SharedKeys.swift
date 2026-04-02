@@ -29,6 +29,10 @@ public extension SharedKey where Self == AppStorageKey<Bool>.Default {
     static var restoreClipboardAfterPaste: Self {
         Self[.appStorage("restore_clipboard_after_paste"), default: true]
     }
+
+    static var pausePlaybackDuringRecording: Self {
+        Self[.appStorage("pause_playback_during_recording"), default: false]
+    }
 }
 
 public extension SharedKey where Self == AppStorageKey<String>.Default {

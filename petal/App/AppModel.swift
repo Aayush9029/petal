@@ -47,6 +47,7 @@ final class AppModel {
     @ObservationIgnored @Shared(.historyRetentionMode) var historyRetentionMode: HistoryRetentionMode = .both
     @ObservationIgnored @Shared(.pushToTalkThreshold) var pushToTalkThreshold: PushToTalkThreshold = .long
     @ObservationIgnored @Shared(.restoreClipboardAfterPaste) var restoreClipboardAfterPaste = true
+    @ObservationIgnored @Shared(.pausePlaybackDuringRecording) var pausePlaybackDuringRecording = false
     @ObservationIgnored @Shared(.shortcutTriggerMode) var shortcutTriggerMode: ShortcutTriggerMode = .combo
     @ObservationIgnored @Shared(.doubleTapKey) var doubleTapKey: DoubleTapKey = .unconfigured
     @ObservationIgnored @Shared(.doubleTapInterval) var doubleTapInterval: Double = 0.4
@@ -109,6 +110,7 @@ final class AppModel {
     @ObservationIgnored private var downloadStateObserverTask: Task<Void, Never>?
     @ObservationIgnored private var isShowingMiniDownload = false
     @ObservationIgnored private var activeHistorySessionID: UUID?
+    @ObservationIgnored private var shouldResumePlaybackAfterRecording = false
     var menuBarFlashOn = true
     @ObservationIgnored private var estimatedTranscriptionRTF = 2.2
     private var toggleActivationThresholdSeconds: Double { pushToTalkThreshold.seconds }
@@ -423,6 +425,7 @@ final class AppModel {
         defer { isStartingRecording = false }
 
         do {
+            await pausePlaybackIfConfigured()
             try await audioClient.startRecording { [weak self] level in
                 guard let self else { return }
                 Task { @MainActor [self, level] in
@@ -450,6 +453,7 @@ final class AppModel {
                 return
             }
         } catch {
+            await resumePlaybackIfNeeded()
             reportIssue(error)
             sessionState = .error(error.localizedDescription)
             lastError = error.localizedDescription
@@ -527,6 +531,7 @@ final class AppModel {
 
         let isCurrentlyRecording = await audioClient.isRecording()
         guard isCurrentlyRecording else {
+            await resumePlaybackIfNeeded()
             logger.debug("Ignoring stop request because no recording is active")
             pushToTalkIsActive = false
             toggleRecordingIsActive = false
@@ -548,6 +553,7 @@ final class AppModel {
         do {
             let stopRecordingStart = now
             let audioURL = try await audioClient.stopRecording()
+            await resumePlaybackIfNeeded()
             defer { try? FileManager.default.removeItem(at: audioURL) }
             let stopRecordingElapsed = now.timeIntervalSince(stopRecordingStart)
             let audioSizeBytes = appAudioFileSizeBytes(audioURL) ?? 0
@@ -852,6 +858,7 @@ final class AppModel {
                 )
             )
         } catch {
+            await resumePlaybackIfNeeded()
             reportIssue(error)
             lastError = error.localizedDescription
             transientMessage = "Transcription failed."
@@ -1161,6 +1168,7 @@ final class AppModel {
             }
 
             await audioClient.cancelRecording()
+            await resumePlaybackIfNeeded()
 
             isAwaitingCancelRecordingConfirmation = false
             pushToTalkIsActive = false
@@ -1247,6 +1255,7 @@ final class AppModel {
         do {
             logger.info("Deep link start attempting to start recording")
             consoleLog("Deep link start attempting to start recording")
+            await pausePlaybackIfConfigured()
             try await startRecordingWithTimeout { [weak self] level in
                 guard let self else { return }
                 Task { @MainActor [self, level] in
@@ -1267,6 +1276,7 @@ final class AppModel {
             Task { await soundClient.playRecordingStarted() }
             await floatingCapsuleClient.showRecording()
         } catch {
+            await resumePlaybackIfNeeded()
             reportIssue(error)
             sessionState = .error(error.localizedDescription)
             lastError = error.localizedDescription
@@ -1462,6 +1472,34 @@ final class AppModel {
 
     private var isRecordingLifecycleBusy: Bool {
         isStartingRecording || isStoppingRecording || isProcessing
+    }
+
+    private func pausePlaybackIfConfigured() async {
+        guard pausePlaybackDuringRecording else { return }
+        shouldResumePlaybackAfterRecording = await postPlayPauseCommand()
+    }
+
+    private func resumePlaybackIfNeeded() async {
+        guard shouldResumePlaybackAfterRecording else { return }
+        _ = await postPlayPauseCommand()
+        shouldResumePlaybackAfterRecording = false
+    }
+
+    private func postPlayPauseCommand() async -> Bool {
+        await withCheckedContinuation { continuation in
+            DispatchQueue.global(qos: .userInitiated).async {
+                let task = Process()
+                task.executableURL = URL(fileURLWithPath: "/usr/bin/osascript")
+                task.arguments = ["-e", "tell application \"System Events\" to key code 16"]
+                do {
+                    try task.run()
+                    task.waitUntilExit()
+                    continuation.resume(returning: task.terminationStatus == 0)
+                } catch {
+                    continuation.resume(returning: false)
+                }
+            }
+        }
     }
 
     private func recordingLevelDidUpdate(_ level: Double) {

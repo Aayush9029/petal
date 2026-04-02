@@ -1,5 +1,6 @@
 import Testing
 @testable import Shared
+import Dependencies
 
 @Test
 func modelOptionFallbackUsesDefault() {
@@ -103,4 +104,17 @@ func appleSpeechVisibilityMatchesCurrentDeviceSupport() {
         ModelOption.allCases.contains(.appleSpeech)
             == ModelOption.isAppleSpeechSupportedOnCurrentDevice
     )
+}
+
+@Test
+func pausePlaybackDuringRecordingSharedKeyDefaultsToFalse() {
+    let appStorage = UserDefaults.inMemory
+    let isEnabled = withDependencies {
+        $0.defaultAppStorage = appStorage
+    } operation: {
+        @Shared(.pausePlaybackDuringRecording) var pausePlaybackDuringRecording = false
+        return pausePlaybackDuringRecording
+    }
+
+    #expect(isEnabled == false)
 }
