@@ -115,6 +115,7 @@ final class AppModel {
     @ObservationIgnored private var estimatedTranscriptionRTF = 2.2
     private var toggleActivationThresholdSeconds: Double { pushToTalkThreshold.seconds }
     nonisolated private static let deepLinkStartTimeoutSeconds = 12.0
+    nonisolated private static let mediaPlayPauseKeyCode = 16
 
     nonisolated private static var isRunningInSwiftUIPreview: Bool {
         ProcessInfo.processInfo.environment["XCODE_RUNNING_FOR_PREVIEWS"] == "1"
@@ -1475,31 +1476,56 @@ final class AppModel {
     }
 
     private func pausePlaybackIfConfigured() async {
-        guard pausePlaybackDuringRecording else { return }
-        shouldResumePlaybackAfterRecording = await postPlayPauseCommand()
+        guard pausePlaybackDuringRecording else {
+            shouldResumePlaybackAfterRecording = false
+            return
+        }
+        let commandResult = await postPlayPauseCommand()
+        let didSendCommand = commandResult.sent
+        if !didSendCommand {
+            if let errorDescription = commandResult.errorDescription {
+                logger.warning("Pause playback command failed before recording start: \(errorDescription, privacy: .public)")
+            } else {
+                logger.warning("Pause playback command failed before recording start")
+            }
+        }
+        shouldResumePlaybackAfterRecording = didSendCommand
     }
 
     private func resumePlaybackIfNeeded() async {
         guard shouldResumePlaybackAfterRecording else { return }
-        _ = await postPlayPauseCommand()
+        let commandResult = await postPlayPauseCommand()
+        let didSendCommand = commandResult.sent
+        if !didSendCommand {
+            if let errorDescription = commandResult.errorDescription {
+                logger.warning("Resume playback command failed after recording stop: \(errorDescription, privacy: .public)")
+            } else {
+                logger.warning("Resume playback command failed after recording stop")
+            }
+        }
         shouldResumePlaybackAfterRecording = false
     }
 
-    private func postPlayPauseCommand() async -> Bool {
-        await withCheckedContinuation { continuation in
-            DispatchQueue.global(qos: .userInitiated).async {
-                let task = Process()
-                task.executableURL = URL(fileURLWithPath: "/usr/bin/osascript")
-                task.arguments = ["-e", "tell application \"System Events\" to key code 16"]
-                do {
-                    try task.run()
-                    task.waitUntilExit()
-                    continuation.resume(returning: task.terminationStatus == 0)
-                } catch {
-                    continuation.resume(returning: false)
+    private func postPlayPauseCommand() async -> (sent: Bool, errorDescription: String?) {
+        await Task.detached(priority: .userInitiated) {
+            let task = Process()
+            task.executableURL = URL(fileURLWithPath: "/usr/bin/osascript")
+            task.arguments = ["-e", "tell application \"System Events\" to key code \(Self.mediaPlayPauseKeyCode)"]
+            do {
+                try task.run()
+                let timeout = Date().addingTimeInterval(2)
+                while task.isRunning, Date() < timeout {
+                    Thread.sleep(forTimeInterval: 0.01)
                 }
+                if task.isRunning {
+                    task.terminate()
+                    return (false, "Timed out waiting for osascript to exit")
+                }
+                return (task.terminationStatus == 0, nil)
+            } catch {
+                return (false, error.localizedDescription)
             }
-        }
+        }.value
     }
 
     private func recordingLevelDidUpdate(_ level: Double) {
