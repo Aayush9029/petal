@@ -1,0 +1,124 @@
+{
+  "": {
+    "swift-dependencies": "/home/runner/work/petal/petal/PetalKit/KeyboardShortcuts/.build/x86_64-unknown-linux-gnu/debug/KeyboardShortcuts.build/master.swiftdeps"
+  },
+  "/home/runner/work/petal/petal/PetalKit/KeyboardShortcuts/Sources/KeyboardShortcuts/CarbonKeyboardShortcuts.swift": {
+    "dependencies": "/home/runner/work/petal/petal/PetalKit/KeyboardShortcuts/.build/x86_64-unknown-linux-gnu/debug/KeyboardShortcuts.build/CarbonKeyboardShortcuts.d",
+    "object": "/home/runner/work/petal/petal/PetalKit/KeyboardShortcuts/.build/x86_64-unknown-linux-gnu/debug/KeyboardShortcuts.build/CarbonKeyboardShortcuts.swift.o",
+    "swiftmodule": "/home/runner/work/petal/petal/PetalKit/KeyboardShortcuts/.build/x86_64-unknown-linux-gnu/debug/KeyboardShortcuts.build/CarbonKeyboardShortcuts~partial.swiftmodule",
+    "swift-dependencies": "/home/runner/work/petal/petal/PetalKit/KeyboardShortcuts/.build/x86_64-unknown-linux-gnu/debug/KeyboardShortcuts.build/CarbonKeyboardShortcuts.swiftdeps",
+    "diagnostics": "/home/runner/work/petal/petal/PetalKit/KeyboardShortcuts/.build/x86_64-unknown-linux-gnu/debug/KeyboardShortcuts.build/CarbonKeyboardShortcuts.dia"
+  },
+  "/home/runner/work/petal/petal/PetalKit/KeyboardShortcuts/Sources/KeyboardShortcuts/Key.swift": {
+    "dependencies": "/home/runner/work/petal/petal/PetalKit/KeyboardShortcuts/.build/x86_64-unknown-linux-gnu/debug/KeyboardShortcuts.build/Key.d",
+    "object": "/home/runner/work/petal/petal/PetalKit/KeyboardShortcuts/.build/x86_64-unknown-linux-gnu/debug/KeyboardShortcuts.build/Key.swift.o",
+    "swiftmodule": "/home/runner/work/petal/petal/PetalKit/KeyboardShortcuts/.build/x86_64-unknown-linux-gnu/debug/KeyboardShortcuts.build/Key~partial.swiftmodule",
+    "swift-dependencies": "/home/runner/work/petal/petal/PetalKit/KeyboardShortcuts/.build/x86_64-unknown-linux-gnu/debug/KeyboardShortcuts.build/Key.swiftdeps",
+    "diagnostics": "/home/runner/work/petal/petal/PetalKit/KeyboardShortcuts/.build/x86_64-unknown-linux-gnu/debug/KeyboardShortcuts.build/Key.dia"
+  },
+  "/home/runner/work/petal/petal/PetalKit/KeyboardShortcuts/Sources/KeyboardShortcuts/KeyboardShortcuts.swift": {
+    "dependencies": "/home/runner/work/petal/petal/PetalKit/KeyboardShortcuts/.build/x86_64-unknown-linux-gnu/debug/KeyboardShortcuts.build/KeyboardShortcuts.d",
+    "object": "/home/runner/work/petal/petal/PetalKit/KeyboardShortcuts/.build/x86_64-unknown-linux-gnu/debug/KeyboardShortcuts.build/KeyboardShortcuts.swift.o",
+    "swiftmodule": "/home/runner/work/petal/petal/PetalKit/KeyboardShortcuts/.build/x86_64-unknown-linux-gnu/debug/KeyboardShortcuts.build/KeyboardShortcuts~partial.swiftmodule",
+    "swift-dependencies": "/home/runner/work/petal/petal/PetalKit/KeyboardShortcuts/.build/x86_64-unknown-linux-gnu/debug/KeyboardShortcuts.build/KeyboardShortcuts.swiftdeps",
+    "diagnostics": "/home/runner/work/petal/petal/PetalKit/KeyboardShortcuts/.build/x86_64-unknown-linux-gnu/debug/KeyboardShortcuts.build/KeyboardShortcuts.dia"
+  },
+  "/home/runner/work/petal/petal/PetalKit/KeyboardShortcuts/Sources/KeyboardShortcuts/NSMenuItem++.swift": {
+    "dependencies": "/home/runner/work/petal/petal/PetalKit/KeyboardShortcuts/.build/x86_64-unknown-linux-gnu/debug/KeyboardShortcuts.build/NSMenuItem++.d",
+    "object": "/home/runner/work/petal/petal/PetalKit/KeyboardShortcuts/.build/x86_64-unknown-linux-gnu/debug/KeyboardShortcuts.build/NSMenuItem++.swift.o",
+    "swiftmodule": "/home/runner/work/petal/petal/PetalKit/KeyboardShortcuts/.build/x86_64-unknown-linux-gnu/debug/KeyboardShortcuts.build/NSMenuItem++~partial.swiftmodule",
+    "swift-dependencies": "/home/runner/work/petal/petal/PetalKit/KeyboardShortcuts/.build/x86_64-unknown-linux-gnu/debug/KeyboardShortcuts.build/NSMenuItem++.swiftdeps",
+    "diagnostics": "/home/runner/work/petal/petal/PetalKit/KeyboardShortcuts/.build/x86_64-unknown-linux-gnu/debug/KeyboardShortcuts.build/NSMenuItem++.dia"
+  },
+  "/home/runner/work/petal/petal/PetalKit/KeyboardShortcuts/Sources/KeyboardShortcuts/Name.swift": {
+    "dependencies": "/home/runner/work/petal/petal/PetalKit/KeyboardShortcuts/.build/x86_64-unknown-linux-gnu/debug/KeyboardShortcuts.build/Name.d",
+    "object": "/home/runner/work/petal/petal/PetalKit/KeyboardShortcuts/.build/x86_64-unknown-linux-gnu/debug/KeyboardShortcuts.build/Name.swift.o",
+    "swiftmodule": "/home/runner/work/petal/petal/PetalKit/KeyboardShortcuts/.build/x86_64-unknown-linux-gnu/debug/KeyboardShortcuts.build/Name~partial.swiftmodule",
+    "swift-dependencies": "/home/runner/work/petal/petal/PetalKit/KeyboardShortcuts/.build/x86_64-unknown-linux-gnu/debug/KeyboardShortcuts.build/Name.swiftdeps",
+    "diagnostics": "/home/runner/work/petal/petal/PetalKit/KeyboardShortcuts/.build/x86_64-unknown-linux-gnu/debug/KeyboardShortcuts.build/Name.dia"
+  },
+  "/home/runner/work/petal/petal/PetalKit/KeyboardShortcuts/Sources/KeyboardShortcuts/Shortcut.swift": {
+    "dependencies": "/home/runner/work/petal/petal/PetalKit/KeyboardShortcuts/.build/x86_64-unknown-linux-gnu/debug/KeyboardShortcuts.build/Shortcut.d",
+    "object": "/home/runner/work/petal/petal/PetalKit/KeyboardShortcuts/.build/x86_64-unknown-linux-gnu/debug/KeyboardShortcuts.build/Shortcut.swift.o",
+    "swiftmodule": "/home/runner/work/petal/petal/PetalKit/KeyboardShortcuts/.build/x86_64-unknown-linux-gnu/debug/KeyboardShortcuts.build/Shortcut~partial.swiftmodule",
+    "swift-dependencies": "/home/runner/work/petal/petal/PetalKit/KeyboardShortcuts/.build/x86_64-unknown-linux-gnu/debug/KeyboardShortcuts.build/Shortcut.swiftdeps",
+    "diagnostics": "/home/runner/work/petal/petal/PetalKit/KeyboardShortcuts/.build/x86_64-unknown-linux-gnu/debug/KeyboardShortcuts.build/Shortcut.dia"
+  },
+  "/home/runner/work/petal/petal/PetalKit/KeyboardShortcuts/Sources/KeyboardShortcuts/Utilities.swift": {
+    "dependencies": "/home/runner/work/petal/petal/PetalKit/KeyboardShortcuts/.build/x86_64-unknown-linux-gnu/debug/KeyboardShortcuts.build/Utilities.d",
+    "object": "/home/runner/work/petal/petal/PetalKit/KeyboardShortcuts/.build/x86_64-unknown-linux-gnu/debug/KeyboardShortcuts.build/Utilities.swift.o",
+    "swiftmodule": "/home/runner/work/petal/petal/PetalKit/KeyboardShortcuts/.build/x86_64-unknown-linux-gnu/debug/KeyboardShortcuts.build/Utilities~partial.swiftmodule",
+    "swift-dependencies": "/home/runner/work/petal/petal/PetalKit/KeyboardShortcuts/.build/x86_64-unknown-linux-gnu/debug/KeyboardShortcuts.build/Utilities.swiftdeps",
+    "diagnostics": "/home/runner/work/petal/petal/PetalKit/KeyboardShortcuts/.build/x86_64-unknown-linux-gnu/debug/KeyboardShortcuts.build/Utilities.dia"
+  },
+  "/home/runner/work/petal/petal/PetalKit/KeyboardShortcuts/Sources/KeyboardShortcuts/View/BlinkingLight.swift": {
+    "dependencies": "/home/runner/work/petal/petal/PetalKit/KeyboardShortcuts/.build/x86_64-unknown-linux-gnu/debug/KeyboardShortcuts.build/BlinkingLight.d",
+    "object": "/home/runner/work/petal/petal/PetalKit/KeyboardShortcuts/.build/x86_64-unknown-linux-gnu/debug/KeyboardShortcuts.build/BlinkingLight.swift.o",
+    "swiftmodule": "/home/runner/work/petal/petal/PetalKit/KeyboardShortcuts/.build/x86_64-unknown-linux-gnu/debug/KeyboardShortcuts.build/BlinkingLight~partial.swiftmodule",
+    "swift-dependencies": "/home/runner/work/petal/petal/PetalKit/KeyboardShortcuts/.build/x86_64-unknown-linux-gnu/debug/KeyboardShortcuts.build/BlinkingLight.swiftdeps",
+    "diagnostics": "/home/runner/work/petal/petal/PetalKit/KeyboardShortcuts/.build/x86_64-unknown-linux-gnu/debug/KeyboardShortcuts.build/BlinkingLight.dia"
+  },
+  "/home/runner/work/petal/petal/PetalKit/KeyboardShortcuts/Sources/KeyboardShortcuts/View/DoubleTapRecorder.swift": {
+    "dependencies": "/home/runner/work/petal/petal/PetalKit/KeyboardShortcuts/.build/x86_64-unknown-linux-gnu/debug/KeyboardShortcuts.build/DoubleTapRecorder.d",
+    "object": "/home/runner/work/petal/petal/PetalKit/KeyboardShortcuts/.build/x86_64-unknown-linux-gnu/debug/KeyboardShortcuts.build/DoubleTapRecorder.swift.o",
+    "swiftmodule": "/home/runner/work/petal/petal/PetalKit/KeyboardShortcuts/.build/x86_64-unknown-linux-gnu/debug/KeyboardShortcuts.build/DoubleTapRecorder~partial.swiftmodule",
+    "swift-dependencies": "/home/runner/work/petal/petal/PetalKit/KeyboardShortcuts/.build/x86_64-unknown-linux-gnu/debug/KeyboardShortcuts.build/DoubleTapRecorder.swiftdeps",
+    "diagnostics": "/home/runner/work/petal/petal/PetalKit/KeyboardShortcuts/.build/x86_64-unknown-linux-gnu/debug/KeyboardShortcuts.build/DoubleTapRecorder.dia"
+  },
+  "/home/runner/work/petal/petal/PetalKit/KeyboardShortcuts/Sources/KeyboardShortcuts/View/Recorder+Mode.swift": {
+    "dependencies": "/home/runner/work/petal/petal/PetalKit/KeyboardShortcuts/.build/x86_64-unknown-linux-gnu/debug/KeyboardShortcuts.build/Recorder+Mode.d",
+    "object": "/home/runner/work/petal/petal/PetalKit/KeyboardShortcuts/.build/x86_64-unknown-linux-gnu/debug/KeyboardShortcuts.build/Recorder+Mode.swift.o",
+    "swiftmodule": "/home/runner/work/petal/petal/PetalKit/KeyboardShortcuts/.build/x86_64-unknown-linux-gnu/debug/KeyboardShortcuts.build/Recorder+Mode~partial.swiftmodule",
+    "swift-dependencies": "/home/runner/work/petal/petal/PetalKit/KeyboardShortcuts/.build/x86_64-unknown-linux-gnu/debug/KeyboardShortcuts.build/Recorder+Mode.swiftdeps",
+    "diagnostics": "/home/runner/work/petal/petal/PetalKit/KeyboardShortcuts/.build/x86_64-unknown-linux-gnu/debug/KeyboardShortcuts.build/Recorder+Mode.dia"
+  },
+  "/home/runner/work/petal/petal/PetalKit/KeyboardShortcuts/Sources/KeyboardShortcuts/View/Recorder.swift": {
+    "dependencies": "/home/runner/work/petal/petal/PetalKit/KeyboardShortcuts/.build/x86_64-unknown-linux-gnu/debug/KeyboardShortcuts.build/Recorder.d",
+    "object": "/home/runner/work/petal/petal/PetalKit/KeyboardShortcuts/.build/x86_64-unknown-linux-gnu/debug/KeyboardShortcuts.build/Recorder.swift.o",
+    "swiftmodule": "/home/runner/work/petal/petal/PetalKit/KeyboardShortcuts/.build/x86_64-unknown-linux-gnu/debug/KeyboardShortcuts.build/Recorder~partial.swiftmodule",
+    "swift-dependencies": "/home/runner/work/petal/petal/PetalKit/KeyboardShortcuts/.build/x86_64-unknown-linux-gnu/debug/KeyboardShortcuts.build/Recorder.swiftdeps",
+    "diagnostics": "/home/runner/work/petal/petal/PetalKit/KeyboardShortcuts/.build/x86_64-unknown-linux-gnu/debug/KeyboardShortcuts.build/Recorder.dia"
+  },
+  "/home/runner/work/petal/petal/PetalKit/KeyboardShortcuts/Sources/KeyboardShortcuts/View/RecorderContainerView.swift": {
+    "dependencies": "/home/runner/work/petal/petal/PetalKit/KeyboardShortcuts/.build/x86_64-unknown-linux-gnu/debug/KeyboardShortcuts.build/RecorderContainerView.d",
+    "object": "/home/runner/work/petal/petal/PetalKit/KeyboardShortcuts/.build/x86_64-unknown-linux-gnu/debug/KeyboardShortcuts.build/RecorderContainerView.swift.o",
+    "swiftmodule": "/home/runner/work/petal/petal/PetalKit/KeyboardShortcuts/.build/x86_64-unknown-linux-gnu/debug/KeyboardShortcuts.build/RecorderContainerView~partial.swiftmodule",
+    "swift-dependencies": "/home/runner/work/petal/petal/PetalKit/KeyboardShortcuts/.build/x86_64-unknown-linux-gnu/debug/KeyboardShortcuts.build/RecorderContainerView.swiftdeps",
+    "diagnostics": "/home/runner/work/petal/petal/PetalKit/KeyboardShortcuts/.build/x86_64-unknown-linux-gnu/debug/KeyboardShortcuts.build/RecorderContainerView.dia"
+  },
+  "/home/runner/work/petal/petal/PetalKit/KeyboardShortcuts/Sources/KeyboardShortcuts/View/ShortcutSymbol.swift": {
+    "dependencies": "/home/runner/work/petal/petal/PetalKit/KeyboardShortcuts/.build/x86_64-unknown-linux-gnu/debug/KeyboardShortcuts.build/ShortcutSymbol.d",
+    "object": "/home/runner/work/petal/petal/PetalKit/KeyboardShortcuts/.build/x86_64-unknown-linux-gnu/debug/KeyboardShortcuts.build/ShortcutSymbol.swift.o",
+    "swiftmodule": "/home/runner/work/petal/petal/PetalKit/KeyboardShortcuts/.build/x86_64-unknown-linux-gnu/debug/KeyboardShortcuts.build/ShortcutSymbol~partial.swiftmodule",
+    "swift-dependencies": "/home/runner/work/petal/petal/PetalKit/KeyboardShortcuts/.build/x86_64-unknown-linux-gnu/debug/KeyboardShortcuts.build/ShortcutSymbol.swiftdeps",
+    "diagnostics": "/home/runner/work/petal/petal/PetalKit/KeyboardShortcuts/.build/x86_64-unknown-linux-gnu/debug/KeyboardShortcuts.build/ShortcutSymbol.dia"
+  },
+  "/home/runner/work/petal/petal/PetalKit/KeyboardShortcuts/Sources/KeyboardShortcuts/View/VisualEffectView.swift": {
+    "dependencies": "/home/runner/work/petal/petal/PetalKit/KeyboardShortcuts/.build/x86_64-unknown-linux-gnu/debug/KeyboardShortcuts.build/VisualEffectView.d",
+    "object": "/home/runner/work/petal/petal/PetalKit/KeyboardShortcuts/.build/x86_64-unknown-linux-gnu/debug/KeyboardShortcuts.build/VisualEffectView.swift.o",
+    "swiftmodule": "/home/runner/work/petal/petal/PetalKit/KeyboardShortcuts/.build/x86_64-unknown-linux-gnu/debug/KeyboardShortcuts.build/VisualEffectView~partial.swiftmodule",
+    "swift-dependencies": "/home/runner/work/petal/petal/PetalKit/KeyboardShortcuts/.build/x86_64-unknown-linux-gnu/debug/KeyboardShortcuts.build/VisualEffectView.swiftdeps",
+    "diagnostics": "/home/runner/work/petal/petal/PetalKit/KeyboardShortcuts/.build/x86_64-unknown-linux-gnu/debug/KeyboardShortcuts.build/VisualEffectView.dia"
+  },
+  "/home/runner/work/petal/petal/PetalKit/KeyboardShortcuts/Sources/KeyboardShortcuts/View/_Recorder.swift": {
+    "dependencies": "/home/runner/work/petal/petal/PetalKit/KeyboardShortcuts/.build/x86_64-unknown-linux-gnu/debug/KeyboardShortcuts.build/_Recorder.d",
+    "object": "/home/runner/work/petal/petal/PetalKit/KeyboardShortcuts/.build/x86_64-unknown-linux-gnu/debug/KeyboardShortcuts.build/_Recorder.swift.o",
+    "swiftmodule": "/home/runner/work/petal/petal/PetalKit/KeyboardShortcuts/.build/x86_64-unknown-linux-gnu/debug/KeyboardShortcuts.build/_Recorder~partial.swiftmodule",
+    "swift-dependencies": "/home/runner/work/petal/petal/PetalKit/KeyboardShortcuts/.build/x86_64-unknown-linux-gnu/debug/KeyboardShortcuts.build/_Recorder.swiftdeps",
+    "diagnostics": "/home/runner/work/petal/petal/PetalKit/KeyboardShortcuts/.build/x86_64-unknown-linux-gnu/debug/KeyboardShortcuts.build/_Recorder.dia"
+  },
+  "/home/runner/work/petal/petal/PetalKit/KeyboardShortcuts/Sources/KeyboardShortcuts/ViewModifiers.swift": {
+    "dependencies": "/home/runner/work/petal/petal/PetalKit/KeyboardShortcuts/.build/x86_64-unknown-linux-gnu/debug/KeyboardShortcuts.build/ViewModifiers.d",
+    "object": "/home/runner/work/petal/petal/PetalKit/KeyboardShortcuts/.build/x86_64-unknown-linux-gnu/debug/KeyboardShortcuts.build/ViewModifiers.swift.o",
+    "swiftmodule": "/home/runner/work/petal/petal/PetalKit/KeyboardShortcuts/.build/x86_64-unknown-linux-gnu/debug/KeyboardShortcuts.build/ViewModifiers~partial.swiftmodule",
+    "swift-dependencies": "/home/runner/work/petal/petal/PetalKit/KeyboardShortcuts/.build/x86_64-unknown-linux-gnu/debug/KeyboardShortcuts.build/ViewModifiers.swiftdeps",
+    "diagnostics": "/home/runner/work/petal/petal/PetalKit/KeyboardShortcuts/.build/x86_64-unknown-linux-gnu/debug/KeyboardShortcuts.build/ViewModifiers.dia"
+  },
+  "/home/runner/work/petal/petal/PetalKit/KeyboardShortcuts/.build/x86_64-unknown-linux-gnu/debug/KeyboardShortcuts.build/DerivedSources/resource_bundle_accessor.swift": {
+    "dependencies": "/home/runner/work/petal/petal/PetalKit/KeyboardShortcuts/.build/x86_64-unknown-linux-gnu/debug/KeyboardShortcuts.build/resource_bundle_accessor.d",
+    "object": "/home/runner/work/petal/petal/PetalKit/KeyboardShortcuts/.build/x86_64-unknown-linux-gnu/debug/KeyboardShortcuts.build/resource_bundle_accessor.swift.o",
+    "swiftmodule": "/home/runner/work/petal/petal/PetalKit/KeyboardShortcuts/.build/x86_64-unknown-linux-gnu/debug/KeyboardShortcuts.build/resource_bundle_accessor~partial.swiftmodule",
+    "swift-dependencies": "/home/runner/work/petal/petal/PetalKit/KeyboardShortcuts/.build/x86_64-unknown-linux-gnu/debug/KeyboardShortcuts.build/resource_bundle_accessor.swiftdeps",
+    "diagnostics": "/home/runner/work/petal/petal/PetalKit/KeyboardShortcuts/.build/x86_64-unknown-linux-gnu/debug/KeyboardShortcuts.build/resource_bundle_accessor.dia"
+  }
+}

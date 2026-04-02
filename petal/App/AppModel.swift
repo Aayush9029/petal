@@ -1,6 +1,7 @@
 import AppKit
 import AudioClient
 import class SwiftUI.NSHostingView
+import CoreAudio
 import DoubleTapClient
 import FloatingCapsuleClient
 import FoundationModelClient
@@ -116,6 +117,8 @@ final class AppModel {
     private var toggleActivationThresholdSeconds: Double { pushToTalkThreshold.seconds }
     nonisolated private static let deepLinkStartTimeoutSeconds = 12.0
     nonisolated private static let mediaPlayPauseKeyCode = 16
+    nonisolated private static let wiredHeadphoneDataSourceID: UInt32 = 0x6864706E // "hdpn"
+    nonisolated private static let headphoneDataSourceID: UInt32 = 0x68647068 // "hdph"
 
     nonisolated private static var isRunningInSwiftUIPreview: Bool {
         ProcessInfo.processInfo.environment["XCODE_RUNNING_FOR_PREVIEWS"] == "1"
@@ -1480,6 +1483,11 @@ final class AppModel {
             shouldResumePlaybackAfterRecording = false
             return
         }
+        if hasConnectedHeadphones() {
+            shouldResumePlaybackAfterRecording = false
+            logger.debug("Skipping playback pause because headphones are connected")
+            return
+        }
         let commandResult = await postPlayPauseCommand()
         let didSendCommand = commandResult.sent
         if !didSendCommand {
@@ -1526,6 +1534,113 @@ final class AppModel {
                 return (false, error.localizedDescription)
             }
         }.value
+    }
+
+    private func hasConnectedHeadphones() -> Bool {
+        guard let outputDeviceID = defaultOutputDeviceID() else { return false }
+
+        if let transportType = outputTransportType(deviceID: outputDeviceID),
+           transportType == kAudioDeviceTransportTypeBluetooth
+           || transportType == kAudioDeviceTransportTypeBluetoothLE
+        {
+            return true
+        }
+
+        if let dataSourceID = outputDataSource(deviceID: outputDeviceID),
+           dataSourceID == Self.wiredHeadphoneDataSourceID || dataSourceID == Self.headphoneDataSourceID
+        {
+            return true
+        }
+
+        guard let outputName = outputDeviceName(deviceID: outputDeviceID)?.lowercased() else {
+            return false
+        }
+
+        return outputName.contains("airpods")
+            || outputName.contains("headphone")
+            || outputName.contains("headset")
+            || outputName.contains("earbud")
+            || outputName.contains("buds")
+    }
+
+    private func defaultOutputDeviceID() -> AudioDeviceID? {
+        var address = AudioObjectPropertyAddress(
+            mSelector: kAudioHardwarePropertyDefaultOutputDevice,
+            mScope: kAudioObjectPropertyScopeGlobal,
+            mElement: kAudioObjectPropertyElementMain
+        )
+        var deviceID = AudioDeviceID(0)
+        var dataSize = UInt32(MemoryLayout<AudioDeviceID>.size)
+        let status = AudioObjectGetPropertyData(
+            AudioObjectID(kAudioObjectSystemObject),
+            &address,
+            0,
+            nil,
+            &dataSize,
+            &deviceID
+        )
+        guard status == noErr else { return nil }
+        return deviceID
+    }
+
+    private func outputTransportType(deviceID: AudioDeviceID) -> UInt32? {
+        var address = AudioObjectPropertyAddress(
+            mSelector: kAudioDevicePropertyTransportType,
+            mScope: kAudioObjectPropertyScopeGlobal,
+            mElement: kAudioObjectPropertyElementMain
+        )
+        var transportType: UInt32 = 0
+        var dataSize = UInt32(MemoryLayout<UInt32>.size)
+        let status = AudioObjectGetPropertyData(
+            deviceID,
+            &address,
+            0,
+            nil,
+            &dataSize,
+            &transportType
+        )
+        guard status == noErr else { return nil }
+        return transportType
+    }
+
+    private func outputDataSource(deviceID: AudioDeviceID) -> UInt32? {
+        var address = AudioObjectPropertyAddress(
+            mSelector: kAudioDevicePropertyDataSource,
+            mScope: kAudioDevicePropertyScopeOutput,
+            mElement: kAudioObjectPropertyElementMain
+        )
+        var dataSource: UInt32 = 0
+        var dataSize = UInt32(MemoryLayout<UInt32>.size)
+        let status = AudioObjectGetPropertyData(
+            deviceID,
+            &address,
+            0,
+            nil,
+            &dataSize,
+            &dataSource
+        )
+        guard status == noErr else { return nil }
+        return dataSource
+    }
+
+    private func outputDeviceName(deviceID: AudioDeviceID) -> String? {
+        var address = AudioObjectPropertyAddress(
+            mSelector: kAudioObjectPropertyName,
+            mScope: kAudioObjectPropertyScopeGlobal,
+            mElement: kAudioObjectPropertyElementMain
+        )
+        var name: CFString = "" as CFString
+        var dataSize = UInt32(MemoryLayout<CFString>.size)
+        let status = AudioObjectGetPropertyData(
+            deviceID,
+            &address,
+            0,
+            nil,
+            &dataSize,
+            &name
+        )
+        guard status == noErr else { return nil }
+        return name as String
     }
 
     private func recordingLevelDidUpdate(_ level: Double) {
