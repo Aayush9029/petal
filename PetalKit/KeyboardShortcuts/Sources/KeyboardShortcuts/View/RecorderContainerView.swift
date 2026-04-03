@@ -10,6 +10,7 @@ protocol RecorderContainerDelegate: AnyObject {
 final class RecorderContainerView: NSView {
     private let onChange: ((_ shortcut: KeyboardShortcuts.Shortcut?) -> Void)?
     private var oldSet: String?
+    private var pressedModifierKeyCodes = Set<Int>()
     private var mode: KeyboardShortcuts.RecorderMode = .ready {
         willSet {
             if case let .set(string) = mode, case .preRecording = newValue {
@@ -71,11 +72,13 @@ final class RecorderContainerView: NSView {
 
     func startRecording() {
         guard !mode.isActive else { return }
+        pressedModifierKeyCodes.removeAll()
         mode = .preRecording
         focus()
     }
 
     func stopRecording() {
+        pressedModifierKeyCodes.removeAll()
         if let oldSet {
             mode = .set(oldSet)
         } else if case .preRecording = mode {
@@ -230,13 +233,31 @@ final class RecorderContainerView: NSView {
 
     override func flagsChanged(with event: NSEvent) {
         guard mode.isActive else { return }
-        if event.modifiers.isEmpty {
+        let keyCode = Int(event.keyCode)
+        guard KeyboardShortcuts.Key(rawValue: keyCode).isModifier else {
+            if event.modifiers.isEmpty {
+                mode = .preRecording
+            } else {
+                mode = .recording(event.modifiers.description)
+            }
+            return
+        }
+
+        if pressedModifierKeyCodes.contains(keyCode) {
+            pressedModifierKeyCodes.remove(keyCode)
+
+            if let shortcut = shortcutFromModifierKeyUp(keyCode: keyCode) {
+                saveShortcut(shortcut)
+                return
+            }
+        } else {
+            pressedModifierKeyCodes.insert(keyCode)
+        }
+
+        if pressedModifierKeyCodes.isEmpty {
             mode = .preRecording
         } else {
             mode = .recording(event.modifiers.description)
-            if let shortcut = shortcutFromModifierEvent(event) {
-                saveShortcut(shortcut)
-            }
         }
     }
 
@@ -261,27 +282,31 @@ final class RecorderContainerView: NSView {
         )
     }
 
-    private func shortcutFromModifierEvent(_ event: NSEvent) -> KeyboardShortcuts.Shortcut? {
-        let key = KeyboardShortcuts.Key(rawValue: Int(event.keyCode))
+    private func shortcutFromModifierKeyUp(keyCode: Int) -> KeyboardShortcuts.Shortcut? {
+        let key = KeyboardShortcuts.Key(rawValue: keyCode)
         guard
-            let modifierKey = key.modifierFlag
+            let key,
+            key.isModifier,
+            !pressedModifierKeyCodes.isEmpty
         else {
             return nil
         }
 
-        // Record only on key-up so modifier + letter/number shortcuts can still be entered.
-        guard !event.modifiers.contains(modifierKey) else {
-            return nil
+        var carbonModifiers = 0
+        for remainingKeyCode in pressedModifierKeyCodes {
+            guard let modifier = KeyboardShortcuts.Key(rawValue: remainingKeyCode)?.modifierFlag else {
+                continue
+            }
+            carbonModifiers |= modifier.carbon
         }
 
-        let remainingModifiers = event.modifiers.subtracting(modifierKey)
-        guard !remainingModifiers.isEmpty else {
+        guard carbonModifiers != 0 else {
             return nil
         }
 
         return KeyboardShortcuts.Shortcut(
             carbonKeyCode: key.rawValue,
-            carbonModifiers: remainingModifiers.carbon
+            carbonModifiers: carbonModifiers
         )
     }
 
@@ -316,6 +341,17 @@ final class RecorderContainerView: NSView {
 }
 
 private extension KeyboardShortcuts.Key {
+    var isModifier: Bool {
+        self == .command
+            || self == .rightCommand
+            || self == .option
+            || self == .rightOption
+            || self == .control
+            || self == .rightControl
+            || self == .shift
+            || self == .rightShift
+    }
+
     var modifierFlag: NSEvent.ModifierFlags? {
         if self == .command || self == .rightCommand {
             return .command

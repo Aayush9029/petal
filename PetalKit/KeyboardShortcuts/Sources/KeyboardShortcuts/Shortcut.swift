@@ -155,13 +155,13 @@ extension KeyboardShortcuts.Shortcut {
 
 private let keyToCharacterMapping: [KeyboardShortcuts.Key: String] = [
 	.command: "⌘",
-	.rightCommand: "⌘",
+	.rightCommand: "⌘R",
 	.option: "⌥",
-	.rightOption: "⌥",
+	.rightOption: "⌥R",
 	.control: "⌃",
-	.rightControl: "⌃",
+	.rightControl: "⌃R",
 	.shift: "⇧",
-	.rightShift: "⇧",
+	.rightShift: "⇧R",
 
 	.return: "↩",
 	.delete: "⌫",
@@ -225,13 +225,13 @@ private let keyToCharacterMapping: [KeyboardShortcuts.Key: String] = [
 
 private let humanKeyToCharacterMapping: [KeyboardShortcuts.Key: String] = [
 	.command: "Command",
-	.rightCommand: "Command",
+	.rightCommand: "Right Command",
 	.option: "Option",
-	.rightOption: "Option",
+	.rightOption: "Right Option",
 	.control: "Control",
-	.rightControl: "Control",
+	.rightControl: "Right Control",
 	.shift: "Shift",
-	.rightShift: "Shift",
+	.rightShift: "Right Shift",
 
 	.return: "Return",
 	.delete: "Delete",
