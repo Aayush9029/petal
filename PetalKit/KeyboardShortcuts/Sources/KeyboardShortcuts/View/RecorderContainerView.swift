@@ -234,7 +234,7 @@ final class RecorderContainerView: NSView {
     override func flagsChanged(with event: NSEvent) {
         guard mode.isActive else { return }
         let keyCode = Int(event.keyCode)
-        guard KeyboardShortcuts.Key(rawValue: keyCode).isModifier else {
+        guard isModifierKeyCode(keyCode) else {
             if event.modifiers.isEmpty {
                 mode = .preRecording
             } else {
@@ -283,10 +283,8 @@ final class RecorderContainerView: NSView {
     }
 
     private func shortcutFromModifierKeyUp(keyCode: Int) -> KeyboardShortcuts.Shortcut? {
-        let key = KeyboardShortcuts.Key(rawValue: keyCode)
         guard
-            let key,
-            key.isModifier,
+            isModifierKeyCode(keyCode),
             !pressedModifierKeyCodes.isEmpty
         else {
             return nil
@@ -294,7 +292,7 @@ final class RecorderContainerView: NSView {
 
         var carbonModifiers = 0
         for remainingKeyCode in pressedModifierKeyCodes {
-            guard let modifier = KeyboardShortcuts.Key(rawValue: remainingKeyCode)?.modifierFlag else {
+            guard let modifier = modifierFlag(for: remainingKeyCode) else {
                 continue
             }
             carbonModifiers |= modifier.carbon
@@ -305,9 +303,28 @@ final class RecorderContainerView: NSView {
         }
 
         return KeyboardShortcuts.Shortcut(
-            carbonKeyCode: key.rawValue,
+            carbonKeyCode: keyCode,
             carbonModifiers: carbonModifiers
         )
+    }
+
+    private func isModifierKeyCode(_ keyCode: Int) -> Bool {
+        modifierFlag(for: keyCode) != nil
+    }
+
+    private func modifierFlag(for keyCode: Int) -> NSEvent.ModifierFlags? {
+        switch keyCode {
+        case kVK_Command, kVK_RightCommand:
+            return .command
+        case kVK_Option, kVK_RightOption:
+            return .option
+        case kVK_Control, kVK_RightControl:
+            return .control
+        case kVK_Shift, kVK_RightShift:
+            return .shift
+        default:
+            return nil
+        }
     }
 
     private func saveShortcut(_ shortcut: KeyboardShortcuts.Shortcut?) {
@@ -337,39 +354,6 @@ final class RecorderContainerView: NSView {
     deinit {
         NotificationCenter.default.removeObserver(shortcutsNameChangeObserver as Any)
         NotificationCenter.default.removeObserver(windowDidResignKeyObserver as Any)
-    }
-}
-
-private extension KeyboardShortcuts.Key {
-    var isModifier: Bool {
-        self == .command
-            || self == .rightCommand
-            || self == .option
-            || self == .rightOption
-            || self == .control
-            || self == .rightControl
-            || self == .shift
-            || self == .rightShift
-    }
-
-    var modifierFlag: NSEvent.ModifierFlags? {
-        if self == .command || self == .rightCommand {
-            return .command
-        }
-
-        if self == .option || self == .rightOption {
-            return .option
-        }
-
-        if self == .control || self == .rightControl {
-            return .control
-        }
-
-        if self == .shift || self == .rightShift {
-            return .shift
-        }
-
-        return nil
     }
 }
 
