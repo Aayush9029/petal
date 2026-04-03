@@ -11,3 +11,4 @@ ops/private/
 
 build-release/
 secret_keys/
+PetalKit/KeyboardShortcuts/.build/
