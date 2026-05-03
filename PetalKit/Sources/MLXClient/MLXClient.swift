@@ -55,6 +55,7 @@ public enum MLXPipelineModel: String, Sendable {
     case mini3b
     case mini3b8bit
     case qwen3ASR06B4bit
+    case qwen3ASR17BInt8
     case parakeetTDT06BV3
     case whisperLargeV3Turbo
     case whisperTiny
@@ -243,6 +244,7 @@ private actor LiveMLXRuntime {
     private var loadedModel: MLXPipelineModel?
     private var voxtralPipeline: VoxtralPipeline?
     private var qwen3AsrManager: Qwen3AsrManager?
+    private var qwen3Asr17BManager: Qwen3ASR17BCoreMLManager?
     private var parakeetAsrManager: AsrManager?
     private var whisperKitInstance: WhisperKit?
 
@@ -301,6 +303,24 @@ private actor LiveMLXRuntime {
             let loadElapsed = ProcessInfo.processInfo.systemUptime - loadStart
             log("prepare.qwen.loaded elapsed=\(formatElapsedSeconds(loadElapsed))")
             qwen3AsrManager = manager
+
+        case .qwen3ASR17BInt8:
+            guard let fluidAudioModel = model.fluidAudioModel else {
+                throw MLXError.invalidModelIdentifier(model.rawValue)
+            }
+            log("prepare.qwen17.begin")
+            let resolveStart = ProcessInfo.processInfo.systemUptime
+            let modelDirectory = try await FluidAudioCache.downloadIfNeeded(model: fluidAudioModel)
+            let resolveElapsed = ProcessInfo.processInfo.systemUptime - resolveStart
+            log(
+                "prepare.qwen17.model-ready elapsed=\(formatElapsedSeconds(resolveElapsed)), directory=\(modelDirectory.lastPathComponent)"
+            )
+            let manager = Qwen3ASR17BCoreMLManager()
+            let loadStart = ProcessInfo.processInfo.systemUptime
+            try await manager.loadModels(from: modelDirectory)
+            let loadElapsed = ProcessInfo.processInfo.systemUptime - loadStart
+            log("prepare.qwen17.loaded elapsed=\(formatElapsedSeconds(loadElapsed))")
+            qwen3Asr17BManager = manager
 
         case .parakeetTDT06BV3:
             guard let fluidAudioModel = model.fluidAudioModel else {
@@ -404,6 +424,33 @@ private actor LiveMLXRuntime {
                 log("transcribe.qwen.normalized chars=\(normalizedText.count)")
                 transcript = normalizedText
 
+            case .qwen3ASR17BInt8:
+                guard let qwen3Asr17BManager else {
+                    throw MLXError.pipelineUnavailable
+                }
+
+                let resampleStart = ProcessInfo.processInfo.systemUptime
+                let audioSamples = try audioConverter.resampleAudioFile(audioURL)
+                let resampleElapsed = ProcessInfo.processInfo.systemUptime - resampleStart
+                log(
+                    "transcribe.qwen17.resample completed elapsed=\(formatElapsedSeconds(resampleElapsed)), samples=\(audioSamples.count)"
+                )
+
+                let inferenceStart = ProcessInfo.processInfo.systemUptime
+                let text = try await qwen3Asr17BManager.transcribe(audioSamples: audioSamples)
+                let inferenceElapsed = ProcessInfo.processInfo.systemUptime - inferenceStart
+                log(
+                    "transcribe.qwen17.inference completed elapsed=\(formatElapsedSeconds(inferenceElapsed)), rawChars=\(text.count)"
+                )
+
+                let normalizedText = normalizeQwenTranscript(text)
+                guard !normalizedText.isEmpty else {
+                    log("transcribe.qwen17.empty-normalized-output")
+                    throw MLXError.pipelineUnavailable
+                }
+                log("transcribe.qwen17.normalized chars=\(normalizedText.count)")
+                transcript = normalizedText
+
             case .parakeetTDT06BV3:
                 guard let parakeetAsrManager else {
                     throw MLXError.pipelineUnavailable
@@ -465,6 +512,7 @@ private actor LiveMLXRuntime {
         voxtralPipeline?.unload()
         voxtralPipeline = nil
         qwen3AsrManager = nil
+        qwen3Asr17BManager = nil
         parakeetAsrManager = nil
         whisperKitInstance = nil
         loadedModel = nil
@@ -522,6 +570,7 @@ private func normalizeDownloadError(_ error: any Error) -> MLXDownloadError {
 
 private enum FluidAudioModel: Sendable, Equatable {
     case qwen3Asr
+    case qwen3Asr17B
     case parakeetTdt06BV3
 
     init?(info: MLXModelInfo) {
@@ -531,6 +580,8 @@ private enum FluidAudioModel: Sendable, Equatable {
         switch normalizedID {
         case MLXPipelineModel.qwen3ASR06B4bit.rawValue:
             self = .qwen3Asr
+        case MLXPipelineModel.qwen3ASR17BInt8.rawValue:
+            self = .qwen3Asr17B
         case MLXPipelineModel.parakeetTDT06BV3.rawValue:
             self = .parakeetTdt06BV3
         default:
@@ -539,6 +590,11 @@ private enum FluidAudioModel: Sendable, Equatable {
                  "fluidinference/qwen3-asr-0.6b-coreml/int8",
                  "mlx-community/qwen3-asr-0.6b-4bit":
                 self = .qwen3Asr
+            case "weiren119/qwen3-asr-1.7b-coreml",
+                 "qwen/qwen3-asr-1.7b",
+                 "mlx-community/qwen3-asr-1.7b-4bit",
+                 "mlx-community/qwen3-asr-1.7b-bf16":
+                self = .qwen3Asr17B
             case "fluidinference/parakeet-tdt-0.6b-v3-coreml",
                  "mlx-community/parakeet-tdt-0.6b-v3":
                 self = .parakeetTdt06BV3
@@ -552,6 +608,8 @@ private enum FluidAudioModel: Sendable, Equatable {
         switch self {
         case .qwen3Asr:
             return Qwen3AsrModels.defaultCacheDirectory()
+        case .qwen3Asr17B:
+            return Qwen3ASR17BCoreMLModels.defaultCacheDirectory()
         case .parakeetTdt06BV3:
             return AsrModels.defaultCacheDirectory(for: .v3)
         }
@@ -570,6 +628,8 @@ private enum FluidAudioModel: Sendable, Equatable {
                 repoDirectory.appendingPathComponent("qwen3-asr-0.6b-coreml-f32", isDirectory: true),
                 modelsRoot.appendingPathComponent("qwen3-asr-0.6b-coreml-f32", isDirectory: true),
             ]
+        case .qwen3Asr17B:
+            return [Qwen3ASR17BCoreMLModels.defaultCacheDirectory()]
         case .parakeetTdt06BV3:
             return [AsrModels.defaultCacheDirectory(for: .v3)]
         }
@@ -579,6 +639,8 @@ private enum FluidAudioModel: Sendable, Equatable {
         switch self {
         case .qwen3Asr:
             return "Qwen3 ASR"
+        case .qwen3Asr17B:
+            return "Qwen3 ASR 1.7B"
         case .parakeetTdt06BV3:
             return "Parakeet TDT"
         }
@@ -635,6 +697,9 @@ private enum FluidAudioCache {
                 }
             }
             return nil
+        case .qwen3Asr17B:
+            let defaultDirectory = model.directoryURL
+            return Qwen3ASR17BCoreMLModels.modelsExist(at: defaultDirectory) ? defaultDirectory : nil
         case .parakeetTdt06BV3:
             let defaultDirectory = model.directoryURL
             return AsrModels.modelsExist(at: defaultDirectory, version: .v3) ? defaultDirectory : nil
@@ -661,6 +726,21 @@ private enum FluidAudioCache {
                 destination: Qwen3AsrModels.defaultCacheDirectory(),
                 fileFilter: nil,
                 progress: progress
+            )
+        case .qwen3Asr17B:
+            try await ModelDownloader.downloadFromHuggingFace(
+                repoId: "weiren119/Qwen3-ASR-1.7B-CoreML",
+                subfolder: nil,
+                destination: Qwen3ASR17BCoreMLModels.defaultCacheDirectory(),
+                fileFilter: nil,
+                progress: progress
+            )
+            try await ModelDownloader.downloadFromHuggingFace(
+                repoId: "Qwen/Qwen3-ASR-1.7B",
+                subfolder: nil,
+                destination: Qwen3ASR17BCoreMLModels.defaultCacheDirectory(),
+                fileFilter: { $0 == "vocab.json" },
+                progress: { _, status in progress?(0.99, status) }
             )
         case .parakeetTdt06BV3:
             try await ModelDownloader.downloadFromHuggingFace(
@@ -705,6 +785,8 @@ private extension MLXPipelineModel {
         switch self {
         case .qwen3ASR06B4bit:
             return .qwen3Asr
+        case .qwen3ASR17BInt8:
+            return .qwen3Asr17B
         case .parakeetTDT06BV3:
             return .parakeetTdt06BV3
         case .mini3b, .mini3b8bit, .whisperLargeV3Turbo, .whisperTiny:
@@ -718,7 +800,7 @@ private extension MLXPipelineModel {
             return "openai_whisper-large-v3_turbo"
         case .whisperTiny:
             return "openai_whisper-tiny"
-        case .mini3b, .mini3b8bit, .qwen3ASR06B4bit, .parakeetTDT06BV3:
+        case .mini3b, .mini3b8bit, .qwen3ASR06B4bit, .qwen3ASR17BInt8, .parakeetTDT06BV3:
             return nil
         }
     }
@@ -729,7 +811,7 @@ private extension MLXPipelineModel {
             return .mini3b
         case .mini3b8bit:
             return .mini3b8bit
-        case .qwen3ASR06B4bit, .parakeetTDT06BV3, .whisperLargeV3Turbo, .whisperTiny:
+        case .qwen3ASR06B4bit, .qwen3ASR17BInt8, .parakeetTDT06BV3, .whisperLargeV3Turbo, .whisperTiny:
             return .mini3b
         }
     }
