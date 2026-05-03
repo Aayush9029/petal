@@ -2,6 +2,7 @@ import Dependencies
 import Darwin
 import os
 import Carbon.HIToolbox
+import PlaybackDuckingClient
 import Sparkle
 import SwiftUI
 import WindowClient
@@ -49,6 +50,7 @@ struct PetalApp: App {
                     NSApp.sendAction(#selector(AppDelegate.showAboutPanel), to: nil, from: nil)
                 }
             }
+            CommandGroup(replacing: .appSettings) { }
         }
 
 
@@ -102,6 +104,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     weak var menuBarViewModel: MenuBarContentViewModel?
     var updatesModel: CheckForUpdatesModel?
     @Dependency(\.windowClient) private var windowClient
+    @Dependency(\.playbackDuckingClient) private var playbackDuckingClient
     private let logger = Logger(subsystem: "com.optimalapps.petal", category: "AppDelegate")
     private var pendingDeepLinkCommands: [PetalDeepLinkCommand] = []
     private var pendingUpdateCheckFromDeepLink = false
@@ -119,6 +122,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         enforceSingleInstance()
         updaterController.startUpdater()
         flushPendingUpdateCheckIfReady()
+    }
+
+    func applicationWillTerminate(_ notification: Notification) {
+        let semaphore = DispatchSemaphore(value: 0)
+        Task.detached { [playbackDuckingClient] in
+            await playbackDuckingClient.stopDucking()
+            semaphore.signal()
+        }
+        _ = semaphore.wait(timeout: .now() + 2)
     }
 
     func application(_ application: NSApplication, open urls: [URL]) {

@@ -1,55 +1,54 @@
 import AppKit
+import Observation
 import Shared
 
 @MainActor
 final class StatusItemController: NSObject, NSMenuDelegate {
+    private static let iconWidth: CGFloat = 28
+
     private let statusItem: NSStatusItem
-    private let statusView: DropStatusItemView
+    private let dropOverlay: DropOverlayView
     private let viewModel: MenuBarContentViewModel
     private let menu = NSMenu()
-    private var refreshTimer: Timer?
 
     init(viewModel: MenuBarContentViewModel) {
         self.viewModel = viewModel
-        self.statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-        self.statusView = DropStatusItemView(frame: NSRect(x: 0, y: 0, width: 28, height: NSStatusBar.system.thickness))
+        self.statusItem = NSStatusBar.system.statusItem(withLength: Self.iconWidth)
+        self.dropOverlay = DropOverlayView(frame: .zero)
         super.init()
 
-        statusView.onClick = { [weak self] in
-            self?.showMenu()
+        if let button = statusItem.button {
+            dropOverlay.frame = button.bounds
+            dropOverlay.autoresizingMask = [.width, .height]
+            dropOverlay.onDropURLs = { [weak self] urls in self?.handleDroppedURLs(urls) }
+            button.addSubview(dropOverlay)
         }
-        statusView.onDropURLs = { [weak self] urls in
-            self?.handleDroppedURLs(urls)
-        }
-        statusItem.view = statusView
-        menu.delegate = self
-        refresh()
 
-        let timer = Timer(timeInterval: 0.2, repeats: true) { [weak self] _ in
-            Task { @MainActor in self?.refresh() }
-        }
-        RunLoop.main.add(timer, forMode: .common)
-        self.refreshTimer = timer
+        menu.delegate = self
+        statusItem.menu = menu
+        observeViewModel()
     }
 
     func menuWillOpen(_ menu: NSMenu) {
         rebuildMenu()
     }
 
-    private func refresh() {
-        statusView.symbolName = viewModel.statusSymbolName
-        statusView.toolTip = "Petal - \(viewModel.statusTitle)"
-        statusItem.length = 28
-        statusView.needsDisplay = true
+    private func observeViewModel() {
+        withObservationTracking {
+            applyStatus()
+        } onChange: {
+            Task { @MainActor [weak self] in
+                self?.observeViewModel()
+            }
+        }
     }
 
-    private func showMenu() {
-        rebuildMenu()
-        statusView.isMenuHighlighted = true
-        statusView.needsDisplay = true
-        statusItem.popUpMenu(menu)
-        statusView.isMenuHighlighted = false
-        statusView.needsDisplay = true
+    private func applyStatus() {
+        guard let button = statusItem.button else { return }
+        let image = NSImage(systemSymbolName: viewModel.statusSymbolName, accessibilityDescription: "Petal")
+        image?.isTemplate = true
+        button.image = image
+        button.toolTip = "Petal - \(viewModel.statusTitle)"
     }
 
     private func handleDroppedURLs(_ urls: [URL]) {
@@ -63,88 +62,95 @@ final class StatusItemController: NSObject, NSMenuDelegate {
 
     private func rebuildMenu() {
         menu.removeAllItems()
+        buildStatusSection(into: menu)
+        menu.addItem(.separator())
+        buildPermissionsSection(into: menu)
+        buildHistorySection(into: menu)
+        menu.addItem(.separator())
+        buildAppSection(into: menu)
+        menu.addItem(.separator())
+        buildQuitSection(into: menu)
+    }
 
-        let statusItem = NSMenuItem(title: viewModel.statusTitle, action: nil, keyEquivalent: "")
-        statusItem.isEnabled = false
-        menu.addItem(statusItem)
+    private func buildStatusSection(into menu: NSMenu) {
+        menu.addItem(disabledItem(viewModel.statusTitle))
 
         if viewModel.isRecording {
-            menu.addItem(NSMenuItem(title: "Stop Recording", action: #selector(stopRecording), keyEquivalent: ""))
+            menu.addItem(actionItem("Stop Recording", action: #selector(stopRecording)))
         }
 
         if let error = viewModel.statusErrorMessage {
-            let item = NSMenuItem(title: error, action: nil, keyEquivalent: "")
-            item.isEnabled = false
-            menu.addItem(item)
+            menu.addItem(disabledItem(error))
         }
 
         if !viewModel.isRecording, let message = viewModel.transientMessage {
-            let item = NSMenuItem(title: message, action: nil, keyEquivalent: "")
-            item.isEnabled = false
-            menu.addItem(item)
+            menu.addItem(disabledItem(message))
+        }
+    }
+
+    private func buildPermissionsSection(into menu: NSMenu) {
+        guard viewModel.shouldShowPermissionsSection else { return }
+        if viewModel.needsMicrophonePermission {
+            menu.addItem(actionItem("Grant Microphone Access", action: #selector(requestMicrophonePermission)))
+        }
+        if viewModel.needsAccessibilityPermission {
+            menu.addItem(actionItem("Enable Accessibility Access", action: #selector(requestAccessibilityPermission)))
+        }
+    }
+
+    private func buildHistorySection(into menu: NSMenu) {
+        guard viewModel.shouldShowHistoryMenu else { return }
+
+        let historyItem = NSMenuItem(title: "History", action: nil, keyEquivalent: "")
+        let historyMenu = NSMenu()
+
+        if viewModel.historyMenuItems.isEmpty {
+            historyMenu.addItem(disabledItem("No transcripts yet"))
+        } else {
+            for entry in viewModel.historyMenuItems {
+                let item = actionItem("\(entry.title) - \(entry.subtitle)", action: #selector(copyHistoryEntry(_:)))
+                item.identifier = NSUserInterfaceItemIdentifier(entry.id.uuidString)
+                historyMenu.addItem(item)
+            }
         }
 
-        menu.addItem(.separator())
+        historyItem.submenu = historyMenu
+        menu.addItem(historyItem)
+    }
 
-        if viewModel.shouldShowPermissionsSection {
-            if viewModel.needsMicrophonePermission {
-                menu.addItem(NSMenuItem(title: "Grant Microphone Access", action: #selector(requestMicrophonePermission), keyEquivalent: ""))
-            }
-
-            if viewModel.needsAccessibilityPermission {
-                menu.addItem(NSMenuItem(title: "Enable Accessibility Access", action: #selector(requestAccessibilityPermission), keyEquivalent: ""))
-            }
-        }
-
-        if viewModel.shouldShowHistoryMenu {
-            let historyItem = NSMenuItem(title: "History", action: nil, keyEquivalent: "")
-            let historyMenu = NSMenu()
-            if viewModel.historyMenuItems.isEmpty {
-                let emptyItem = NSMenuItem(title: "No transcripts yet", action: nil, keyEquivalent: "")
-                emptyItem.isEnabled = false
-                historyMenu.addItem(emptyItem)
-            } else {
-                for item in viewModel.historyMenuItems {
-                    let menuItem = NSMenuItem(
-                        title: "\(item.title) - \(item.subtitle)",
-                        action: #selector(copyHistoryEntry(_:)),
-                        keyEquivalent: ""
-                    )
-                    menuItem.identifier = NSUserInterfaceItemIdentifier(item.id.uuidString)
-                    historyMenu.addItem(menuItem)
-                }
-            }
-            historyItem.submenu = historyMenu
-            menu.addItem(historyItem)
-        }
-
-        menu.addItem(.separator())
-
+    private func buildAppSection(into menu: NSMenu) {
         if viewModel.showsCheckForUpdates {
-            let item = NSMenuItem(title: "Check for Updates...", action: #selector(checkForUpdates), keyEquivalent: "")
+            let item = actionItem("Check for Updates...", action: #selector(checkForUpdates))
             item.isEnabled = viewModel.canCheckForUpdates
             menu.addItem(item)
         }
 
-        menu.addItem(NSMenuItem(title: "About Petal", action: #selector(showAbout), keyEquivalent: ""))
+        menu.addItem(actionItem("About Petal", action: #selector(showAbout)))
+        menu.addItem(actionItem("Settings", action: #selector(openSettings), key: ",", modifiers: [.command]))
+    }
 
-        let settingsItem = NSMenuItem(title: "Settings", action: #selector(openSettings), keyEquivalent: ",")
-        settingsItem.keyEquivalentModifierMask = [.command]
+    private func buildQuitSection(into menu: NSMenu) {
+        menu.addItem(actionItem("Quit Petal", action: #selector(quit), key: "q", modifiers: [.command]))
+    }
 
-        menu.addItem(settingsItem)
+    private func disabledItem(_ title: String) -> NSMenuItem {
+        let item = NSMenuItem(title: title, action: nil, keyEquivalent: "")
+        item.isEnabled = false
+        return item
+    }
 
-        menu.addItem(.separator())
-
-        let quitItem = NSMenuItem(title: "Quit Petal", action: #selector(quit), keyEquivalent: "q")
-        quitItem.keyEquivalentModifierMask = [.command]
-        menu.addItem(quitItem)
-
-        for item in menu.items where item.action != nil {
-            item.target = self
+    private func actionItem(
+        _ title: String,
+        action: Selector,
+        key: String = "",
+        modifiers: NSEvent.ModifierFlags = []
+    ) -> NSMenuItem {
+        let item = NSMenuItem(title: title, action: action, keyEquivalent: key)
+        item.target = self
+        if !modifiers.isEmpty {
+            item.keyEquivalentModifierMask = modifiers
         }
-        for item in menu.items.flatMap({ $0.submenu?.items ?? [] }) where item.action != nil {
-            item.target = self
-        }
+        return item
     }
 
     @objc private func requestMicrophonePermission() {
@@ -153,14 +159,6 @@ final class StatusItemController: NSObject, NSMenuDelegate {
 
     @objc private func requestAccessibilityPermission() {
         viewModel.requestAccessibilityPermission()
-    }
-
-    @objc private func copyHistoryEntry(_ sender: NSMenuItem) {
-        guard
-            let rawValue = sender.identifier?.rawValue,
-            let id = UUID(uuidString: rawValue)
-        else { return }
-        viewModel.copyHistoryEntry(id)
     }
 
     @objc private func stopRecording() {
@@ -182,13 +180,18 @@ final class StatusItemController: NSObject, NSMenuDelegate {
     @objc private func quit() {
         viewModel.quit()
     }
+
+    @objc private func copyHistoryEntry(_ sender: NSMenuItem) {
+        guard
+            let rawValue = sender.identifier?.rawValue,
+            let id = UUID(uuidString: rawValue)
+        else { return }
+        viewModel.copyHistoryEntry(id)
+    }
 }
 
 @MainActor
-private final class DropStatusItemView: NSControl {
-    var symbolName = "waveform.badge.mic"
-    var isMenuHighlighted = false
-    var onClick: (() -> Void)?
+private final class DropOverlayView: NSView {
     var onDropURLs: (([URL]) -> Void)?
 
     override init(frame frameRect: NSRect) {
@@ -201,12 +204,12 @@ private final class DropStatusItemView: NSControl {
         registerForDraggedTypes([.fileURL])
     }
 
-    override var intrinsicContentSize: NSSize {
-        NSSize(width: 28, height: NSStatusBar.system.thickness)
+    override func mouseDown(with event: NSEvent) {
+        superview?.mouseDown(with: event)
     }
 
-    override func mouseDown(with event: NSEvent) {
-        onClick?()
+    override func mouseUp(with event: NSEvent) {
+        superview?.mouseUp(with: event)
     }
 
     override func draggingEntered(_ sender: NSDraggingInfo) -> NSDragOperation {
@@ -228,41 +231,5 @@ private final class DropStatusItemView: NSControl {
         } ?? []
         onDropURLs?(urls)
         return !urls.isEmpty
-    }
-
-    override func draw(_ dirtyRect: NSRect) {
-        super.draw(dirtyRect)
-
-        if isMenuHighlighted {
-            NSColor.selectedMenuItemColor.setFill()
-            bounds.fill()
-        }
-
-        let iconColor = isMenuHighlighted ? NSColor.selectedMenuItemTextColor : statusItemForegroundColor
-        let configuration = NSImage.SymbolConfiguration(pointSize: 15, weight: .regular)
-            .applying(.init(hierarchicalColor: iconColor))
-        let image = (
-            NSImage(systemSymbolName: symbolName, accessibilityDescription: nil)
-                ?? NSImage(systemSymbolName: "waveform.badge.mic", accessibilityDescription: nil)
-        )?.withSymbolConfiguration(configuration)
-
-        let imageSize = image?.size ?? NSSize(width: 16, height: 16)
-        let imageRect = NSRect(
-            x: bounds.midX - imageSize.width / 2,
-            y: bounds.midY - imageSize.height / 2,
-            width: imageSize.width,
-            height: imageSize.height
-        )
-        image?.draw(in: imageRect)
-    }
-
-    private var statusItemForegroundColor: NSColor {
-        let appearance = effectiveAppearance.bestMatch(from: [.darkAqua, .aqua, .vibrantDark, .vibrantLight])
-        switch appearance {
-        case .darkAqua, .vibrantDark:
-            return .white
-        default:
-            return .labelColor
-        }
     }
 }

@@ -69,7 +69,7 @@ private actor LivePlaybackDuckingRuntime {
 
         let deviceID = try defaultOutputDeviceID()
         let volume = try outputVolume(deviceID: deviceID)
-        try setOutputVolume(max(0, min(1, volume * 0.2)), deviceID: deviceID)
+        try setOutputVolume(max(0, min(1, volume * 0.5)), deviceID: deviceID)
         restoreState = RestoreState(deviceID: deviceID, volume: volume)
         logger.debug("System output volume ducked")
     }

@@ -1421,7 +1421,7 @@ final class AppModel {
             logClient.dumpDebug(
                 "AppModel",
                 "System audio ducking started",
-                appDumpString(["targetVolumeScale": "0.2"])
+                appDumpString(["targetVolumeScale": "0.5"])
             )
         } catch {
             logger.warning("System audio ducking failed: \(error.localizedDescription, privacy: .public)")
