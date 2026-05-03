@@ -1231,7 +1231,7 @@ final class AppModel {
         isShowingMiniDownload = false
         selectedModelDidChange()
         $hasCompletedSetup.withLock { $0 = true }
-        transientMessage = "You're all set. Tap your shortcut to start, or hold for push-to-talk."
+        transientMessage = nil
         Task {
             await windowClient.close(WindowConfig.miniDownload.id)
             await windowClient.close(WindowConfig.onboarding.id)
@@ -1928,8 +1928,6 @@ final class AppModel {
         switch model {
         case .qwen3ASR06B4bit:
             return 2.2
-        case .qwen3ASR17BInt8:
-            return 1.2
         case .parakeetTDT06BV3:
             return 1.8
         case .whisperLargeV3Turbo:

@@ -56,7 +56,6 @@ public struct ModelDescriptor: Sendable, Equatable {
 public enum ModelOption: String, CaseIterable, Identifiable, Sendable {
     case appleSpeech = "apple-speech"
     case qwen3ASR06B4bit = "qwen3-asr-0.6b-4bit"
-    case qwen3ASR17BInt8 = "qwen3-asr-1.7b-int8"
     case parakeetTDT06BV3 = "parakeet-tdt-0.6b-v3"
     case whisperLargeV3Turbo = "whisper-large-v3-turbo"
     case whisperTiny = "whisper-tiny"
@@ -66,7 +65,6 @@ public enum ModelOption: String, CaseIterable, Identifiable, Sendable {
     public static var allCases: [ModelOption] {
         var options: [ModelOption] = [
             .qwen3ASR06B4bit,
-            .qwen3ASR17BInt8,
             .parakeetTDT06BV3,
             .whisperLargeV3Turbo,
             .whisperTiny,
@@ -122,20 +120,6 @@ public enum ModelOption: String, CaseIterable, Identifiable, Sendable {
                 recommended: true,
                 speedScore: 4,
                 smartScore: 4
-            )
-        case .qwen3ASR17BInt8:
-            return ModelDescriptor(
-                id: rawValue,
-                repoID: "weiren119/Qwen3-ASR-1.7B-CoreML",
-                name: "Qwen3 ASR 1.7B (int8)",
-                summary: "Higher-accuracy multilingual Qwen3 ASR with a larger CoreML decoder.",
-                size: "~3.7 GB",
-                quantization: "CoreML INT8 mixed",
-                parameters: "1.7B",
-                provider: .fluidAudio,
-                recommended: false,
-                speedScore: 2,
-                smartScore: 5
             )
         case .parakeetTDT06BV3:
             return ModelDescriptor(
@@ -237,14 +221,14 @@ public enum ModelOption: String, CaseIterable, Identifiable, Sendable {
         switch self {
         case .appleSpeech:
             return false
-        case .qwen3ASR06B4bit, .qwen3ASR17BInt8, .parakeetTDT06BV3, .whisperLargeV3Turbo, .whisperTiny, .mini3b, .mini3b8bit:
+        case .qwen3ASR06B4bit, .parakeetTDT06BV3, .whisperLargeV3Turbo, .whisperTiny, .mini3b, .mini3b8bit:
             return true
         }
     }
 
     public var supportedTranscriptionModes: [TranscriptionMode] {
         switch self {
-        case .appleSpeech, .qwen3ASR06B4bit, .qwen3ASR17BInt8, .parakeetTDT06BV3, .whisperLargeV3Turbo, .whisperTiny:
+        case .appleSpeech, .qwen3ASR06B4bit, .parakeetTDT06BV3, .whisperLargeV3Turbo, .whisperTiny:
             return [.verbatim]
         case .mini3b, .mini3b8bit:
             return TranscriptionMode.allCases
@@ -275,13 +259,6 @@ public enum ModelOption: String, CaseIterable, Identifiable, Sendable {
              "fluidinference/qwen3-asr-0.6b-coreml/f32",
              "fluidinference/qwen3-asr-0.6b-coreml/int8":
             return .qwen3ASR06B4bit
-        case Self.qwen3ASR17BInt8.rawValue,
-             "qwen3-asr-1.7b",
-             "qwen/qwen3-asr-1.7b",
-             "weiren119/qwen3-asr-1.7b-coreml",
-             "mlx-community/qwen3-asr-1.7b-4bit",
-             "mlx-community/qwen3-asr-1.7b-bf16":
-            return .qwen3ASR17BInt8
         case Self.parakeetTDT06BV3.rawValue,
              "parakeet",
              "paracrete",

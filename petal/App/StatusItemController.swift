@@ -65,7 +65,6 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         menu.removeAllItems()
 
         let statusItem = NSMenuItem(title: viewModel.statusTitle, action: nil, keyEquivalent: "")
-        statusItem.image = NSImage(systemSymbolName: viewModel.statusSymbolName, accessibilityDescription: nil)
         statusItem.isEnabled = false
         menu.addItem(statusItem)
 
@@ -79,7 +78,7 @@ final class StatusItemController: NSObject, NSMenuDelegate {
             menu.addItem(item)
         }
 
-        if let message = viewModel.transientMessage {
+        if !viewModel.isRecording, let message = viewModel.transientMessage {
             let item = NSMenuItem(title: message, action: nil, keyEquivalent: "")
             item.isEnabled = false
             menu.addItem(item)

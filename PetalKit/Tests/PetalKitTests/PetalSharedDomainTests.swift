@@ -17,9 +17,9 @@ func qwenModelIDsMapToQwenOption() {
     #expect(ModelOption.from(modelID: "qwen3-asr-0.6b") == .qwen3ASR06B4bit)
     #expect(ModelOption.from(modelID: "mlx-community/Qwen3-ASR-0.6B-4bit") == .qwen3ASR06B4bit)
     #expect(ModelOption.from(modelID: "FluidInference/qwen3-asr-0.6b-coreml/f32") == .qwen3ASR06B4bit)
-    #expect(ModelOption.from(modelID: "qwen3-asr-1.7b") == .qwen3ASR17BInt8)
-    #expect(ModelOption.from(modelID: "Qwen/Qwen3-ASR-1.7B") == .qwen3ASR17BInt8)
-    #expect(ModelOption.from(modelID: "weiren119/Qwen3-ASR-1.7B-CoreML") == .qwen3ASR17BInt8)
+    #expect(ModelOption.from(modelID: "qwen3-asr-1.7b") == .defaultOption)
+    #expect(ModelOption.from(modelID: "Qwen/Qwen3-ASR-1.7B") == .defaultOption)
+    #expect(ModelOption.from(modelID: "weiren119/Qwen3-ASR-1.7B-CoreML") == .defaultOption)
 }
 
 @Test
@@ -50,7 +50,6 @@ func modelCatalogIncludesBothBackends() {
     #expect(ModelOption.allCases.contains(.mini3b))
     #expect(ModelOption.allCases.contains(.mini3b8bit))
     #expect(ModelOption.allCases.contains(.qwen3ASR06B4bit))
-    #expect(ModelOption.allCases.contains(.qwen3ASR17BInt8))
     #expect(ModelOption.allCases.contains(.parakeetTDT06BV3))
     #expect(ModelOption.allCases.contains(.whisperLargeV3Turbo))
 }
@@ -70,17 +69,15 @@ func transcriptionModeDisplayTextStable() {
 func qwenSupportsVerbatimOnly() {
     #expect(ModelOption.qwen3ASR06B4bit.supportedTranscriptionModes == [.verbatim])
     #expect(!ModelOption.qwen3ASR06B4bit.supportsSmartTranscription)
-    #expect(ModelOption.qwen3ASR17BInt8.supportedTranscriptionModes == [.verbatim])
-    #expect(!ModelOption.qwen3ASR17BInt8.supportsSmartTranscription)
-    #expect(ModelOption.qwen3ASR17BInt8.requiresDownload)
-    #expect(ModelOption.qwen3ASR17BInt8.providerDisplayName == "FluidAudio")
+    #expect(ModelOption.qwen3ASR06B4bit.requiresDownload)
+    #expect(ModelOption.qwen3ASR06B4bit.providerDisplayName == "FluidAudio")
 }
 
 @Test
 func parakeetSupportsVerbatimOnly() {
     #expect(ModelOption.parakeetTDT06BV3.supportedTranscriptionModes == [.verbatim])
     #expect(!ModelOption.parakeetTDT06BV3.supportsSmartTranscription)
-    #expect(ModelOption.parakeetTDT06BV3.providerDisplayName == "FluidAudio")
+    #expect(ModelOption.parakeetTDT06BV3.providerDisplayName == "NVIDIA")
 }
 
 @Test

@@ -5,7 +5,7 @@ struct MenuBarContentView: View {
     @Bindable var viewModel: MenuBarContentViewModel
 
     var body: some View {
-        Label(viewModel.statusTitle, systemImage: viewModel.statusSymbolName)
+        Text(viewModel.statusTitle)
             .foregroundStyle(viewModel.statusColor)
 
         if viewModel.isRecording {
@@ -19,7 +19,7 @@ struct MenuBarContentView: View {
                 .foregroundStyle(.red)
         }
 
-        if let message = viewModel.transientMessage {
+        if !viewModel.isRecording, let message = viewModel.transientMessage {
             Text(message)
                 .foregroundStyle(.secondary)
         }
