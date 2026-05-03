@@ -1,4 +1,5 @@
 import AppKit
+import AVFoundation
 import AudioClient
 import class SwiftUI.NSHostingView
 import DoubleTapClient
@@ -16,6 +17,7 @@ import Onboarding
 import os
 import PasteClient
 import PermissionsClient
+import PlaybackDuckingClient
 import Shared
 import SoundClient
 import TranscriptionClient
@@ -47,6 +49,7 @@ final class AppModel {
     @ObservationIgnored @Shared(.historyRetentionMode) var historyRetentionMode: HistoryRetentionMode = .both
     @ObservationIgnored @Shared(.pushToTalkThreshold) var pushToTalkThreshold: PushToTalkThreshold = .long
     @ObservationIgnored @Shared(.restoreClipboardAfterPaste) var restoreClipboardAfterPaste = true
+    @ObservationIgnored @Shared(.duckSystemAudioDuringRecording) var duckSystemAudioDuringRecording = false
     @ObservationIgnored @Shared(.shortcutTriggerMode) var shortcutTriggerMode: ShortcutTriggerMode = .combo
     @ObservationIgnored @Shared(.doubleTapKey) var doubleTapKey: DoubleTapKey = .unconfigured
     @ObservationIgnored @Shared(.doubleTapInterval) var doubleTapInterval: Double = 0.4
@@ -87,6 +90,7 @@ final class AppModel {
     @ObservationIgnored @Dependency(\.foundationModelClient) private var foundationModelClient
     @ObservationIgnored @Dependency(\.doubleTapClient) private var doubleTapClient
     @ObservationIgnored @Dependency(\.windowClient) private var windowClient
+    @ObservationIgnored @Dependency(\.playbackDuckingClient) private var playbackDuckingClient
     @ObservationIgnored private let logger = Logger(subsystem: "com.optimalapps.petal", category: "AppModel")
 
     @ObservationIgnored private let isPreviewMode: Bool
@@ -100,6 +104,7 @@ final class AppModel {
     @ObservationIgnored private var currentShortcutPressStart: Date?
     @ObservationIgnored private var isStartingRecording = false
     @ObservationIgnored private var isStoppingRecording = false
+    @ObservationIgnored private var isTranscribingDroppedFile = false
     @ObservationIgnored private var pendingStopAfterStart = false
     @ObservationIgnored private var transcriptionProgressTask: Task<Void, Never>?
     @ObservationIgnored private var permissionMonitorTask: Task<Void, Never>?
@@ -109,6 +114,7 @@ final class AppModel {
     @ObservationIgnored private var downloadStateObserverTask: Task<Void, Never>?
     @ObservationIgnored private var isShowingMiniDownload = false
     @ObservationIgnored private var activeHistorySessionID: UUID?
+    @ObservationIgnored private var isPlaybackDucked = false
     var menuBarFlashOn = true
     @ObservationIgnored private var estimatedTranscriptionRTF = 2.2
     private var toggleActivationThresholdSeconds: Double { pushToTalkThreshold.seconds }
@@ -338,10 +344,235 @@ final class AppModel {
         guard let entry = transcriptHistoryDays.lazy.compactMap({ $0.entries[id: entryID] }).first else { return }
         let transcript = formattedHistoryEntry(entry)
         guard transcript.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false else { return }
-        let pasteboard = NSPasteboard.general
-        pasteboard.clearContents()
-        pasteboard.setString(transcript, forType: .string)
+        copyTranscriptToClipboard(transcript)
         transientMessage = "Copied to clipboard."
+    }
+
+    // MARK: - Dropped Files
+
+    func droppedAudioFileRejected(_ error: AudioFileDropValidationError) {
+        switch error {
+        case .noFile:
+            transientMessage = "Drop an audio file to transcribe."
+        case .multipleFiles:
+            transientMessage = "Drop one audio file at a time."
+        case .unsupportedFile:
+            transientMessage = "That file type is not supported."
+        case .directory:
+            transientMessage = "Drop an audio file, not a folder."
+        }
+    }
+
+    func transcribeDroppedAudioFile(_ audioURL: URL) async {
+        guard hasCompletedSetup else {
+            transientMessage = "Complete setup before transcribing files."
+            beginOnboardingFlow()
+            showOnboardingWindow()
+            return
+        }
+
+        guard !isTranscribingDroppedFile else {
+            transientMessage = "A file is already being transcribed."
+            return
+        }
+
+        let isCurrentlyRecording = await audioClient.isRecording()
+        guard !isCurrentlyRecording, !isRecordingLifecycleBusy else {
+            transientMessage = "Finish the current transcription first."
+            return
+        }
+
+        guard let selectedModelOption else {
+            sessionState = .error(AppTranscriptionError.pipelineUnavailable.localizedDescription)
+            transientMessage = "Transcription pipeline is not available."
+            return
+        }
+
+        isTranscribingDroppedFile = true
+        defer { isTranscribingDroppedFile = false }
+
+        let didStartSecurityScope = audioURL.startAccessingSecurityScopedResource()
+        defer {
+            if didStartSecurityScope {
+                audioURL.stopAccessingSecurityScopedResource()
+            }
+        }
+
+        sessionState = .processing(.trimming)
+        await floatingCapsuleClient.showTrimming()
+
+        let historySessionID = uuid()
+        let pipelineStart = now
+        let transcriptionStart = now
+        var pipelineStage = "file-setup"
+
+        do {
+            let normalizedAudioURL = try await normalizeDroppedAudioFileForTranscription(audioURL)
+            defer { try? FileManager.default.removeItem(at: normalizedAudioURL) }
+
+            let audioDuration = transcriptionClient.audioDurationSeconds(normalizedAudioURL)
+            let audioSizeBytes = appAudioFileSizeBytes(audioURL) ?? 0
+
+            logClient.dumpDebug(
+                "AppModel",
+                "Dropped file transcription started",
+                appDumpString(
+                    [
+                        "sessionID": historySessionID.uuidString,
+                        "model": selectedModelOption.rawValue,
+                        "modeRequested": transcriptionMode.rawValue,
+                        "audioFile": audioURL.lastPathComponent,
+                        "audioDuration": formatElapsedSeconds(audioDuration),
+                        "audioSizeBytes": "\(audioSizeBytes)"
+                    ]
+                )
+            )
+
+            if autoSpeedRate(for: audioDuration) != nil {
+                sessionState = .processing(.speeding)
+                await floatingCapsuleClient.showSpeeding()
+            }
+
+            pipelineStage = "transcribing"
+            sessionState = .processing(.transcribing)
+            await floatingCapsuleClient.showTranscribing()
+            await soundClient.playTranscriptionStarted()
+            startTranscriptionProgressTracking(audioDuration: audioDuration)
+
+            let mode = normalizedTranscriptionMode(transcriptionMode)
+            if transcriptionMode != mode {
+                $transcriptionMode.withLock { $0 = mode }
+            }
+
+            var transcript = try await transcriptionClient.transcribe(
+                normalizedAudioURL,
+                selectedModelOption,
+                mode,
+                mode == .smart ? smartPrompt : nil
+            )
+            let originalTranscript = transcript
+            var shouldPersistOriginalVariant = false
+            let transcriptionElapsed = now.timeIntervalSince(transcriptionStart)
+            updateTranscriptionSpeedEstimate(audioDuration: audioDuration, elapsed: transcriptionElapsed)
+            stopTranscriptionProgressTracking(finalProgress: 1)
+
+            let needsAIRefine = mode == .smart
+                && !selectedModelOption.supportsSmartTranscription
+                && appleIntelligenceEnabled
+                && foundationModelClient.isAvailable()
+                && !transcript.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+
+            if needsAIRefine {
+                pipelineStage = "refining"
+                sessionState = .processing(.refining)
+                await soundClient.playRefineStarted()
+                await floatingCapsuleClient.showRefining()
+
+                if let refined = try? await foundationModelClient.refine(transcript, smartPrompt),
+                   !refined.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                {
+                    shouldPersistOriginalVariant = refined != transcript
+                    transcript = refined
+                }
+            }
+
+            let isEmptyTranscript = transcript.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            let persistedPaths = await persistHistoryArtifacts(
+                audioURL: audioURL,
+                transcript: transcript,
+                timestamp: transcriptionStart,
+                mode: mode.rawValue,
+                modelID: selectedModelOption.rawValue
+            )
+
+            if isEmptyTranscript {
+                pipelineStage = "persist-empty"
+                await soundClient.playTranscriptionNoResult()
+                transientMessage = "No speech detected."
+
+                appendTranscriptHistory(
+                    transcript: transcript,
+                    modelID: selectedModelOption.rawValue,
+                    mode: mode.rawValue,
+                    audioDuration: audioDuration,
+                    transcriptionElapsed: transcriptionElapsed,
+                    pasteResult: .skipped,
+                    audioRelativePath: persistedPaths?.audioRelativePath,
+                    transcriptRelativePath: persistedPaths?.transcriptRelativePath,
+                    sessionID: historySessionID
+                )
+            } else {
+                pipelineStage = "clipboard"
+                await soundClient.playTranscriptionCompleted()
+                copyTranscriptToClipboard(transcript)
+                await postCopiedToClipboardNotification(body: "Copied to clipboard")
+                await floatingCapsuleClient.showCopiedToClipboard()
+                transientMessage = "Copied to clipboard."
+
+                appendTranscriptHistory(
+                    transcript: transcript,
+                    modelID: selectedModelOption.rawValue,
+                    mode: mode.rawValue,
+                    audioDuration: audioDuration,
+                    transcriptionElapsed: transcriptionElapsed,
+                    pasteResult: .copiedOnly,
+                    audioRelativePath: persistedPaths?.audioRelativePath,
+                    transcriptRelativePath: persistedPaths?.transcriptRelativePath,
+                    sessionID: historySessionID
+                )
+
+                if shouldPersistOriginalVariant {
+                    let originalPaths = await persistHistoryArtifacts(
+                        audioURL: audioURL,
+                        transcript: originalTranscript,
+                        timestamp: transcriptionStart,
+                        mode: "original",
+                        modelID: selectedModelOption.rawValue,
+                        persistAudio: false
+                    )
+                    appendTranscriptHistory(
+                        transcript: originalTranscript,
+                        modelID: selectedModelOption.rawValue,
+                        mode: "original",
+                        audioDuration: audioDuration,
+                        transcriptionElapsed: transcriptionElapsed,
+                        pasteResult: .skipped,
+                        audioRelativePath: originalPaths?.audioRelativePath,
+                        transcriptRelativePath: originalPaths?.transcriptRelativePath,
+                        sessionID: historySessionID
+                    )
+                }
+            }
+
+            lastError = nil
+            sessionState = .idle
+            let pipelineElapsed = now.timeIntervalSince(pipelineStart)
+            logClient.dumpDebug(
+                "AppModel",
+                "Dropped file transcription completed",
+                appDumpString(
+                    [
+                        "sessionID": historySessionID.uuidString,
+                        "elapsed": formatElapsedSeconds(pipelineElapsed),
+                        "finalStage": pipelineStage
+                    ]
+                )
+            )
+        } catch {
+            reportIssue(error)
+            lastError = error.localizedDescription
+            transientMessage = "Transcription failed."
+            sessionState = .error(error.localizedDescription)
+            stopTranscriptionProgressTracking()
+            await floatingCapsuleClient.showError("Transcription failed")
+            logger.error("Dropped file transcription failed: \(error.localizedDescription, privacy: .public)")
+            logClient.error(
+                "AppModel",
+                "Dropped file transcription failed. sessionID=\(historySessionID.uuidString), stage=\(pipelineStage), error=\(error.localizedDescription)"
+            )
+        }
+
+        await hideCapsuleAfterDelay()
     }
 
     // MARK: - Deep Links
@@ -433,6 +664,7 @@ final class AppModel {
             isAwaitingCancelRecordingConfirmation = false
             sessionState = .recording
             activeHistorySessionID = uuid()
+            await startPlaybackDuckingIfNeeded()
             logger.info("Recording started")
             consoleLog("Recording started")
 
@@ -532,6 +764,7 @@ final class AppModel {
             toggleRecordingIsActive = false
             activeHistorySessionID = nil
             sessionState = .idle
+            await stopPlaybackDuckingIfNeeded()
             await floatingCapsuleClient.hide()
             return
         }
@@ -548,6 +781,7 @@ final class AppModel {
         do {
             let stopRecordingStart = now
             let audioURL = try await audioClient.stopRecording()
+            await stopPlaybackDuckingIfNeeded()
             defer { try? FileManager.default.removeItem(at: audioURL) }
             let stopRecordingElapsed = now.timeIntervalSince(stopRecordingStart)
             let audioSizeBytes = appAudioFileSizeBytes(audioURL) ?? 0
@@ -852,6 +1086,7 @@ final class AppModel {
                 )
             )
         } catch {
+            await stopPlaybackDuckingIfNeeded()
             reportIssue(error)
             lastError = error.localizedDescription
             transientMessage = "Transcription failed."
@@ -1157,6 +1392,7 @@ final class AppModel {
             let isCurrentlyRecording = await audioClient.isRecording()
             guard isCurrentlyRecording else {
                 isAwaitingCancelRecordingConfirmation = false
+                await stopPlaybackDuckingIfNeeded()
                 return
             }
 
@@ -1169,10 +1405,35 @@ final class AppModel {
             currentShortcutPressStart = nil
             sessionState = .idle
             transientMessage = "Recording cancelled."
+            await stopPlaybackDuckingIfNeeded()
             await floatingCapsuleClient.hide()
             logger.info("Recording canceled from keyboard confirmation")
             consoleLog("Recording canceled from keyboard confirmation")
         }
+    }
+
+    private func startPlaybackDuckingIfNeeded() async {
+        guard duckSystemAudioDuringRecording, !isPlaybackDucked else { return }
+
+        do {
+            try await playbackDuckingClient.startDucking()
+            isPlaybackDucked = true
+            logClient.dumpDebug(
+                "AppModel",
+                "System audio ducking started",
+                appDumpString(["targetVolumeScale": "0.2"])
+            )
+        } catch {
+            logger.warning("System audio ducking failed: \(error.localizedDescription, privacy: .public)")
+            logClient.error("AppModel", "System audio ducking failed: \(error.localizedDescription)")
+        }
+    }
+
+    private func stopPlaybackDuckingIfNeeded() async {
+        guard isPlaybackDucked else { return }
+        isPlaybackDucked = false
+        await playbackDuckingClient.stopDucking()
+        logClient.dumpDebug("AppModel", "System audio ducking stopped", "")
     }
 
     // MARK: - Private: Permissions
@@ -1262,6 +1523,7 @@ final class AppModel {
             sessionState = .recording
             activeHistorySessionID = uuid()
             transientMessage = "Listening... use petal://stop to transcribe."
+            await startPlaybackDuckingIfNeeded()
             logger.info("Recording started from deep link")
             consoleLog("Recording started from deep link")
             Task { await soundClient.playRecordingStarted() }
@@ -1461,7 +1723,7 @@ final class AppModel {
     // MARK: - Private: Helpers
 
     private var isRecordingLifecycleBusy: Bool {
-        isStartingRecording || isStoppingRecording || isProcessing
+        isStartingRecording || isStoppingRecording || isTranscribingDroppedFile || isProcessing
     }
 
     private func recordingLevelDidUpdate(_ level: Double) {
@@ -1545,6 +1807,10 @@ final class AppModel {
     }
 
     private func postPasteFallbackNotification() async {
+        await postCopiedToClipboardNotification(body: "Transcript copied to clipboard. Press Command-V to paste.")
+    }
+
+    private func postCopiedToClipboardNotification(body: String) async {
         if isPreviewMode { return }
         let center = UNUserNotificationCenter.current()
 
@@ -1556,7 +1822,7 @@ final class AppModel {
 
         let content = UNMutableNotificationContent()
         content.title = "Petal"
-        content.body = "Transcript copied to clipboard. Press Command-V to paste."
+        content.body = body
 
         let request = UNNotificationRequest(
             identifier: uuid().uuidString,
@@ -1565,6 +1831,12 @@ final class AppModel {
         )
 
         try? await center.add(request)
+    }
+
+    private func copyTranscriptToClipboard(_ transcript: String) {
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        pasteboard.setString(transcript, forType: .string)
     }
 
     private func consoleLog(_ message: String) {
@@ -1579,6 +1851,33 @@ final class AppModel {
         let values = try? url.resourceValues(forKeys: [.fileSizeKey])
         guard let size = values?.fileSize else { return nil }
         return Int64(size)
+    }
+
+    private func normalizeDroppedAudioFileForTranscription(_ url: URL) async throws -> URL {
+        try await Task.detached(priority: .utility) {
+            let input = try AVAudioFile(forReading: url)
+            let outputURL = FileManager.default.temporaryDirectory
+                .appending(path: "petal-import-\(UUID().uuidString).wav")
+            let output = try AVAudioFile(
+                forWriting: outputURL,
+                settings: input.processingFormat.settings
+            )
+            let frameCapacity = AVAudioFrameCount(min(input.processingFormat.sampleRate, 48_000))
+            guard let buffer = AVAudioPCMBuffer(
+                pcmFormat: input.processingFormat,
+                frameCapacity: max(frameCapacity, 1)
+            ) else {
+                throw AppTranscriptionError.audioImportFailed
+            }
+
+            while input.framePosition < input.length {
+                try input.read(into: buffer)
+                guard buffer.frameLength > 0 else { break }
+                try output.write(from: buffer)
+            }
+
+            return outputURL
+        }.value
     }
 
     private func startTranscriptionProgressTracking(audioDuration: Double) {
@@ -1720,11 +2019,14 @@ final class AppModel {
 
 private enum AppTranscriptionError: LocalizedError {
     case pipelineUnavailable
+    case audioImportFailed
 
     var errorDescription: String? {
         switch self {
         case .pipelineUnavailable:
             return "Transcription pipeline is not available."
+        case .audioImportFailed:
+            return "Could not prepare this audio file for transcription."
         }
     }
 }

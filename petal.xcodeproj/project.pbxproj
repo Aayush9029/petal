@@ -32,6 +32,7 @@
 		B1000001000000000000000F /* WindowClient in Frameworks */ = {isa = PBXBuildFile; productRef = B1000004000000000000000F /* WindowClient */; };
 		B10000010000000000000010 /* FoundationModelClient in Frameworks */ = {isa = PBXBuildFile; productRef = B10000040000000000000010 /* FoundationModelClient */; };
 		B10000010000000000000011 /* DoubleTapClient in Frameworks */ = {isa = PBXBuildFile; productRef = B10000040000000000000011 /* DoubleTapClient */; };
+		B10000010000000000000012 /* PlaybackDuckingClient in Frameworks */ = {isa = PBXBuildFile; productRef = B10000040000000000000012 /* PlaybackDuckingClient */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -91,6 +92,7 @@
 				B1000001000000000000000F /* WindowClient in Frameworks */,
 				B10000010000000000000010 /* FoundationModelClient in Frameworks */,
 				B10000010000000000000011 /* DoubleTapClient in Frameworks */,
+				B10000010000000000000012 /* PlaybackDuckingClient in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -161,6 +163,7 @@
 				B1000004000000000000000F /* WindowClient */,
 				B10000040000000000000010 /* FoundationModelClient */,
 				B10000040000000000000011 /* DoubleTapClient */,
+				B10000040000000000000012 /* PlaybackDuckingClient */,
 			);
 			productName = petal;
 			productReference = 51F869592F469BEA004C06DD /* petal.app */;
@@ -651,6 +654,10 @@
 		B10000040000000000000011 /* DoubleTapClient */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = DoubleTapClient;
+		};
+		B10000040000000000000012 /* PlaybackDuckingClient */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = PlaybackDuckingClient;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

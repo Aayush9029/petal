@@ -19,6 +19,7 @@ extension Target.Dependency {
     static let soundClient: Self = "SoundClient"
     static let doubleTapClient: Self = "DoubleTapClient"
     static let logClient: Self = "LogClient"
+    static let playbackDuckingClient: Self = "PlaybackDuckingClient"
 
     static let dependencies: Self = .product(name: "Dependencies", package: "swift-dependencies")
     static let dependenciesMacros: Self = .product(name: "DependenciesMacros", package: "swift-dependencies")
@@ -59,6 +60,7 @@ let package = Package(
         .library(name: "HistoryClient", targets: ["HistoryClient"]),
         .library(name: "SoundClient", targets: ["SoundClient"]),
         .library(name: "LogClient", targets: ["LogClient"]),
+        .library(name: "PlaybackDuckingClient", targets: ["PlaybackDuckingClient"]),
         .library(name: "WindowClient", targets: ["WindowClient"]),
         .library(name: "DoubleTapClient", targets: ["DoubleTapClient"]),
         .library(name: "FoundationModelClient", targets: ["FoundationModelClient"]),
@@ -228,6 +230,13 @@ let package = Package(
             ]
         ),
         .target(
+            name: "PlaybackDuckingClient",
+            dependencies: [
+                .dependencies,
+                .dependenciesMacros,
+            ]
+        ),
+        .target(
             name: "DoubleTapClient",
             dependencies: [
                 .shared,
@@ -264,6 +273,7 @@ let package = Package(
                 "HistoryClient",
                 "SoundClient",
                 "LogClient",
+                "PlaybackDuckingClient",
                 "DoubleTapClient",
             ]
         ),

@@ -104,6 +104,14 @@ final class MenuBarContentViewModel {
         appModel.copyTranscriptHistoryButtonTapped(entryID)
     }
 
+    func droppedAudioFileRejected(_ error: AudioFileDropValidationError) {
+        appModel.droppedAudioFileRejected(error)
+    }
+
+    func transcribeDroppedAudioFile(_ url: URL) async {
+        await appModel.transcribeDroppedAudioFile(url)
+    }
+
     func stopRecording() {
         Task { await appModel.handleDeepLink(.stop) }
     }

@@ -7,18 +7,22 @@ import SwiftUI
 import WindowClient
 
 @main
+@MainActor
 struct PetalApp: App {
     @State private var model: AppModel
     @State private var menuBarViewModel: MenuBarContentViewModel
-    @State private var updatesModel: CheckForUpdatesModel?
+    @State private var statusItemController: StatusItemController
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     private let logger = Logger(subsystem: "com.optimalapps.petal", category: "App")
 
     init() {
         let appModel = AppModel()
+        let menuBarViewModel = MenuBarContentViewModel(appModel: appModel)
         _model = State(initialValue: appModel)
-        _menuBarViewModel = State(initialValue: MenuBarContentViewModel(appModel: appModel))
+        _menuBarViewModel = State(initialValue: menuBarViewModel)
+        _statusItemController = State(initialValue: StatusItemController(viewModel: menuBarViewModel))
         AppDelegate.bootstrapModel = appModel
+        AppDelegate.bootstrapMenuBarViewModel = menuBarViewModel
 
         guard SingleInstanceLock.shared.acquire() else {
             Logger(subsystem: "com.optimalapps.petal", category: "App")
@@ -31,20 +35,14 @@ struct PetalApp: App {
     }
 
     var body: some Scene {
-        MenuBarExtra {
-            MenuBarContentView(viewModel: menuBarViewModel)
-        } label: {
-            Label("Petal", systemImage: model.menuBarSymbolName)
+        Settings {
+            EmptyView()
                 .onAppear {
+                    _ = statusItemController
                     appDelegate.model = model
-                    if updatesModel == nil {
-                        updatesModel = CheckForUpdatesModel(updater: appDelegate.updaterController.updater)
-                        menuBarViewModel.setUpdatesModel(updatesModel)
-                        appDelegate.updatesModel = updatesModel
-                    }
+                    appDelegate.menuBarViewModel = menuBarViewModel
                 }
         }
-        .menuBarExtraStyle(.menu)
         .commands {
             CommandGroup(replacing: .appInfo) {
                 Button("About Petal") {
@@ -91,6 +89,7 @@ private final class SingleInstanceLock {
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
     static var bootstrapModel: AppModel?
+    static var bootstrapMenuBarViewModel: MenuBarContentViewModel?
 
     let updaterController = SPUStandardUpdaterController(
         startingUpdater: false,
@@ -100,6 +99,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     weak var model: AppModel? {
         didSet { flushPendingDeepLinksIfNeeded() }
     }
+    weak var menuBarViewModel: MenuBarContentViewModel?
     var updatesModel: CheckForUpdatesModel?
     @Dependency(\.windowClient) private var windowClient
     private let logger = Logger(subsystem: "com.optimalapps.petal", category: "AppDelegate")
@@ -110,6 +110,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if model == nil, let bootstrapModel = Self.bootstrapModel {
             model = bootstrapModel
         }
+        if menuBarViewModel == nil, let bootstrapMenuBarViewModel = Self.bootstrapMenuBarViewModel {
+            menuBarViewModel = bootstrapMenuBarViewModel
+        }
+        configureUpdatesModelIfNeeded()
         registerDeepLinkAppleEventHandler()
         logger.info("Registered deep link AppleEvent handler")
         enforceSingleInstance()
@@ -197,6 +201,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func triggerUpdateCheckFromDeepLink() {
         pendingUpdateCheckFromDeepLink = true
         flushPendingUpdateCheckIfReady()
+    }
+
+    private func configureUpdatesModelIfNeeded() {
+        guard updatesModel == nil else { return }
+        let updatesModel = CheckForUpdatesModel(updater: updaterController.updater)
+        self.updatesModel = updatesModel
+        menuBarViewModel?.setUpdatesModel(updatesModel)
     }
 
     private func flushPendingUpdateCheckIfReady(attempt: Int = 0) {

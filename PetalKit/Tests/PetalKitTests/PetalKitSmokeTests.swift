@@ -9,6 +9,7 @@ import Testing
 @testable import AudioTrimClient
 @testable import AudioSpeedClient
 @testable import TranscriptionClient
+@testable import PlaybackDuckingClient
 
 @Test
 func modulesCompile() {
@@ -23,4 +24,5 @@ func modulesCompile() {
     _ = AudioTrimClient.self
     _ = AudioSpeedClient.self
     _ = TranscriptionClient.self
+    _ = PlaybackDuckingClient.self
 }

@@ -87,6 +87,12 @@ struct GeneralPane: View {
                     .settingDescription()
             }
 
+            Section("System Audio") {
+                Toggle("Lower system volume while recording", isOn: Binding(viewModel.$duckSystemAudioDuringRecording))
+                Text("Reduces system output volume during dictation and restores it afterward.")
+                    .settingDescription()
+            }
+
             Section("Diagnostics") {
                 Toggle("Enable logs", isOn: Binding(viewModel.$logsEnabled))
                 Text("Disabled by default to avoid creating log files unless you explicitly turn this on.")
@@ -455,4 +461,9 @@ private extension View {
         font(.caption)
             .foregroundStyle(.secondary)
     }
+}
+
+#Preview("Settings") {
+    SettingsView(viewModel: SettingsViewModel(appModel: AppModel.makePreview()))
+        .frame(width: 640, height: 520)
 }
