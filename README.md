@@ -18,10 +18,13 @@
 </p>
 
 
+
   <p align="center">
     <img src="https://github.com/user-attachments/assets/3b5190e8-fe02-4225-9b77-f57c2127fe8d" width="100%">
   </p>
 
+
+<video src="https://github.com/user-attachments/assets/bd173a8c-604d-4e56-8d39-fb6c63481113"/>
 
 
 
