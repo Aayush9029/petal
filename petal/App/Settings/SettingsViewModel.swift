@@ -58,27 +58,49 @@ final class SettingsViewModel {
         logClient.logFileURL() != nil
     }
 
-    var doubleTapRecorderBinding: Binding<DoubleTapRecorder.DoubleTapKey> {
+    var unifiedShortcutBinding: Binding<RecordedShortcut> {
         Binding(
             get: { [weak self] in
-                guard let self, self.doubleTapKey.isConfigured else { return .unconfigured }
-                return .configured(
-                    keyCode: self.doubleTapKey.keyCode,
-                    isModifier: self.doubleTapKey.isModifier,
-                    displayName: self.doubleTapKey.displayName
-                )
+                guard let self else { return .unconfigured }
+                switch self.shortcutTriggerMode {
+                case .combo:
+                    guard let shortcut = KeyboardShortcuts.getShortcut(for: .pushToTalk) else {
+                        return .unconfigured
+                    }
+                    var displayNames = [String]()
+                    let mods = shortcut.modifiers
+                    if mods.contains(.control) { displayNames.append("\u{2303}") }
+                    if mods.contains(.option) { displayNames.append("\u{2325}") }
+                    if mods.contains(.command) { displayNames.append("\u{2318}") }
+                    let keyChar = shortcut.keyToCharacter()?.capitalized ?? "Key \(shortcut.carbonKeyCode)"
+                    displayNames.append(keyChar)
+                    return .combo(
+                        keyCode: shortcut.carbonKeyCode,
+                        carbonModifiers: shortcut.carbonModifiers,
+                        displayNames: displayNames
+                    )
+                case .doubleTap:
+                    guard self.doubleTapKey.isConfigured else { return .unconfigured }
+                    return .singleKey(
+                        keyCode: self.doubleTapKey.keyCode,
+                        isModifier: self.doubleTapKey.isModifier,
+                        displayName: self.doubleTapKey.displayName
+                    )
+                }
             },
             set: { [weak self] newValue in
-                guard let self else { return }
-                switch newValue {
-                case .unconfigured:
-                    self.$doubleTapKey.withLock { $0 = .unconfigured }
-                case let .configured(keyCode, isModifier, _):
-                    self.$doubleTapKey.withLock { $0 = DoubleTapKey(keyCode: keyCode, isModifier: isModifier) }
-                }
-                self.appModel.registerShortcutHandlers()
+                self?.shortcutRecorded(newValue)
             }
         )
+    }
+
+    var shortcutDescription: String {
+        switch shortcutTriggerMode {
+        case .combo:
+            "Tap to toggle recording, or hold and release to stop."
+        case .doubleTap:
+            "Press the same key twice quickly to activate. Hold the second press for push-to-talk."
+        }
     }
 
     var appleIntelligenceAvailable: Bool {
@@ -177,8 +199,26 @@ final class SettingsViewModel {
         $transcriptHistoryDays.withLock { $0 = updated }
     }
 
-    func triggerModeChanged(_ mode: ShortcutTriggerMode) {
-        $shortcutTriggerMode.withLock { $0 = mode }
+    func shortcutRecorded(_ result: RecordedShortcut) {
+        switch result {
+        case .unconfigured:
+            KeyboardShortcuts.setShortcut(nil, for: .pushToTalk)
+            $doubleTapKey.withLock { $0 = .unconfigured }
+
+        case let .singleKey(keyCode, isModifier, _):
+            $shortcutTriggerMode.withLock { $0 = .doubleTap }
+            $doubleTapKey.withLock { $0 = DoubleTapKey(keyCode: keyCode, isModifier: isModifier) }
+            $doubleTapInterval.withLock { $0 = 0.4 }
+            KeyboardShortcuts.setShortcut(nil, for: .pushToTalk)
+
+        case let .combo(keyCode, carbonModifiers, _):
+            $shortcutTriggerMode.withLock { $0 = .combo }
+            KeyboardShortcuts.setShortcut(
+                .init(carbonKeyCode: keyCode, carbonModifiers: carbonModifiers),
+                for: .pushToTalk
+            )
+            $doubleTapKey.withLock { $0 = .unconfigured }
+        }
         appModel.registerShortcutHandlers()
     }
 

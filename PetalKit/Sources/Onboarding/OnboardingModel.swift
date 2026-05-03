@@ -7,6 +7,7 @@ import Observation
 import PermissionsClient
 import Sauce
 import Shared
+import SwiftUI
 
 @MainActor
 @Observable
@@ -177,6 +178,9 @@ public final class OnboardingModel {
     public var accessibilityAuthorized = false
     @ObservationIgnored @Shared(.historyRetentionMode) public var historyRetentionMode: HistoryRetentionMode = .both
     @ObservationIgnored @Shared(.appleIntelligenceEnabled) public var appleIntelligenceEnabled = false
+    @ObservationIgnored @Shared(.shortcutTriggerMode) var shortcutTriggerMode: ShortcutTriggerMode = .combo
+    @ObservationIgnored @Shared(.doubleTapKey) var doubleTapKey: DoubleTapKey = .unconfigured
+    @ObservationIgnored @Shared(.doubleTapInterval) var doubleTapInterval: Double = 0.4
 
     public var lastError: String?
     public var transientMessage: String?
@@ -231,7 +235,62 @@ public final class OnboardingModel {
     }
 
     public var hasConfiguredShortcut: Bool {
-        KeyboardShortcuts.getShortcut(for: .pushToTalk) != nil
+        KeyboardShortcuts.getShortcut(for: .pushToTalk) != nil || doubleTapKey.isConfigured
+    }
+
+    public var unifiedShortcutBinding: Binding<RecordedShortcut> {
+        Binding(
+            get: { [weak self] in
+                guard let self else { return .unconfigured }
+                switch self.shortcutTriggerMode {
+                case .combo:
+                    guard let shortcut = KeyboardShortcuts.getShortcut(for: .pushToTalk) else {
+                        return .unconfigured
+                    }
+                    var displayNames = [String]()
+                    let mods = shortcut.modifiers
+                    if mods.contains(.control) { displayNames.append("\u{2303}") }
+                    if mods.contains(.option) { displayNames.append("\u{2325}") }
+                    if mods.contains(.command) { displayNames.append("\u{2318}") }
+                    let keyChar = shortcut.keyToCharacter()?.capitalized ?? "Key \(shortcut.carbonKeyCode)"
+                    displayNames.append(keyChar)
+                    return .combo(
+                        keyCode: shortcut.carbonKeyCode,
+                        carbonModifiers: shortcut.carbonModifiers,
+                        displayNames: displayNames
+                    )
+                case .doubleTap:
+                    guard self.doubleTapKey.isConfigured else { return .unconfigured }
+                    return .singleKey(
+                        keyCode: self.doubleTapKey.keyCode,
+                        isModifier: self.doubleTapKey.isModifier,
+                        displayName: self.doubleTapKey.displayName
+                    )
+                }
+            },
+            set: { [weak self] newValue in
+                guard let self else { return }
+                switch newValue {
+                case .unconfigured:
+                    KeyboardShortcuts.setShortcut(nil, for: .pushToTalk)
+                    self.$doubleTapKey.withLock { $0 = .unconfigured }
+
+                case let .singleKey(keyCode, isModifier, _):
+                    self.$shortcutTriggerMode.withLock { $0 = .doubleTap }
+                    self.$doubleTapKey.withLock { $0 = DoubleTapKey(keyCode: keyCode, isModifier: isModifier) }
+                    self.$doubleTapInterval.withLock { $0 = 0.4 }
+                    KeyboardShortcuts.setShortcut(nil, for: .pushToTalk)
+
+                case let .combo(keyCode, carbonModifiers, _):
+                    self.$shortcutTriggerMode.withLock { $0 = .combo }
+                    KeyboardShortcuts.setShortcut(
+                        .init(carbonKeyCode: keyCode, carbonModifiers: carbonModifiers),
+                        for: .pushToTalk
+                    )
+                    self.$doubleTapKey.withLock { $0 = .unconfigured }
+                }
+            }
+        )
     }
 
     // MARK: - Actions

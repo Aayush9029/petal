@@ -64,16 +64,16 @@ let package = Package(
         .library(name: "FoundationModelClient", targets: ["FoundationModelClient"]),
     ],
     dependencies: [
-        .package(url: "https://github.com/FluidInference/FluidAudio", from: "0.12.1"),
+        .package(url: "https://github.com/FluidInference/FluidAudio", from: "0.14.3"),
         .package(name: "MLXVoxtralSwift", path: "../mlx-voxtral-swift"),
-        .package(url: "https://github.com/pointfreeco/swift-dependencies", from: "1.11.0"),
-        .package(url: "https://github.com/pointfreeco/swift-sharing.git", from: "2.7.4"),
+        .package(url: "https://github.com/pointfreeco/swift-dependencies", from: "1.12.0"),
+        .package(url: "https://github.com/pointfreeco/swift-sharing", from: "2.8.0"),
         .package(url: "https://github.com/pointfreeco/swift-identified-collections", from: "1.1.1"),
-        .package(url: "https://github.com/pointfreeco/swift-case-paths", from: "1.7.2"),
+        .package(url: "https://github.com/pointfreeco/swift-case-paths", from: "1.7.3"),
         .package(name: "KeyboardShortcuts", path: "KeyboardShortcuts"),
         .package(url: "https://github.com/Clipy/Sauce.git", from: "2.4.1"),
-        .package(url: "https://github.com/argmaxinc/WhisperKit", from: "0.15.0"),
-        .package(url: "https://github.com/microsoft/onnxruntime-swift-package-manager", from: "1.24.0"),
+        .package(url: "https://github.com/argmaxinc/WhisperKit", from: "1.0.0"),
+        .package(url: "https://github.com/microsoft/onnxruntime-swift-package-manager", from: "1.24.2"),
     ],
     targets: [
         .target(

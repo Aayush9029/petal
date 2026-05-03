@@ -3,7 +3,7 @@ import SwiftUI
 import UI
 
 struct ShortcutPage: View {
-    @Bindable var model: OnboardingModel
+    var model: OnboardingModel
     @State private var isAnimating = false
 
     var body: some View {
@@ -11,7 +11,7 @@ struct ShortcutPage: View {
             OnboardingHeader(
                 symbol: "keyboard",
                 title: "Record a Shortcut",
-                description: "This shortcut works two ways — hold it down and release to finish, or quick-tap to start and tap again to stop.",
+                description: "Record a key combo (e.g. ⌥Space) or a single key to double-tap. Hold it down and release to finish, or quick-tap to start and tap again to stop.",
                 layout: .vertical
             )
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -19,7 +19,7 @@ struct ShortcutPage: View {
 
             Spacer()
 
-            KeyboardShortcuts.Recorder(for: .pushToTalk)
+            UnifiedShortcutRecorder(shortcut: model.unifiedShortcutBinding)
                 .scaleEffect(2.0)
                 .slideIn(active: isAnimating, delay: 0.5)
 
