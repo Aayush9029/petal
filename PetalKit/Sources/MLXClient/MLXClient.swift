@@ -317,7 +317,7 @@ private actor LiveMLXRuntime {
             )
             let manager = Qwen3ASR17BCoreMLManager()
             let loadStart = ProcessInfo.processInfo.systemUptime
-            try await manager.loadModels(from: modelDirectory)
+            try await manager.loadModels(from: modelDirectory, computeUnits: .cpuAndNeuralEngine)
             let loadElapsed = ProcessInfo.processInfo.systemUptime - loadStart
             log("prepare.qwen17.loaded elapsed=\(formatElapsedSeconds(loadElapsed))")
             qwen3Asr17BManager = manager
@@ -337,9 +337,8 @@ private actor LiveMLXRuntime {
             let asrModels = try await AsrModels.load(from: modelDirectory, version: .v3)
             let asrLoadElapsed = ProcessInfo.processInfo.systemUptime - asrLoadStart
             log("prepare.parakeet.asrModels-loaded elapsed=\(formatElapsedSeconds(asrLoadElapsed))")
-            let manager = AsrManager(config: .default)
             let managerInitStart = ProcessInfo.processInfo.systemUptime
-            try await manager.initialize(models: asrModels)
+            let manager = AsrManager(config: .default, models: asrModels)
             let managerInitElapsed = ProcessInfo.processInfo.systemUptime - managerInitStart
             log("prepare.parakeet.manager-initialized elapsed=\(formatElapsedSeconds(managerInitElapsed))")
             parakeetAsrManager = manager
@@ -458,7 +457,8 @@ private actor LiveMLXRuntime {
 
                 nonisolated(unsafe) let manager = parakeetAsrManager
                 let inferenceStart = ProcessInfo.processInfo.systemUptime
-                let result = try await manager.transcribe(audioURL, source: .system)
+                var decoderState = try TdtDecoderState(decoderLayers: await manager.decoderLayerCount)
+                let result = try await manager.transcribe(audioURL, decoderState: &decoderState)
                 let inferenceElapsed = ProcessInfo.processInfo.systemUptime - inferenceStart
                 log(
                     "transcribe.parakeet.inference completed elapsed=\(formatElapsedSeconds(inferenceElapsed)), rawChars=\(result.text.count)"
@@ -550,7 +550,7 @@ private func normalizeDownloadError(_ error: any Error) -> MLXDownloadError {
         return downloadError
     }
 
-    if let downloaderError = error as? ModelDownloaderError {
+    if let downloaderError = error as? VoxtralCore.ModelDownloaderError {
         switch downloaderError {
         case .downloadPaused:
             return .paused

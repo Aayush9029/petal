@@ -45,10 +45,10 @@ final class StatusItemController: NSObject, NSMenuDelegate {
 
     private func showMenu() {
         rebuildMenu()
-        statusView.isHighlighted = true
+        statusView.isMenuHighlighted = true
         statusView.needsDisplay = true
         statusItem.popUpMenu(menu)
-        statusView.isHighlighted = false
+        statusView.isMenuHighlighted = false
         statusView.needsDisplay = true
     }
 
@@ -186,7 +186,7 @@ final class StatusItemController: NSObject, NSMenuDelegate {
 @MainActor
 private final class DropStatusItemView: NSControl {
     var symbolName = "waveform.badge.mic"
-    var isHighlighted = false
+    var isMenuHighlighted = false
     var onClick: (() -> Void)?
     var onDropURLs: (([URL]) -> Void)?
 
@@ -232,17 +232,18 @@ private final class DropStatusItemView: NSControl {
     override func draw(_ dirtyRect: NSRect) {
         super.draw(dirtyRect)
 
-        if isHighlighted {
+        if isMenuHighlighted {
             NSColor.selectedMenuItemColor.setFill()
             bounds.fill()
         }
 
+        let iconColor = isMenuHighlighted ? NSColor.selectedMenuItemTextColor : statusItemForegroundColor
         let configuration = NSImage.SymbolConfiguration(pointSize: 15, weight: .regular)
+            .applying(.init(hierarchicalColor: iconColor))
         let image = (
             NSImage(systemSymbolName: symbolName, accessibilityDescription: nil)
                 ?? NSImage(systemSymbolName: "waveform.badge.mic", accessibilityDescription: nil)
         )?.withSymbolConfiguration(configuration)
-        image?.isTemplate = true
 
         let imageSize = image?.size ?? NSSize(width: 16, height: 16)
         let imageRect = NSRect(
@@ -251,7 +252,16 @@ private final class DropStatusItemView: NSControl {
             width: imageSize.width,
             height: imageSize.height
         )
-        (isHighlighted ? NSColor.selectedMenuItemTextColor : NSColor.labelColor).set()
         image?.draw(in: imageRect)
+    }
+
+    private var statusItemForegroundColor: NSColor {
+        let appearance = effectiveAppearance.bestMatch(from: [.darkAqua, .aqua, .vibrantDark, .vibrantLight])
+        switch appearance {
+        case .darkAqua, .vibrantDark:
+            return .white
+        default:
+            return .labelColor
+        }
     }
 }

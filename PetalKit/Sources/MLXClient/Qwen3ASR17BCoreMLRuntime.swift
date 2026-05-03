@@ -203,7 +203,7 @@ actor Qwen3ASR17BCoreMLManager {
         }
 
         return try MLDictionaryFeatureProvider(dictionary: [
-            "mel_input": MLFeatureValue(multiArray: array)
+            "mel_chunk": MLFeatureValue(multiArray: array)
         ])
     }
 
@@ -287,33 +287,17 @@ actor Qwen3ASR17BCoreMLManager {
         maxNewTokens: Int,
         models: Qwen3ASR17BLoadedModels
     ) throws -> [Int] {
-        let state = models.decoderStateful.makeState()
-        let effectiveMaxNew = min(maxNewTokens, Qwen3ASR17BConfig.maxCacheSeqLen - promptLength)
+        let maxUsableCache = Qwen3ASR17BConfig.maxCacheSeqLen - Qwen3ASR17BConfig.dummyCacheLength
+        let effectiveMaxNew = min(maxNewTokens, maxUsableCache - promptLength)
         guard effectiveMaxNew > 0 else {
             throw Qwen3ASR17BError.generationFailed(
-                "Prompt length \(promptLength) exceeds cache capacity \(Qwen3ASR17BConfig.maxCacheSeqLen)"
+                "Prompt length \(promptLength) exceeds cache capacity \(maxUsableCache)"
             )
         }
 
+        var cache = try Qwen3ASR17BKVCache()
         var generatedTokens: [Int] = []
-        var currentPosition = promptLength
-        let (prefillCos, prefillSin) = rope.computeRange(startPosition: 0, count: promptLength)
-        let prefillLogits = try runStatefulDecoder(
-            hiddenStates: createBatchedHiddenArray(embeddings: Array(initialEmbeddings[0..<promptLength])),
-            positionCos: createBatchedPositionArray(values: prefillCos, seqLen: promptLength),
-            positionSin: createBatchedPositionArray(values: prefillSin, seqLen: promptLength),
-            mask: createPrefillMask(seqLen: promptLength),
-            state: state,
-            models: models
-        )
-
-        let firstTokenID = argmaxFromLogits(prefillLogits)
-        if !Qwen3ASR17BConfig.eosTokenIds.contains(firstTokenID) {
-            generatedTokens.append(firstTokenID)
-        }
-        if Qwen3ASR17BConfig.eosTokenIds.contains(firstTokenID) {
-            return generatedTokens
-        }
+        var currentPosition = 0
 
         let decodeHiddenArray = try MLMultiArray(
             shape: [1, 1, NSNumber(value: Qwen3ASR17BConfig.hiddenSize)],
@@ -340,23 +324,44 @@ actor Qwen3ASR17BCoreMLManager {
             capacity: Qwen3ASR17BConfig.headDim
         )
 
-        for _ in 1..<effectiveMaxNew {
-            guard let lastTokenID = generatedTokens.last else { break }
-            let nextEmbedding = models.embeddingWeights.embedding(for: lastTokenID)
-            nextEmbedding.withUnsafeBufferPointer { source in
-                _ = memcpy(
-                    decodeHiddenPtr,
-                    source.baseAddress!,
-                    Qwen3ASR17BConfig.hiddenSize * MemoryLayout<Float>.size
-                )
-            }
+        var prefillLogits: MLMultiArray?
+        for embedding in initialEmbeddings.prefix(promptLength) {
+            copyEmbedding(embedding, to: decodeHiddenPtr)
             rope.fill(position: currentPosition, cosPtr: decodeCosPtr, sinPtr: decodeSinPtr)
-            let logits = try runStatefulDecoder(
+            prefillLogits = try runDecoder(
                 hiddenStates: decodeHiddenArray,
                 positionCos: decodeCosArray,
                 positionSin: decodeSinArray,
-                mask: createDecodeMask(endStep: currentPosition + 1),
-                state: state,
+                mask: createDecodeMask(cacheLength: cache.length),
+                cache: &cache,
+                models: models
+            )
+            currentPosition += 1
+        }
+
+        guard let prefillLogits else {
+            throw Qwen3ASR17BError.generationFailed("Empty prompt")
+        }
+
+        let firstTokenID = argmaxFromLogits(prefillLogits)
+        if !Qwen3ASR17BConfig.eosTokenIds.contains(firstTokenID) {
+            generatedTokens.append(firstTokenID)
+        }
+        if Qwen3ASR17BConfig.eosTokenIds.contains(firstTokenID) {
+            return generatedTokens
+        }
+
+        for _ in 1..<effectiveMaxNew {
+            guard let lastTokenID = generatedTokens.last else { break }
+            let nextEmbedding = models.embeddingWeights.embedding(for: lastTokenID)
+            copyEmbedding(nextEmbedding, to: decodeHiddenPtr)
+            rope.fill(position: currentPosition, cosPtr: decodeCosPtr, sinPtr: decodeSinPtr)
+            let logits = try runDecoder(
+                hiddenStates: decodeHiddenArray,
+                positionCos: decodeCosArray,
+                positionSin: decodeSinArray,
+                mask: createDecodeMask(cacheLength: cache.length),
+                cache: &cache,
                 models: models
             )
             currentPosition += 1
@@ -371,25 +376,39 @@ actor Qwen3ASR17BCoreMLManager {
         return generatedTokens
     }
 
-    private func runStatefulDecoder(
+    private func runDecoder(
         hiddenStates: MLMultiArray,
         positionCos: MLMultiArray,
         positionSin: MLMultiArray,
         mask: MLMultiArray,
-        state: MLState,
+        cache: inout Qwen3ASR17BKVCache,
         models: Qwen3ASR17BLoadedModels
     ) throws -> MLMultiArray {
-        let input = try MLDictionaryFeatureProvider(dictionary: [
+        var dictionary: [String: MLFeatureValue] = [
             "hidden_states": MLFeatureValue(multiArray: hiddenStates),
-            "position_cos": MLFeatureValue(multiArray: positionCos),
-            "position_sin": MLFeatureValue(multiArray: positionSin),
-            "attention_mask": MLFeatureValue(multiArray: mask),
-        ])
-        let output = try models.decoderStateful.prediction(from: input, using: state)
+            "cos_pos": MLFeatureValue(multiArray: positionCos),
+            "sin_pos": MLFeatureValue(multiArray: positionSin),
+            "causal_mask": MLFeatureValue(multiArray: mask),
+        ]
+        cache.addInputs(to: &dictionary)
+
+        let input = try MLDictionaryFeatureProvider(dictionary: dictionary)
+        let output = try models.decoderStateful.prediction(from: input)
         guard let logits = output.multiArray(named: "logits") else {
             throw Qwen3ASR17BError.decoderFailed("Missing logits output")
         }
+        try cache.update(from: output)
         return logits
+    }
+
+    private func copyEmbedding(_ embedding: [Float], to pointer: UnsafeMutablePointer<Float>) {
+        embedding.withUnsafeBufferPointer { source in
+            _ = memcpy(
+                pointer,
+                source.baseAddress!,
+                Qwen3ASR17BConfig.hiddenSize * MemoryLayout<Float>.size
+            )
+        }
     }
 
     private func argmaxFromLogits(_ logits: MLMultiArray) -> Int {
@@ -433,52 +452,12 @@ actor Qwen3ASR17BCoreMLManager {
         return decoded.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
-    private func createPrefillMask(seqLen: Int) throws -> MLMultiArray {
-        let array = try MLMultiArray(shape: [1, 1, NSNumber(value: seqLen), NSNumber(value: seqLen)], dataType: .float32)
-        let ptr = array.dataPointer.bindMemory(to: Float.self, capacity: seqLen * seqLen)
-        for row in 0..<seqLen {
-            for column in 0..<seqLen {
-                ptr[row * seqLen + column] = column > row ? Float(-1e9) : 0
-            }
-        }
-        return array
-    }
-
-    private func createDecodeMask(endStep: Int) throws -> MLMultiArray {
-        let array = try MLMultiArray(shape: [1, 1, 1, NSNumber(value: endStep)], dataType: .float32)
-        let ptr = array.dataPointer.bindMemory(to: Float.self, capacity: endStep)
-        ptr.initialize(repeating: 0, count: endStep)
-        return array
-    }
-
-    private func createBatchedHiddenArray(embeddings: [[Float]]) throws -> MLMultiArray {
-        let seqLen = embeddings.count
-        let array = try MLMultiArray(
-            shape: [1, NSNumber(value: seqLen), NSNumber(value: Qwen3ASR17BConfig.hiddenSize)],
-            dataType: .float32
-        )
-        let ptr = array.dataPointer.bindMemory(
-            to: Float.self,
-            capacity: seqLen * Qwen3ASR17BConfig.hiddenSize
-        )
-        for index in 0..<seqLen {
-            let offset = index * Qwen3ASR17BConfig.hiddenSize
-            for dim in 0..<Qwen3ASR17BConfig.hiddenSize {
-                ptr[offset + dim] = embeddings[index][dim]
-            }
-        }
-        return array
-    }
-
-    private func createBatchedPositionArray(values: [Float], seqLen: Int) throws -> MLMultiArray {
-        let array = try MLMultiArray(
-            shape: [1, NSNumber(value: seqLen), NSNumber(value: Qwen3ASR17BConfig.headDim)],
-            dataType: .float32
-        )
-        let ptr = array.dataPointer.bindMemory(to: Float.self, capacity: values.count)
-        for index in values.indices {
-            ptr[index] = values[index]
-        }
+    private func createDecodeMask(cacheLength: Int) throws -> MLMultiArray {
+        let maskLength = cacheLength + 1
+        let array = try MLMultiArray(shape: [1, 1, 1, NSNumber(value: maskLength)], dataType: .float32)
+        let ptr = array.dataPointer.bindMemory(to: Float.self, capacity: maskLength)
+        ptr.initialize(repeating: 0, count: maskLength)
+        ptr[0] = Float(-1e9)
         return array
     }
 }
@@ -492,6 +471,9 @@ private enum Qwen3ASR17BConfig {
     static let encoderOutputDim = 2048
     static let hiddenSize = 2048
     static let headDim = 128
+    static let decoderLayerCount = 28
+    static let kvHeadCount = 8
+    static let dummyCacheLength = 1
     static let vocabSize = 151_936
     static let ropeTheta: Double = 1_000_000
     static let audioStartTokenId = 151_669
@@ -506,6 +488,66 @@ private enum Qwen3ASR17BConfig {
     static let assistantTokenId = 77_091
     static let newlineTokenId = 198
     static let maxCacheSeqLen = 512
+}
+
+private struct Qwen3ASR17BKVCache {
+    private(set) var keys: [MLMultiArray]
+    private(set) var values: [MLMultiArray]
+    private(set) var length: Int
+
+    init() throws {
+        keys = try (0..<Qwen3ASR17BConfig.decoderLayerCount).map { _ in
+            try Self.makeCacheArray(length: Qwen3ASR17BConfig.dummyCacheLength)
+        }
+        values = try (0..<Qwen3ASR17BConfig.decoderLayerCount).map { _ in
+            try Self.makeCacheArray(length: Qwen3ASR17BConfig.dummyCacheLength)
+        }
+        length = Qwen3ASR17BConfig.dummyCacheLength
+    }
+
+    func addInputs(to dictionary: inout [String: MLFeatureValue]) {
+        for layer in 0..<Qwen3ASR17BConfig.decoderLayerCount {
+            dictionary["k_cache_\(layer)"] = MLFeatureValue(multiArray: keys[layer])
+            dictionary["v_cache_\(layer)"] = MLFeatureValue(multiArray: values[layer])
+        }
+    }
+
+    mutating func update(from output: MLFeatureProvider) throws {
+        var newKeys: [MLMultiArray] = []
+        var newValues: [MLMultiArray] = []
+        newKeys.reserveCapacity(Qwen3ASR17BConfig.decoderLayerCount)
+        newValues.reserveCapacity(Qwen3ASR17BConfig.decoderLayerCount)
+
+        for layer in 0..<Qwen3ASR17BConfig.decoderLayerCount {
+            guard let key = output.featureValue(for: "new_k_cache_\(layer)")?.multiArrayValue else {
+                throw Qwen3ASR17BError.decoderFailed("Missing new_k_cache_\(layer) output")
+            }
+            guard let value = output.featureValue(for: "new_v_cache_\(layer)")?.multiArrayValue else {
+                throw Qwen3ASR17BError.decoderFailed("Missing new_v_cache_\(layer) output")
+            }
+            newKeys.append(key)
+            newValues.append(value)
+        }
+
+        keys = newKeys
+        values = newValues
+        length += 1
+    }
+
+    private static func makeCacheArray(length: Int) throws -> MLMultiArray {
+        let array = try MLMultiArray(
+            shape: [
+                1,
+                NSNumber(value: Qwen3ASR17BConfig.kvHeadCount),
+                NSNumber(value: length),
+                NSNumber(value: Qwen3ASR17BConfig.headDim),
+            ],
+            dataType: .float32
+        )
+        let ptr = array.dataPointer.bindMemory(to: Float.self, capacity: array.count)
+        ptr.initialize(repeating: 0, count: array.count)
+        return array
+    }
 }
 
 private struct Qwen3ASR17BRoPE: Sendable {
@@ -600,25 +642,33 @@ final class Qwen3ASR17BEmbeddingWeights: @unchecked Sendable {
     let vocabSize: Int
     let hiddenSize: Int
     private let data: Data
+    private let dataOffset: Int
 
     init(contentsOf url: URL) throws {
         let fileData = try Data(contentsOf: url)
-        guard fileData.count >= 8 else {
-            throw Qwen3ASR17BError.invalidVocabulary
+        let payloadSize = Qwen3ASR17BConfig.vocabSize * Qwen3ASR17BConfig.hiddenSize * 2
+        let headeredSize = 8 + payloadSize
+
+        if fileData.count == headeredSize {
+            let storedVocabSize = Int(fileData.withUnsafeBytes { $0.load(fromByteOffset: 0, as: UInt32.self) })
+            let storedHiddenSize = Int(fileData.withUnsafeBytes { $0.load(fromByteOffset: 4, as: UInt32.self) })
+            guard storedVocabSize == Qwen3ASR17BConfig.vocabSize else {
+                throw Qwen3ASR17BError.generationFailed("Embedding vocab size \(storedVocabSize) is not \(Qwen3ASR17BConfig.vocabSize)")
+            }
+            guard storedHiddenSize == Qwen3ASR17BConfig.hiddenSize else {
+                throw Qwen3ASR17BError.generationFailed("Embedding hidden size \(storedHiddenSize) is not \(Qwen3ASR17BConfig.hiddenSize)")
+            }
+            dataOffset = 8
+        } else if fileData.count == payloadSize {
+            dataOffset = 0
+        } else {
+            throw Qwen3ASR17BError.generationFailed(
+                "Embedding file size mismatch: expected \(payloadSize) or \(headeredSize), got \(fileData.count)"
+            )
         }
 
-        vocabSize = Int(fileData.withUnsafeBytes { $0.load(fromByteOffset: 0, as: UInt32.self) })
-        hiddenSize = Int(fileData.withUnsafeBytes { $0.load(fromByteOffset: 4, as: UInt32.self) })
-        guard vocabSize == Qwen3ASR17BConfig.vocabSize else {
-            throw Qwen3ASR17BError.generationFailed("Embedding vocab size \(vocabSize) is not \(Qwen3ASR17BConfig.vocabSize)")
-        }
-        guard hiddenSize == Qwen3ASR17BConfig.hiddenSize else {
-            throw Qwen3ASR17BError.generationFailed("Embedding hidden size \(hiddenSize) is not \(Qwen3ASR17BConfig.hiddenSize)")
-        }
-        let expectedSize = 8 + vocabSize * hiddenSize * 2
-        guard fileData.count == expectedSize else {
-            throw Qwen3ASR17BError.generationFailed("Embedding file size mismatch: expected \(expectedSize), got \(fileData.count)")
-        }
+        vocabSize = Qwen3ASR17BConfig.vocabSize
+        hiddenSize = Qwen3ASR17BConfig.hiddenSize
         data = fileData
     }
 
@@ -626,7 +676,7 @@ final class Qwen3ASR17BEmbeddingWeights: @unchecked Sendable {
         guard tokenID >= 0, tokenID < vocabSize else {
             return [Float](repeating: 0, count: hiddenSize)
         }
-        let offset = 8 + tokenID * hiddenSize * 2
+        let offset = dataOffset + tokenID * hiddenSize * 2
         var result = [Float](repeating: 0, count: hiddenSize)
         #if arch(arm64)
         data.withUnsafeBytes { pointer in
