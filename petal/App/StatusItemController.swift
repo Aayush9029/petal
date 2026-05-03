@@ -29,7 +29,7 @@ final class StatusItemController: NSObject, NSMenuDelegate {
             Task { @MainActor in self?.refresh() }
         }
         RunLoop.main.add(timer, forMode: .common)
-        refreshTimer = timer
+        self.refreshTimer = timer
     }
 
     func menuWillOpen(_ menu: NSMenu) {
@@ -127,8 +127,10 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         }
 
         menu.addItem(NSMenuItem(title: "About Petal", action: #selector(showAbout), keyEquivalent: ""))
-        let settingsItem = NSMenuItem(title: "Settings...", action: #selector(openSettings), keyEquivalent: ",")
+
+        let settingsItem = NSMenuItem(title: "Settings", action: #selector(openSettings), keyEquivalent: ",")
         settingsItem.keyEquivalentModifierMask = [.command]
+
         menu.addItem(settingsItem)
 
         menu.addItem(.separator())
