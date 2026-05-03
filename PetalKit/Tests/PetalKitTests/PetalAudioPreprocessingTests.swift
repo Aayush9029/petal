@@ -5,6 +5,7 @@ import Shared
 import Testing
 @testable import AudioSpeedClient
 @testable import AudioTrimClient
+@testable import LogClient
 @testable import MLXClient
 @testable import TranscriptionClient
 
@@ -59,6 +60,13 @@ func transcriptionClientUsesTrimAndSpeedDependenciesBeforeMLX() async throws {
 
     let output = try await withDependencies {
         $0.defaultAppStorage = appStorage
+        $0.logClient = LogClient(
+            debug: { _, _ in },
+            info: { _, _ in },
+            error: { _, _ in },
+            dumpDebug: { _, _, _ in },
+            logFileURL: { nil }
+        )
         $0.mlxClient = MLXClient(
             isModelDownloaded: { _ in true },
             downloadModel: { _, _ in },

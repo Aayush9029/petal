@@ -49,7 +49,21 @@ final class MenuBarContentViewModel {
         return message
     }
 
-    var transientMessage: String? { appModel.transientMessage }
+    var transientMessage: String? {
+        guard let message = appModel.transientMessage else { return nil }
+        let lower = message.lowercased()
+        let allowedKeywords = [
+            "accessibility",
+            "microphone",
+            "complete setup",
+            "turn on",
+            "warming",
+            "preparing",
+            "downloading",
+            "failed"
+        ]
+        return allowedKeywords.contains(where: { lower.contains($0) }) ? message : nil
+    }
 
     var shouldShowPermissionsSection: Bool {
         !appModel.microphoneAuthorized || !appModel.accessibilityAuthorized
