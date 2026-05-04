@@ -11,10 +11,6 @@
   <a aria-label="Download Latest Version" href="https://github.com/Aayush9029/petal/releases/latest">
     <img alt="Download Latest Version" src="https://img.shields.io/badge/Download%20Mac%20Version-black.svg?style=for-the-badge&logo=apple">
   </a>
-  
-  <a aria-label="Support Development" href="https://github.com/sponsors/Aayush9029">
-    <img alt="Support Development" src="https://img.shields.io/badge/Support%20Development-white.svg?style=for-the-badge&logo=githubsponsors&logoColor=ff5ca8">
-  </a>
 </p>
 
 
