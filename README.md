@@ -11,7 +11,12 @@
   <a aria-label="Download Latest Version" href="https://github.com/Aayush9029/petal/releases/latest">
     <img alt="Download Latest Version" src="https://img.shields.io/badge/Download%20Mac%20Version-black.svg?style=for-the-badge&logo=apple">
   </a>
+  <a aria-label="Download iOS Version" href="https://apps.apple.com/ml/app/petal-ai-voice-recorder/id6759932376">
+    <img alt="Download Latest Version" src="https://img.shields.io/badge/Download%20iOS%20Version-white.svg?style=for-the-badge&logo=appstore">
+  </a>
 </p>
+
+
 
 
 
