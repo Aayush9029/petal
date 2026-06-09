@@ -1,3 +1,7 @@
+import CasePaths
+
+@CasePathable
+@dynamicMemberLookup
 public enum ModelDownloadState: Sendable, Equatable {
     case notDownloaded
     case preparing

@@ -1,3 +1,4 @@
+import CustomDump
 import Dependencies
 import Foundation
 import Shared
@@ -21,11 +22,21 @@ func downloadClientNormalizesProgressAndExtractsSpeedText() async throws {
     }
 
     let snapshot = updates.snapshot()
-    #expect(snapshot.count == 2)
-    #expect(snapshot[0].fractionCompleted == 1)
-    #expect(snapshot[0].speedText == "18.2 MB/s")
-    #expect(snapshot[1].fractionCompleted == 0)
-    #expect(snapshot[1].speedText == nil)
+    expectNoDifference(
+        snapshot,
+        [
+            DownloadProgress(
+                fractionCompleted: 1,
+                status: "Downloading model files... 52% (18.2 MB/s)",
+                speedText: "18.2 MB/s"
+            ),
+            DownloadProgress(
+                fractionCompleted: 0,
+                status: "Downloading model files... 0%",
+                speedText: nil
+            ),
+        ]
+    )
 }
 
 @Test
@@ -80,9 +91,16 @@ func downloadClientSkipsMLXForNoDownloadModels() async throws {
 
     let snapshot = updates.snapshot()
     #expect(await callRecorder.callCount() == 0)
-    #expect(snapshot.count == 1)
-    #expect(snapshot[0].fractionCompleted == 1)
-    #expect(snapshot[0].status == "No download required for this model.")
+    expectNoDifference(
+        snapshot,
+        [
+            DownloadProgress(
+                fractionCompleted: 1,
+                status: "No download required for this model.",
+                speedText: nil
+            )
+        ]
+    )
 }
 
 @Test

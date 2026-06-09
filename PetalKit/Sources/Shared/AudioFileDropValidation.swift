@@ -1,11 +1,15 @@
+import CasePaths
 import Foundation
 import UniformTypeIdentifiers
 
+@CasePathable
+@dynamicMemberLookup
 public enum AudioFileDropValidationResult: Equatable, Sendable {
     case accepted(URL)
     case rejected(AudioFileDropValidationError)
 }
 
+@CasePathable
 public enum AudioFileDropValidationError: Equatable, Sendable {
     case noFile
     case multipleFiles

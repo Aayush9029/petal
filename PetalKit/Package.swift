@@ -24,6 +24,7 @@ extension Target.Dependency {
     static let dependencies: Self = .product(name: "Dependencies", package: "swift-dependencies")
     static let dependenciesMacros: Self = .product(name: "DependenciesMacros", package: "swift-dependencies")
     static let dependenciesTestSupport: Self = .product(name: "DependenciesTestSupport", package: "swift-dependencies")
+    static let customDump: Self = .product(name: "CustomDump", package: "swift-custom-dump")
     static let sharing: Self = .product(name: "Sharing", package: "swift-sharing")
     static let identifiedCollections: Self = .product(name: "IdentifiedCollections", package: "swift-identified-collections")
     static let casePaths: Self = .product(name: "CasePaths", package: "swift-case-paths")
@@ -69,6 +70,7 @@ let package = Package(
         .package(url: "https://github.com/FluidInference/FluidAudio", from: "0.14.3"),
         .package(name: "MLXVoxtralSwift", path: "../mlx-voxtral-swift"),
         .package(url: "https://github.com/pointfreeco/swift-dependencies", from: "1.12.0"),
+        .package(url: "https://github.com/pointfreeco/swift-custom-dump", from: "1.6.0"),
         .package(url: "https://github.com/pointfreeco/swift-sharing", from: "2.8.0"),
         .package(url: "https://github.com/pointfreeco/swift-identified-collections", from: "1.1.1"),
         .package(url: "https://github.com/pointfreeco/swift-case-paths", from: "1.7.3"),
@@ -254,6 +256,7 @@ let package = Package(
             name: "PetalKitTests",
             dependencies: [
                 .dependenciesTestSupport,
+                .customDump,
                 .shared,
                 .models,
                 .ui,

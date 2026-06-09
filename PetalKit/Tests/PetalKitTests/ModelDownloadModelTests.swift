@@ -1,3 +1,4 @@
+import CustomDump
 import Dependencies
 import DependenciesTestSupport
 import Foundation
@@ -7,8 +8,8 @@ import Testing
 @testable import ModelDownloadFeature
 
 @Test
-func modelCompletesDownloadAndTransitionsToDownloadedState() async throws {
-    try await withDependencies {
+func modelCompletesDownloadAndTransitionsToDownloadedState() async {
+    await withDependencies {
         $0.downloadClient.isModelDownloaded = { _ in false }
         $0.downloadClient.downloadModel = { _, progress in
             progress(DownloadProgress(fractionCompleted: 0.4, status: "Downloading model files... 40%", speedText: "12.0 MB/s"))
@@ -18,16 +19,16 @@ func modelCompletesDownloadAndTransitionsToDownloadedState() async throws {
         let model = ModelDownloadModel(isPreviewMode: true)
         await model.downloadButtonTapped()
 
-        #expect(model.state == .downloaded)
-        #expect(model.lastError == nil)
+        expectNoDifference(model.state, .downloaded)
+        expectNoDifference(model.lastError, nil)
     }
 }
 
 @Test
-func modelHandlesPauseAndResumeAcrossRetries() async throws {
+func modelHandlesPauseAndResumeAcrossRetries() async {
     let attempts = AttemptCounter()
 
-    try await withDependencies {
+    await withDependencies {
         $0.downloadClient.isModelDownloaded = { _ in false }
         $0.downloadClient.downloadModel = { _, progress in
             let attempt = await attempts.next()
@@ -40,35 +41,41 @@ func modelHandlesPauseAndResumeAcrossRetries() async throws {
         let model = ModelDownloadModel(isPreviewMode: true)
 
         await model.downloadButtonTapped()
-        #expect(model.state.isPaused)
+        #expect(model.state.is(\.paused))
 
         await model.resumeButtonTapped()
-        #expect(model.state == .downloaded)
+        expectNoDifference(model.state, .downloaded)
         #expect(await attempts.current() == 2)
     }
 }
 
 @Test
-func modelPauseAndCancelButtonsMutateStateDeterministically() async throws {
-    try await withDependencies {
+func modelPauseAndCancelButtonsMutateStateDeterministically() async {
+    await withDependencies {
         $0.downloadClient.isModelDownloaded = { _ in false }
     } operation: {
         await MainActor.run {
             let model = ModelDownloadModel(isPreviewMode: true)
             model.state = .downloading(.init(fraction: 0.58, statusText: "Downloading model files..."))
 
-            model.pauseButtonTapped()
-            #expect(model.state.isPaused)
+            expectDifference(model.state) {
+                model.pauseButtonTapped()
+            } changes: {
+                $0 = .paused(.init(fraction: 0.58, statusText: "Downloading model files..."))
+            }
 
-            model.cancelButtonTapped()
-            #expect(model.state == .notDownloaded)
+            expectDifference(model.state) {
+                model.cancelButtonTapped()
+            } changes: {
+                $0 = .notDownloaded
+            }
         }
     }
 }
 
 @Test
-func modelTransitionsToFailedStateForTypedFailures() async throws {
-    try await withDependencies {
+func modelTransitionsToFailedStateForTypedFailures() async {
+    await withDependencies {
         $0.downloadClient.isModelDownloaded = { _ in false }
         $0.downloadClient.downloadModel = { _, _ in
             throw DownloadClientFailure.failed("network failure")
@@ -77,22 +84,22 @@ func modelTransitionsToFailedStateForTypedFailures() async throws {
         let model = ModelDownloadModel(isPreviewMode: true)
         await model.downloadButtonTapped()
 
-        #expect(model.state == .failed("network failure"))
-        #expect(model.lastError == "network failure")
-        #expect(model.state.isActive == false)
+        expectNoDifference(model.state, .failed("network failure"))
+        expectNoDifference(model.lastError, "network failure")
+        #expect(!model.state.isActive)
     }
 }
 
 @Test
-func selectedModelChangedRefreshesDownloadedState() async throws {
-    try await withDependencies {
+func selectedModelChangedRefreshesDownloadedState() async {
+    await withDependencies {
         $0.downloadClient.isModelDownloaded = { _ in true }
     } operation: {
         await MainActor.run {
             let model = ModelDownloadModel(isPreviewMode: true)
             model.selectedModelChanged()
 
-            #expect(model.state == .downloaded)
+            expectNoDifference(model.state, .downloaded)
         }
     }
 }
