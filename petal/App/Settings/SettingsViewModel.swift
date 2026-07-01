@@ -1,5 +1,5 @@
 import AppKit
-import UniformTypeIdentifiers
+import AudioClient
 import Dependencies
 import FoundationModelClient
 import HistoryClient
@@ -10,6 +10,7 @@ import Observation
 import PermissionsClient
 import Shared
 import SwiftUI
+import UniformTypeIdentifiers
 
 @MainActor
 @Observable
@@ -28,11 +29,15 @@ final class SettingsViewModel {
     @ObservationIgnored @Shared(.shortcutTriggerMode) var shortcutTriggerMode: ShortcutTriggerMode = .combo
     @ObservationIgnored @Shared(.doubleTapKey) var doubleTapKey: DoubleTapKey = .unconfigured
     @ObservationIgnored @Shared(.doubleTapInterval) var doubleTapInterval: Double = 0.4
+    @ObservationIgnored @Shared(.selectedAudioInputDeviceID) var selectedAudioInputDeviceID = AudioInputDevice.systemDefaultID
     @ObservationIgnored @Shared(.transcriptHistoryDays) private var transcriptHistoryDays: [TranscriptHistoryDay] = []
 
     var microphoneAuthorized = false
     var accessibilityAuthorized = false
     var permissionMessage: String?
+    var audioInputDevices: [AudioInputDevice] = [
+        AudioInputDevice(id: AudioInputDevice.systemDefaultID, name: "System Default", isSystemDefault: true),
+    ]
 
     var selectedModelID: String {
         get { downloadModel.selectedModelID }
@@ -41,7 +46,18 @@ final class SettingsViewModel {
         }
     }
 
-    var isWarmingModel: Bool { appModel.isWarmingModel }
+    var selectedAudioInputID: String {
+        get { selectedAudioInputDeviceID }
+        set {
+            $selectedAudioInputDeviceID.withLock {
+                $0 = newValue.isEmpty ? AudioInputDevice.systemDefaultID : newValue
+            }
+        }
+    }
+
+    var isWarmingModel: Bool {
+        appModel.isWarmingModel
+    }
 
     var historyDirectoryPath: String {
         historyClient.historyDirectoryPath()
@@ -114,21 +130,47 @@ final class SettingsViewModel {
             || appleIntelligenceEnabled
     }
 
+    var pinnedDownloadOption: ModelOption? {
+        guard let option = downloadModel.downloadingModelOption else { return nil }
+
+        switch downloadModel.state {
+        case .preparing, .downloading, .paused, .failed:
+            return option
+        case .notDownloaded, .downloaded:
+            return nil
+        }
+    }
+
+    var modelProviderGroups: IdentifiedArrayOf<ModelOptionProviderGroup> {
+        ModelOption.providerGroups(excluding: pinnedDownloadOption)
+    }
+
     let downloadModel: ModelDownloadModel
     private let appModel: AppModel
     @ObservationIgnored @Dependency(\.permissionsClient) private var permissionsClient
+    @ObservationIgnored @Dependency(\.audioClient) private var audioClient
     @ObservationIgnored @Dependency(\.historyClient) private var historyClient
     @ObservationIgnored @Dependency(\.foundationModelClient) private var foundationModelClient
     @ObservationIgnored @Dependency(\.logClient) private var logClient
 
     init(appModel: AppModel) {
-        self.downloadModel = appModel.modelDownloadViewModel
+        downloadModel = appModel.modelDownloadViewModel
         self.appModel = appModel
     }
 
     func refreshPermissions() async {
         microphoneAuthorized = await permissionsClient.microphonePermissionState() == .authorized
         accessibilityAuthorized = await permissionsClient.hasAccessibilityPermission()
+    }
+
+    func refreshAudioInputDevices() async {
+        let devices = await audioClient.availableInputDevices()
+        guard !devices.isEmpty else { return }
+        audioInputDevices = devices
+
+        if !devices.contains(where: { $0.id == selectedAudioInputID }) {
+            selectedAudioInputID = AudioInputDevice.systemDefaultID
+        }
     }
 
     func grantMicrophonePermissionButtonTapped() async {
@@ -153,6 +195,23 @@ final class SettingsViewModel {
         await downloadModel.downloadButtonTapped()
     }
 
+    func modelOptionTapped(_ option: ModelOption) -> ModelOption? {
+        if option.requiresDownload, !downloadModel.isModelDownloaded(option) {
+            ensureReadySelectedModel(excluding: option)
+            guard !downloadModel.state.isActive, !downloadModel.state.isPaused else { return nil }
+            return option
+        }
+
+        selectedModelID = option.rawValue
+        return nil
+    }
+
+    func downloadModelConfirmed(_ option: ModelOption) async {
+        guard !downloadModel.state.isActive, !downloadModel.state.isPaused else { return }
+        ensureReadySelectedModel(excluding: option)
+        await downloadModel.downloadModel(option)
+    }
+
     func pauseButtonTapped() {
         downloadModel.pauseButtonTapped()
     }
@@ -167,6 +226,38 @@ final class SettingsViewModel {
 
     func deleteModelButtonTapped() async {
         await downloadModel.deleteModelButtonTapped()
+    }
+
+    func deleteDownloadedModel(_ option: ModelOption) async {
+        await downloadModel.deleteModel(option)
+        if selectedModelID == option.rawValue {
+            ensureReadySelectedModel(excluding: option)
+        }
+    }
+
+    private func ensureReadySelectedModel(excluding excludedOption: ModelOption) {
+        if let selectedOption = ModelOption(rawValue: selectedModelID),
+           selectedOption != excludedOption,
+           !selectedOption.requiresDownload || downloadModel.isModelDownloaded(selectedOption)
+        {
+            return
+        }
+
+        if ModelOption.allCases.contains(.appleSpeech) {
+            selectedModelID = ModelOption.appleSpeech.rawValue
+            return
+        }
+
+        if let readyOption = ModelOption.allCases.first(where: {
+            $0 != excludedOption && (!$0.requiresDownload || downloadModel.isModelDownloaded($0))
+        }) {
+            selectedModelID = readyOption.rawValue
+            return
+        }
+
+        if let fallbackOption = ModelOption.allCases.first(where: { $0 != excludedOption }) {
+            selectedModelID = fallbackOption.rawValue
+        }
     }
 
     func historyRetentionModeChanged(_ mode: HistoryRetentionMode) {

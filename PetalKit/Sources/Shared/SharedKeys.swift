@@ -39,6 +39,11 @@ public extension SharedKey where Self == AppStorageKey<String>.Default {
     static var selectedModelID: Self {
         Self[.appStorage("selected_model_id"), default: ModelOption.defaultOption.rawValue]
     }
+
+    static var selectedAudioInputDeviceID: Self {
+        Self[.appStorage("selected_audio_input_device_id"), default: "system-default"]
+    }
+
     static var smartPrompt: Self {
         Self[.appStorage("smart_prompt"), default: "Clean up filler words and repeated phrases. Return a polished version of what was said."]
     }

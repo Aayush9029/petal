@@ -34,7 +34,7 @@ public final class ModelDownloadModel {
 
     public var isSelectedModelDownloaded: Bool {
         guard let selectedModelOption else { return false }
-        return downloadClient.isModelDownloaded(selectedModelOption)
+        return isModelDownloaded(selectedModelOption)
     }
 
     public var modelDirectoryURL: URL? {
@@ -43,7 +43,11 @@ public final class ModelDownloadModel {
     }
 
     public func downloadButtonTapped() async {
-        await startDownload()
+        await startDownload(selectedModelOption)
+    }
+
+    public func downloadModel(_ option: ModelOption) async {
+        await startDownload(option)
     }
 
     public func pauseButtonTapped() {
@@ -54,7 +58,7 @@ public final class ModelDownloadModel {
 
     public func resumeButtonTapped() async {
         guard state.isPaused else { return }
-        await startDownload()
+        await startDownload(downloadingModelOption ?? selectedModelOption)
     }
 
     public func cancelButtonTapped() {
@@ -64,9 +68,21 @@ public final class ModelDownloadModel {
 
     public func deleteModelButtonTapped() async {
         guard let option = selectedModelOption else { return }
+        await deleteModel(option)
+    }
+
+    public func isModelDownloaded(_ option: ModelOption) -> Bool {
+        guard option.requiresDownload else { return true }
+        return downloadClient.isModelDownloaded(option)
+    }
+
+    public func deleteModel(_ option: ModelOption) async {
+        guard option.requiresDownload else { return }
         do {
             try await downloadClient.deleteModel(option)
-            state = .notDownloaded
+            if option.rawValue == selectedModelID {
+                state = .notDownloaded
+            }
         } catch {
             lastError = "Failed to delete model: \(error.localizedDescription)"
         }
@@ -96,8 +112,8 @@ public final class ModelDownloadModel {
         cancelButtonTapped()
     }
 
-    private func startDownload() async {
-        guard let option = selectedModelOption else {
+    private func startDownload(_ option: ModelOption?) async {
+        guard let option else {
             let message = "Select a model to continue."
             state = .failed(message)
             lastError = message
@@ -119,18 +135,18 @@ public final class ModelDownloadModel {
                 }
             }
 
-            downloadingModelOption = nil
             state = .downloaded
-            onDownloadCompleted?()
+            downloadingModelOption = nil
+            if option.rawValue == selectedModelID {
+                onDownloadCompleted?()
+            }
             transientMessage = "Model ready. Click Finish Setup to continue."
             lastError = nil
         } catch is CancellationError {
             downloadingModelOption = nil
         } catch let error as DownloadClientFailure {
-            downloadingModelOption = nil
             handleDownloadFailure(error)
         } catch {
-            downloadingModelOption = nil
             handleDownloadFailure(.failed(error.localizedDescription))
         }
     }

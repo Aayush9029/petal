@@ -1930,6 +1930,10 @@ final class AppModel {
             return 2.2
         case .parakeetTDT06BV3:
             return 1.8
+        case .parakeetTDT06BV2:
+            return 2.0
+        case .parakeetTDTCTC110M:
+            return 2.5
         case .whisperLargeV3Turbo:
             return 0.85
         case .whisperTiny:

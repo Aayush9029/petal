@@ -1,4 +1,5 @@
 import Assets
+import AudioClient
 import KeyboardShortcuts
 import ModelDownloadFeature
 import Shared
@@ -8,20 +9,47 @@ import UI
 // MARK: - Settings Root
 
 struct SettingsView: View {
-    @State var selectedTab: SettingsTab = .general
+    @State private var selectedTab: SettingsTab = .general
+    @State private var columnVisibility = NavigationSplitViewVisibility.all
     @Bindable var viewModel: SettingsViewModel
 
     var body: some View {
-        TabView(selection: $selectedTab) {
-            Tab("General", systemImage: "gearshape", value: .general) {
-                GeneralPane(viewModel: viewModel)
+        NavigationSplitView(columnVisibility: $columnVisibility) {
+            List(selection: sidebarSelection) {
+                ForEach(SettingsTab.allCases, id: \.self) { tab in
+                    HStack(spacing: 10) {
+                        SettingsTabIcon(tab: tab, size: 20)
+                        Text(tab.title)
+                    }
+                    .tag(tab)
+                }
             }
-            Tab("Transcription", systemImage: "waveform", value: .transcription) {
-                TranscriptionPane(viewModel: viewModel)
-            }
-            Tab("History", systemImage: "clock", value: .history) {
-                HistoryPane(viewModel: viewModel)
-            }
+            .listStyle(.sidebar)
+            .navigationSplitViewColumnWidth(min: 190, ideal: 210, max: 240)
+        } detail: {
+            pane
+                .navigationTitle(selectedTab.title)
+        }
+        .navigationSplitViewStyle(.balanced)
+    }
+
+    private var sidebarSelection: Binding<SettingsTab?> {
+        Binding(get: { selectedTab }, set: { selectedTab = $0 ?? selectedTab })
+    }
+
+    @ViewBuilder
+    private var pane: some View {
+        switch selectedTab {
+        case .general:
+            GeneralPane(viewModel: viewModel)
+        case .transcription:
+            TranscriptionPane(viewModel: viewModel)
+        case .recording:
+            RecordingPane(viewModel: viewModel)
+        case .history:
+            HistoryPane(viewModel: viewModel)
+        case .advanced:
+            AdvancedPane(viewModel: viewModel)
         }
     }
 }
@@ -80,19 +108,21 @@ struct GeneralPane: View {
                         .settingDescription()
                 }
             }
+        }
+        .formStyle(.grouped)
+        .task {
+            await viewModel.refreshPermissions()
+        }
+    }
+}
 
-            Section("Clipboard") {
-                Toggle("Restore clipboard after paste", isOn: Binding(viewModel.$restoreClipboardAfterPaste))
-                Text("When enabled, Petal restores your previous clipboard contents after auto-pasting.")
-                    .settingDescription()
-            }
+// MARK: - Advanced Pane
 
-            Section("System Audio") {
-                Toggle("Lower system volume while recording", isOn: Binding(viewModel.$duckSystemAudioDuringRecording))
-                Text("Reduces system output volume during dictation and restores it afterward.")
-                    .settingDescription()
-            }
+struct AdvancedPane: View {
+    @Bindable var viewModel: SettingsViewModel
 
+    var body: some View {
+        Form {
             Section("Diagnostics") {
                 Toggle("Enable logs", isOn: Binding(viewModel.$logsEnabled))
                 Text("Disabled by default to avoid creating log files unless you explicitly turn this on.")
@@ -105,61 +135,27 @@ struct GeneralPane: View {
             }
         }
         .formStyle(.grouped)
-        .task {
-            await viewModel.refreshPermissions()
-        }
     }
 }
 
-// MARK: - Transcription Pane
+// MARK: - Recording Pane
 
-struct TranscriptionPane: View {
+struct RecordingPane: View {
     @Bindable var viewModel: SettingsViewModel
-    @State private var showDeleteConfirmation = false
 
     var body: some View {
         Form {
-            Section("Model") {
-                Picker("Model", selection: Binding(
-                    get: { viewModel.selectedModelID },
-                    set: { viewModel.selectedModelID = $0 }
+            Section("Input") {
+                Picker("Microphone", selection: Binding(
+                    get: { viewModel.selectedAudioInputID },
+                    set: { viewModel.selectedAudioInputID = $0 }
                 )) {
-                    ForEach(ModelOption.allCases) { option in
-                        HStack {
-                            providerIcon(for: option)
-                                .resizable()
-                                .aspectRatio(contentMode: .fit)
-                                .frame(width: 12, height: 12)
-                                .clipShape(.rect(cornerRadius: 3))
-                            Text(option.displayName)
-                            if option.isRecommended {
-                                Text("Recommended")
-                                    .font(.caption2)
-                                    .foregroundStyle(.secondary)
-                            }
-                        }
-                        .tag(option.rawValue)
+                    ForEach(viewModel.audioInputDevices) { device in
+                        Text(device.name).tag(device.id)
                     }
                 }
-
-                if let selectedModel = viewModel.downloadModel.selectedModelOption {
-                    if let size = selectedModel.sizeLabel {
-                        LabeledContent("Size") {
-                            Text(size)
-                        }
-                    }
-                    modelDownloadStatus
-                }
-
-                if viewModel.isWarmingModel {
-                    HStack(spacing: 8) {
-                        Image(systemName: "flame.fill")
-                            .foregroundStyle(.orange)
-                        Text("Warming up…")
-                            .foregroundStyle(.secondary)
-                    }
-                    .shimmering()
-                }
+                Text("Petal falls back to the system default microphone if the selected device is unavailable.")
+                    .settingDescription()
             }
 
             Section("Audio Preprocessing") {
@@ -169,6 +165,61 @@ struct TranscriptionPane: View {
                 Toggle("Auto speed-up", isOn: Binding(viewModel.$autoSpeedEnabled))
                 Text("Speeds up quiet or low-energy audio to reduce transcription time.")
                     .settingDescription()
+            }
+
+            Section("Clipboard") {
+                Toggle("Restore clipboard after paste", isOn: Binding(viewModel.$restoreClipboardAfterPaste))
+                Text("When enabled, Petal restores your previous clipboard contents after auto-pasting.")
+                    .settingDescription()
+            }
+
+            Section("System Audio") {
+                Toggle("Lower system volume while recording", isOn: Binding(viewModel.$duckSystemAudioDuringRecording))
+                Text("Reduces system output volume during dictation and restores it afterward.")
+                    .settingDescription()
+            }
+        }
+        .formStyle(.grouped)
+        .task {
+            await viewModel.refreshAudioInputDevices()
+        }
+    }
+}
+
+// MARK: - Transcription Pane
+
+struct TranscriptionPane: View {
+    @Bindable var viewModel: SettingsViewModel
+    @State private var destination: TranscriptionDestination?
+
+    var body: some View {
+        Form {
+            Section {
+                VStack(alignment: .leading, spacing: 8) {
+                    if let pinnedDownloadOption = viewModel.pinnedDownloadOption {
+                        modelCard(for: pinnedDownloadOption)
+                            .padding(.bottom, 4)
+                    }
+
+                    ForEach(viewModel.modelProviderGroups) { group in
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text(group.title)
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(.secondary)
+                                .padding(.leading, 4)
+
+                            ForEach(group.options) { option in
+                                modelCard(for: option)
+                            }
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+
+                    if viewModel.isWarmingModel {
+                        warmingStatus
+                    }
+                }
+                .modelSectionRowStyle()
             }
 
             Section {
@@ -216,93 +267,146 @@ struct TranscriptionPane: View {
             }
         }
         .formStyle(.grouped)
-        .alert("Delete Model", isPresented: $showDeleteConfirmation) {
+        .alert(
+            "Download Model",
+            isPresented: isShowingDownloadConfirmation,
+            presenting: downloadConfirmationOption
+        ) { option in
+            Button("Download") {
+                Task {
+                    await viewModel.downloadModelConfirmed(option)
+                    destination = nil
+                }
+            }
+            Button("Cancel", role: .cancel) {
+                destination = nil
+            }
+        } message: { option in
+            Text("\(option.displayName) needs to be downloaded before Petal can use it.")
+        }
+        .alert(
+            "Delete Download",
+            isPresented: isShowingDeleteConfirmation,
+            presenting: deleteConfirmationOption
+        ) { option in
             Button("Delete", role: .destructive) {
-                Task { await viewModel.deleteModelButtonTapped() }
+                Task {
+                    await viewModel.deleteDownloadedModel(option)
+                    destination = nil
+                }
             }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("This will remove the downloaded model from your device. You can re-download it later.")
+            Button("Cancel", role: .cancel) {
+                destination = nil
+            }
+        } message: { option in
+            Text("Remove \(option.displayName) from this Mac? You can download it again later.")
         }
     }
 
-    private func providerIcon(for option: ModelOption) -> Image {
-        switch option.provider {
-        case .appleSpeech: .swiftLogo
-        case .fluidAudio: .qwen
-        case .nvidia: .nvidia
-        case .whisperKit: .openai
-        case .voxtralCore: .mistral
-        }
-    }
-
-    @ViewBuilder
-    private var modelDownloadStatus: some View {
-        if let selectedModel = viewModel.downloadModel.selectedModelOption, !selectedModel.requiresDownload {
-            LabeledContent("Status") {
-                Label("Ready (No download required)", systemImage: "checkmark.circle.fill")
-                    .foregroundStyle(.green)
+    private func modelCard(for option: ModelOption) -> some View {
+        ModelSelectorCard(
+            option: option,
+            isSelected: viewModel.selectedModelID == option.rawValue,
+            downloadState: downloadState(for: option),
+            onDeleteDownloadedModel: {
+                destination = .deleteModel(option)
+            },
+            onPauseDownload: {
+                viewModel.pauseButtonTapped()
+            },
+            onResumeDownload: {
+                Task { await viewModel.resumeButtonTapped() }
+            },
+            onCancelDownload: {
+                viewModel.cancelButtonTapped()
             }
-        } else {
-            switch viewModel.downloadModel.state {
-            case .downloaded:
-                LabeledContent("Status") {
-                    Label("Downloaded", systemImage: "checkmark.circle.fill")
-                        .foregroundStyle(.green)
-                }
-                Button("Delete Model", role: .destructive) {
-                    showDeleteConfirmation = true
-                }
-            case let .downloading(progress):
-                downloadProgressSection(progress: progress, isPaused: false)
-            case let .paused(progress):
-                downloadProgressSection(progress: progress, isPaused: true)
-            case .notDownloaded, .preparing:
-                Button("Download Model") {
-                    Task { await viewModel.downloadButtonTapped() }
-                }
-            case let .failed(message):
-                Button("Download Model") {
-                    Task { await viewModel.downloadButtonTapped() }
-                }
-                Text(message)
-                    .foregroundStyle(.red)
-                    .font(.caption)
+        ) {
+            if let option = viewModel.modelOptionTapped(option) {
+                destination = .downloadModel(option)
             }
         }
     }
 
-    @ViewBuilder
-    private func downloadProgressSection(progress: ModelDownloadState.Progress, isPaused: Bool) -> some View {
-        let modelName = viewModel.downloadModel.downloadingModelOption?.displayName
-            ?? viewModel.downloadModel.selectedModelOption?.displayName ?? "model"
+    private var warmingStatus: some View {
         HStack(spacing: 12) {
-            ProgressView(value: progress.fraction)
-                .progressViewStyle(.circular)
-                .scaleEffect(0.5)
-                .frame(width: 16, height: 16)
+            Image(systemName: "flame.fill")
+                .foregroundStyle(.orange)
             VStack(alignment: .leading, spacing: 2) {
-                Text("Downloading \(modelName)")
-                Text(progress.summaryText)
+                Text("Warming up")
+                    .font(.subheadline.weight(.medium))
+                Text("Petal is loading the selected model.")
                     .settingDescription()
             }
         }
-        HStack {
-            if isPaused {
-                Button("Resume") {
-                    Task { await viewModel.resumeButtonTapped() }
-                }
-            } else {
-                Button("Pause") {
-                    viewModel.pauseButtonTapped()
-                }
-            }
+        .padding(.vertical, 10)
+        .padding(.horizontal, 12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color(nsColor: .controlBackgroundColor), in: .rect(cornerRadius: 12))
+        .shimmering()
+    }
 
-            Button("Cancel") {
-                viewModel.cancelButtonTapped()
+    private func downloadState(for option: ModelOption) -> ModelSelectorCard.DownloadState {
+        guard option.requiresDownload else { return .ready }
+
+        let state = viewModel.downloadModel.state
+        let isDownloadingOption = viewModel.downloadModel.downloadingModelOption == option
+
+        if isDownloadingOption {
+            switch state {
+            case .downloaded:
+                return .ready
+            case .notDownloaded:
+                break
+            case .preparing:
+                return .preparing
+            case let .downloading(progress):
+                return .downloading(progress)
+            case let .paused(progress):
+                return .paused(progress)
+            case let .failed(message):
+                return .failed(message)
             }
         }
+
+        return viewModel.downloadModel.isModelDownloaded(option) ? .ready : .needsDownload
     }
+
+    private var downloadConfirmationOption: ModelOption? {
+        guard case let .downloadModel(option) = destination else { return nil }
+        return option
+    }
+
+    private var deleteConfirmationOption: ModelOption? {
+        guard case let .deleteModel(option) = destination else { return nil }
+        return option
+    }
+
+    private var isShowingDownloadConfirmation: Binding<Bool> {
+        Binding(
+            get: { downloadConfirmationOption != nil },
+            set: { isPresented in
+                if !isPresented {
+                    destination = nil
+                }
+            }
+        )
+    }
+
+    private var isShowingDeleteConfirmation: Binding<Bool> {
+        Binding(
+            get: { deleteConfirmationOption != nil },
+            set: { isPresented in
+                if !isPresented {
+                    destination = nil
+                }
+            }
+        )
+    }
+}
+
+private enum TranscriptionDestination {
+    case downloadModel(ModelOption)
+    case deleteModel(ModelOption)
 }
 
 // MARK: - History Pane
@@ -461,9 +565,15 @@ private extension View {
         font(.caption)
             .foregroundStyle(.secondary)
     }
+
+    func modelSectionRowStyle() -> some View {
+        listRowInsets(EdgeInsets(top: 4, leading: 0, bottom: 4, trailing: 0))
+            .listRowBackground(Color.clear)
+            .listRowSeparator(.hidden)
+    }
 }
 
 #Preview("Settings") {
     SettingsView(viewModel: SettingsViewModel(appModel: AppModel.makePreview()))
-        .frame(width: 640, height: 520)
+        .frame(width: 740, height: 680)
 }

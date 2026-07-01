@@ -1,5 +1,6 @@
-import Testing
+import CustomDump
 @testable import Shared
+import Testing
 
 @Test
 func modelOptionFallbackUsesDefault() {
@@ -81,6 +82,22 @@ func parakeetSupportsVerbatimOnly() {
 }
 
 @Test
+func nvidiaModelOptionsExposeDownloadSizes() {
+    expectNoDifference(
+        [
+            ModelOption.parakeetTDT06BV3.sizeLabel,
+            ModelOption.parakeetTDT06BV2.sizeLabel,
+            ModelOption.parakeetTDTCTC110M.sizeLabel,
+        ],
+        [
+            "~3.0 GB",
+            "~2.6 GB",
+            "~455 MB",
+        ]
+    )
+}
+
+@Test
 func whisperSupportsVerbatimOnly() {
     #expect(ModelOption.whisperLargeV3Turbo.supportedTranscriptionModes == [.verbatim])
     #expect(!ModelOption.whisperLargeV3Turbo.supportsSmartTranscription)
@@ -108,4 +125,87 @@ func appleSpeechVisibilityMatchesCurrentDeviceSupport() {
         ModelOption.allCases.contains(.appleSpeech)
             == ModelOption.isAppleSpeechSupportedOnCurrentDevice
     )
+}
+
+@Test
+func modelProviderGroupsPreserveProviderAndCatalogOrder() {
+    let groups = ModelOption.providerGroups(for: [
+        .qwen3ASR06B4bit,
+        .parakeetTDT06BV3,
+        .parakeetTDT06BV2,
+        .whisperLargeV3Turbo,
+        .whisperTiny,
+        .mini3b,
+    ])
+
+    expectNoDifference(
+        groups.map(ProviderGroupSnapshot.init),
+        [
+            ProviderGroupSnapshot(provider: .fluidAudio, title: "Qwen", options: [.qwen3ASR06B4bit]),
+            ProviderGroupSnapshot(provider: .nvidia, title: "NVIDIA", options: [.parakeetTDT06BV3, .parakeetTDT06BV2]),
+            ProviderGroupSnapshot(provider: .whisperKit, title: "Whisper", options: [.whisperLargeV3Turbo, .whisperTiny]),
+            ProviderGroupSnapshot(provider: .voxtralCore, title: "Voxtral", options: [.mini3b]),
+        ]
+    )
+    #expect(groups[id: ModelProvider.nvidia.rawValue]?.options[id: ModelOption.parakeetTDT06BV2.rawValue] == .parakeetTDT06BV2)
+}
+
+@Test
+func modelProviderGroupsExcludePinnedDownloadOption() {
+    let groups = ModelOption.providerGroups(
+        for: [
+            .qwen3ASR06B4bit,
+            .parakeetTDT06BV3,
+            .parakeetTDT06BV2,
+            .whisperTiny,
+        ],
+        excluding: .parakeetTDT06BV3
+    )
+
+    expectNoDifference(
+        groups.map(ProviderGroupSnapshot.init),
+        [
+            ProviderGroupSnapshot(provider: .fluidAudio, title: "Qwen", options: [.qwen3ASR06B4bit]),
+            ProviderGroupSnapshot(provider: .nvidia, title: "NVIDIA", options: [.parakeetTDT06BV2]),
+            ProviderGroupSnapshot(provider: .whisperKit, title: "Whisper", options: [.whisperTiny]),
+        ]
+    )
+}
+
+@Test
+func modelProviderListDisplayNamesUseProductLabels() {
+    expectNoDifference(
+        [
+            ModelProvider.appleSpeech.modelListDisplayName,
+            ModelProvider.fluidAudio.modelListDisplayName,
+            ModelProvider.nvidia.modelListDisplayName,
+            ModelProvider.whisperKit.modelListDisplayName,
+            ModelProvider.voxtralCore.modelListDisplayName,
+        ],
+        [
+            "Built In",
+            "Qwen",
+            "NVIDIA",
+            "Whisper",
+            "Voxtral",
+        ]
+    )
+}
+
+private struct ProviderGroupSnapshot: Equatable {
+    var provider: ModelProvider
+    var title: String
+    var options: [ModelOption]
+
+    init(_ group: ModelOptionProviderGroup) {
+        provider = group.provider
+        title = group.title
+        options = Array(group.options)
+    }
+
+    init(provider: ModelProvider, title: String, options: [ModelOption]) {
+        self.provider = provider
+        self.title = title
+        self.options = options
+    }
 }

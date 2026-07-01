@@ -56,6 +56,8 @@ public enum MLXPipelineModel: String, Sendable {
     case mini3b8bit
     case qwen3ASR06B4bit
     case parakeetTDT06BV3
+    case parakeetTDT06BV2
+    case parakeetTDTCTC110M
     case whisperLargeV3Turbo
     case whisperTiny
 }
@@ -302,11 +304,13 @@ private actor LiveMLXRuntime {
             log("prepare.qwen.loaded elapsed=\(formatElapsedSeconds(loadElapsed))")
             qwen3AsrManager = manager
 
-        case .parakeetTDT06BV3:
-            guard let fluidAudioModel = model.fluidAudioModel else {
+        case .parakeetTDT06BV3, .parakeetTDT06BV2, .parakeetTDTCTC110M:
+            guard let fluidAudioModel = model.fluidAudioModel,
+                  let version = fluidAudioModel.parakeetVersion
+            else {
                 throw MLXError.invalidModelIdentifier(model.rawValue)
             }
-            log("prepare.parakeet.begin")
+            log("prepare.parakeet.begin variant=\(model.rawValue)")
             let resolveStart = ProcessInfo.processInfo.systemUptime
             let modelDirectory = try await FluidAudioCache.downloadIfNeeded(model: fluidAudioModel)
             let resolveElapsed = ProcessInfo.processInfo.systemUptime - resolveStart
@@ -314,11 +318,12 @@ private actor LiveMLXRuntime {
                 "prepare.parakeet.model-ready elapsed=\(formatElapsedSeconds(resolveElapsed)), directory=\(modelDirectory.lastPathComponent)"
             )
             let asrLoadStart = ProcessInfo.processInfo.systemUptime
-            let asrModels = try await AsrModels.load(from: modelDirectory, version: .v3)
+            let asrModels = try await AsrModels.load(from: modelDirectory, version: version)
             let asrLoadElapsed = ProcessInfo.processInfo.systemUptime - asrLoadStart
             log("prepare.parakeet.asrModels-loaded elapsed=\(formatElapsedSeconds(asrLoadElapsed))")
             let managerInitStart = ProcessInfo.processInfo.systemUptime
-            let manager = AsrManager(config: .default, models: asrModels)
+            let manager = AsrManager(config: .default)
+            try await manager.initialize(models: asrModels)
             let managerInitElapsed = ProcessInfo.processInfo.systemUptime - managerInitStart
             log("prepare.parakeet.manager-initialized elapsed=\(formatElapsedSeconds(managerInitElapsed))")
             parakeetAsrManager = manager
@@ -403,15 +408,14 @@ private actor LiveMLXRuntime {
                 log("transcribe.qwen.normalized chars=\(normalizedText.count)")
                 transcript = normalizedText
 
-            case .parakeetTDT06BV3:
+            case .parakeetTDT06BV3, .parakeetTDT06BV2, .parakeetTDTCTC110M:
                 guard let parakeetAsrManager else {
                     throw MLXError.pipelineUnavailable
                 }
 
                 nonisolated(unsafe) let manager = parakeetAsrManager
                 let inferenceStart = ProcessInfo.processInfo.systemUptime
-                var decoderState = try TdtDecoderState(decoderLayers: await manager.decoderLayerCount)
-                let result = try await manager.transcribe(audioURL, decoderState: &decoderState)
+                let result = try await manager.transcribe(audioURL, source: .system)
                 let inferenceElapsed = ProcessInfo.processInfo.systemUptime - inferenceStart
                 log(
                     "transcribe.parakeet.inference completed elapsed=\(formatElapsedSeconds(inferenceElapsed)), rawChars=\(result.text.count)"
@@ -522,7 +526,9 @@ private func normalizeDownloadError(_ error: any Error) -> MLXDownloadError {
 
 private enum FluidAudioModel: Sendable, Equatable {
     case qwen3Asr
-    case parakeetTdt06BV3
+    case parakeetTdtV3
+    case parakeetTdtV2
+    case parakeetTdtCtc110m
 
     init?(info: MLXModelInfo) {
         let normalizedID = info.id.lowercased()
@@ -532,7 +538,11 @@ private enum FluidAudioModel: Sendable, Equatable {
         case MLXPipelineModel.qwen3ASR06B4bit.rawValue:
             self = .qwen3Asr
         case MLXPipelineModel.parakeetTDT06BV3.rawValue:
-            self = .parakeetTdt06BV3
+            self = .parakeetTdtV3
+        case MLXPipelineModel.parakeetTDT06BV2.rawValue:
+            self = .parakeetTdtV2
+        case MLXPipelineModel.parakeetTDTCTC110M.rawValue:
+            self = .parakeetTdtCtc110m
         default:
             switch normalizedRepo {
             case "fluidinference/qwen3-asr-0.6b-coreml/f32",
@@ -541,10 +551,33 @@ private enum FluidAudioModel: Sendable, Equatable {
                 self = .qwen3Asr
             case "fluidinference/parakeet-tdt-0.6b-v3-coreml",
                  "mlx-community/parakeet-tdt-0.6b-v3":
-                self = .parakeetTdt06BV3
+                self = .parakeetTdtV3
+            case "fluidinference/parakeet-tdt-0.6b-v2-coreml",
+                 "mlx-community/parakeet-tdt-0.6b-v2":
+                self = .parakeetTdtV2
+            case "fluidinference/parakeet-tdt-ctc-110m-coreml":
+                self = .parakeetTdtCtc110m
             default:
                 return nil
             }
+        }
+    }
+
+    var parakeetVersion: AsrModelVersion? {
+        switch self {
+        case .qwen3Asr: return nil
+        case .parakeetTdtV3: return .v3
+        case .parakeetTdtV2: return .v2
+        case .parakeetTdtCtc110m: return .tdtCtc110m
+        }
+    }
+
+    var parakeetRepoId: String? {
+        switch self {
+        case .qwen3Asr: return nil
+        case .parakeetTdtV3: return "FluidInference/parakeet-tdt-0.6b-v3-coreml"
+        case .parakeetTdtV2: return "FluidInference/parakeet-tdt-0.6b-v2-coreml"
+        case .parakeetTdtCtc110m: return "FluidInference/parakeet-tdt-ctc-110m-coreml"
         }
     }
 
@@ -552,8 +585,8 @@ private enum FluidAudioModel: Sendable, Equatable {
         switch self {
         case .qwen3Asr:
             return Qwen3AsrModels.defaultCacheDirectory()
-        case .parakeetTdt06BV3:
-            return AsrModels.defaultCacheDirectory(for: .v3)
+        case .parakeetTdtV3, .parakeetTdtV2, .parakeetTdtCtc110m:
+            return AsrModels.defaultCacheDirectory(for: parakeetVersion ?? .v3)
         }
     }
 
@@ -570,8 +603,8 @@ private enum FluidAudioModel: Sendable, Equatable {
                 repoDirectory.appendingPathComponent("qwen3-asr-0.6b-coreml-f32", isDirectory: true),
                 modelsRoot.appendingPathComponent("qwen3-asr-0.6b-coreml-f32", isDirectory: true),
             ]
-        case .parakeetTdt06BV3:
-            return [AsrModels.defaultCacheDirectory(for: .v3)]
+        case .parakeetTdtV3, .parakeetTdtV2, .parakeetTdtCtc110m:
+            return [directoryURL]
         }
     }
 
@@ -579,8 +612,12 @@ private enum FluidAudioModel: Sendable, Equatable {
         switch self {
         case .qwen3Asr:
             return "Qwen3 ASR"
-        case .parakeetTdt06BV3:
-            return "Parakeet TDT"
+        case .parakeetTdtV3:
+            return "Parakeet TDT v3"
+        case .parakeetTdtV2:
+            return "Parakeet TDT v2"
+        case .parakeetTdtCtc110m:
+            return "Parakeet TDT-CTC 110M"
         }
     }
 }
@@ -635,9 +672,10 @@ private enum FluidAudioCache {
                 }
             }
             return nil
-        case .parakeetTdt06BV3:
+        case .parakeetTdtV3, .parakeetTdtV2, .parakeetTdtCtc110m:
+            guard let version = model.parakeetVersion else { return nil }
             let defaultDirectory = model.directoryURL
-            return AsrModels.modelsExist(at: defaultDirectory, version: .v3) ? defaultDirectory : nil
+            return AsrModels.modelsExist(at: defaultDirectory, version: version) ? defaultDirectory : nil
         }
     }
 
@@ -662,11 +700,14 @@ private enum FluidAudioCache {
                 fileFilter: nil,
                 progress: progress
             )
-        case .parakeetTdt06BV3:
+        case .parakeetTdtV3, .parakeetTdtV2, .parakeetTdtCtc110m:
+            guard let repoId = model.parakeetRepoId else {
+                throw MLXError.invalidModelIdentifier(model.displayName)
+            }
             try await ModelDownloader.downloadFromHuggingFace(
-                repoId: "FluidInference/parakeet-tdt-0.6b-v3-coreml",
+                repoId: repoId,
                 subfolder: nil,
-                destination: AsrModels.defaultCacheDirectory(for: .v3),
+                destination: model.directoryURL,
                 fileFilter: nil,
                 progress: progress
             )
@@ -706,7 +747,11 @@ private extension MLXPipelineModel {
         case .qwen3ASR06B4bit:
             return .qwen3Asr
         case .parakeetTDT06BV3:
-            return .parakeetTdt06BV3
+            return .parakeetTdtV3
+        case .parakeetTDT06BV2:
+            return .parakeetTdtV2
+        case .parakeetTDTCTC110M:
+            return .parakeetTdtCtc110m
         case .mini3b, .mini3b8bit, .whisperLargeV3Turbo, .whisperTiny:
             return nil
         }
@@ -718,7 +763,8 @@ private extension MLXPipelineModel {
             return "openai_whisper-large-v3_turbo"
         case .whisperTiny:
             return "openai_whisper-tiny"
-        case .mini3b, .mini3b8bit, .qwen3ASR06B4bit, .parakeetTDT06BV3:
+        case .mini3b, .mini3b8bit, .qwen3ASR06B4bit,
+             .parakeetTDT06BV3, .parakeetTDT06BV2, .parakeetTDTCTC110M:
             return nil
         }
     }
@@ -729,7 +775,8 @@ private extension MLXPipelineModel {
             return .mini3b
         case .mini3b8bit:
             return .mini3b8bit
-        case .qwen3ASR06B4bit, .parakeetTDT06BV3, .whisperLargeV3Turbo, .whisperTiny:
+        case .qwen3ASR06B4bit, .parakeetTDT06BV3, .parakeetTDT06BV2,
+             .parakeetTDTCTC110M, .whisperLargeV3Turbo, .whisperTiny:
             return .mini3b
         }
     }

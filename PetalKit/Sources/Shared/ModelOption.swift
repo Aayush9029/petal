@@ -1,6 +1,6 @@
 import Foundation
 #if canImport(Speech)
-import Speech
+    import Speech
 #endif
 
 public enum ModelProvider: String, Sendable, Equatable {
@@ -57,6 +57,8 @@ public enum ModelOption: String, CaseIterable, Identifiable, Sendable {
     case appleSpeech = "apple-speech"
     case qwen3ASR06B4bit = "qwen3-asr-0.6b-4bit"
     case parakeetTDT06BV3 = "parakeet-tdt-0.6b-v3"
+    case parakeetTDT06BV2 = "parakeet-tdt-0.6b-v2"
+    case parakeetTDTCTC110M = "parakeet-tdt-ctc-110m"
     case whisperLargeV3Turbo = "whisper-large-v3-turbo"
     case whisperTiny = "whisper-tiny"
     case mini3b = "mini-3b"
@@ -66,6 +68,8 @@ public enum ModelOption: String, CaseIterable, Identifiable, Sendable {
         var options: [ModelOption] = [
             .qwen3ASR06B4bit,
             .parakeetTDT06BV3,
+            .parakeetTDT06BV2,
+            .parakeetTDTCTC110M,
             .whisperLargeV3Turbo,
             .whisperTiny,
             .mini3b,
@@ -81,9 +85,9 @@ public enum ModelOption: String, CaseIterable, Identifiable, Sendable {
 
     public static var isAppleSpeechSupportedOnCurrentDevice: Bool {
         #if canImport(Speech)
-        if #available(macOS 26, *) {
-            return SpeechTranscriber.isAvailable
-        }
+            if #available(macOS 26, *) {
+                return SpeechTranscriber.isAvailable
+            }
         #endif
         return false
     }
@@ -127,12 +131,41 @@ public enum ModelOption: String, CaseIterable, Identifiable, Sendable {
                 repoID: "FluidInference/parakeet-tdt-0.6b-v3-coreml",
                 name: "Parakeet TDT 0.6B (v3)",
                 summary: "Top-ranked accuracy on the Open ASR Leaderboard with 110x real-time speed.",
+                size: "~3.0 GB",
                 quantization: "CoreML",
                 parameters: "0.6B",
                 provider: .nvidia,
                 recommended: false,
                 speedScore: 5,
                 smartScore: 4
+            )
+        case .parakeetTDT06BV2:
+            return ModelDescriptor(
+                id: rawValue,
+                repoID: "FluidInference/parakeet-tdt-0.6b-v2-coreml",
+                name: "Parakeet TDT 0.6B (v2)",
+                summary: "Fastest English-only dictation, tuned for the lowest latency on Apple Silicon.",
+                size: "~2.6 GB",
+                quantization: "CoreML",
+                parameters: "0.6B",
+                provider: .nvidia,
+                recommended: false,
+                speedScore: 5,
+                smartScore: 3
+            )
+        case .parakeetTDTCTC110M:
+            return ModelDescriptor(
+                id: rawValue,
+                repoID: "FluidInference/parakeet-tdt-ctc-110m-coreml",
+                name: "Parakeet TDT-CTC 110M (Flash)",
+                summary: "Ultra-light hybrid TDT-CTC model with a fused encoder for near-instant English dictation.",
+                size: "~455 MB",
+                quantization: "CoreML",
+                parameters: "110M",
+                provider: .nvidia,
+                recommended: false,
+                speedScore: 5,
+                smartScore: 2
             )
         case .whisperLargeV3Turbo:
             return ModelDescriptor(
@@ -221,14 +254,16 @@ public enum ModelOption: String, CaseIterable, Identifiable, Sendable {
         switch self {
         case .appleSpeech:
             return false
-        case .qwen3ASR06B4bit, .parakeetTDT06BV3, .whisperLargeV3Turbo, .whisperTiny, .mini3b, .mini3b8bit:
+        case .qwen3ASR06B4bit, .parakeetTDT06BV3, .parakeetTDT06BV2, .parakeetTDTCTC110M,
+             .whisperLargeV3Turbo, .whisperTiny, .mini3b, .mini3b8bit:
             return true
         }
     }
 
     public var supportedTranscriptionModes: [TranscriptionMode] {
         switch self {
-        case .appleSpeech, .qwen3ASR06B4bit, .parakeetTDT06BV3, .whisperLargeV3Turbo, .whisperTiny:
+        case .appleSpeech, .qwen3ASR06B4bit, .parakeetTDT06BV3, .parakeetTDT06BV2,
+             .parakeetTDTCTC110M, .whisperLargeV3Turbo, .whisperTiny:
             return [.verbatim]
         case .mini3b, .mini3b8bit:
             return TranscriptionMode.allCases
@@ -267,6 +302,15 @@ public enum ModelOption: String, CaseIterable, Identifiable, Sendable {
              "mlx-community/parakeet-tdt-0.6b-v3",
              "fluidinference/parakeet-tdt-0.6b-v3-coreml":
             return .parakeetTDT06BV3
+        case Self.parakeetTDT06BV2.rawValue,
+             "parakeet-tdt-0.6b-v2",
+             "fluidinference/parakeet-tdt-0.6b-v2-coreml":
+            return .parakeetTDT06BV2
+        case Self.parakeetTDTCTC110M.rawValue,
+             "parakeet-flash",
+             "parakeet-tdt-ctc-110m",
+             "fluidinference/parakeet-tdt-ctc-110m-coreml":
+            return .parakeetTDTCTC110M
         case "parakeet-ctc",
              "parakeet-ctc-0.6b",
              "mlx-community/parakeet-ctc-0.6b":

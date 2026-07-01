@@ -194,7 +194,7 @@ private extension ModelOption {
             return .fluidAudio
         case .mini3b, .mini3b8bit:
             return .voxtral
-        case .qwen3ASR06B4bit, .parakeetTDT06BV3:
+        case .qwen3ASR06B4bit, .parakeetTDT06BV3, .parakeetTDT06BV2, .parakeetTDTCTC110M:
             return .fluidAudio
         case .whisperLargeV3Turbo, .whisperTiny:
             return .whisperKit

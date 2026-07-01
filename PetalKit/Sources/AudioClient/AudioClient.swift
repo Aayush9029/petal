@@ -2,6 +2,7 @@
 import Dependencies
 import DependenciesMacros
 import Foundation
+import Shared
 
 enum AudioClientError: LocalizedError, Sendable {
     case notRecording
@@ -17,10 +18,25 @@ enum AudioClientError: LocalizedError, Sendable {
     }
 }
 
+public struct AudioInputDevice: Identifiable, Hashable, Sendable {
+    public static let systemDefaultID = "system-default"
+
+    public let id: String
+    public let name: String
+    public let isSystemDefault: Bool
+
+    public init(id: String, name: String, isSystemDefault: Bool = false) {
+        self.id = id
+        self.name = name
+        self.isSystemDefault = isSystemDefault
+    }
+}
+
 @DependencyClient
 public struct AudioClient: Sendable {
     public var isRecording: @Sendable () async -> Bool = { false }
     public var warmup: @Sendable () -> Void = {}
+    public var availableInputDevices: @Sendable () async -> [AudioInputDevice] = { [] }
     public var startRecording: @Sendable (@escaping @Sendable (Double) -> Void) async throws -> Void
     public var stopRecording: @Sendable () async throws -> URL
     public var cancelRecording: @Sendable () async -> Void = {}
@@ -34,6 +50,9 @@ extension AudioClient: DependencyKey {
             },
             warmup: {
                 LiveAudioCaptureRuntimeContainer.shared.warmup()
+            },
+            availableInputDevices: {
+                LiveAudioCaptureRuntime.availableInputDevices()
             },
             startRecording: { levelHandler in
                 try await LiveAudioCaptureRuntimeContainer.shared.startRecording(levelHandler: levelHandler)
@@ -53,6 +72,15 @@ extension AudioClient: TestDependencyKey {
         Self(
             isRecording: { false },
             warmup: {},
+            availableInputDevices: {
+                [
+                    AudioInputDevice(
+                        id: AudioInputDevice.systemDefaultID,
+                        name: "System Default",
+                        isSystemDefault: true
+                    )
+                ]
+            },
             startRecording: { _ in },
             stopRecording: { URL(fileURLWithPath: "/dev/null") },
             cancelRecording: {}
@@ -93,6 +121,7 @@ private final class LevelSmoother: @unchecked Sendable {
 private final class LiveAudioCaptureRuntime: @unchecked Sendable {
     private let stateQueue = DispatchQueue(label: "com.petal.audio.capture.runtime")
     private var recorder: AVAudioRecorder?
+    private var selectedInputRecording: SelectedInputAudioRecording?
     private var standbyRecorder: AVAudioRecorder?
     private var standbyURL: URL?
     private var simulatedRecordingSourceURL: URL?
@@ -113,6 +142,9 @@ private final class LiveAudioCaptureRuntime: @unchecked Sendable {
     var isRecording: Bool {
         stateQueue.sync {
             if simulatedRecordingSourceURL != nil {
+                return true
+            }
+            if selectedInputRecording != nil {
                 return true
             }
             return recorder?.isRecording ?? false
@@ -143,6 +175,7 @@ private final class LiveAudioCaptureRuntime: @unchecked Sendable {
     private func warmupStandbyLocked() {
         guard standbyRecorder == nil, recorder == nil else { return }
         guard Self.e2eAudioFixtureURL() == nil else { return }
+        guard Self.selectedInputDeviceIDForRecording() == AudioInputDevice.systemDefaultID else { return }
 
         let url = FileManager.default.temporaryDirectory
             .appending(path: "petal-\(UUID().uuidString).wav")
@@ -156,13 +189,27 @@ private final class LiveAudioCaptureRuntime: @unchecked Sendable {
     }
 
     private func startRecordingLocked(levelHandler: @escaping @Sendable (Double) -> Void) throws {
-        guard recorder == nil, simulatedRecordingSourceURL == nil else { return }
+        guard recorder == nil, selectedInputRecording == nil, simulatedRecordingSourceURL == nil else { return }
         self.levelHandler = levelHandler
 
         if let e2eAudioURL = Self.e2eAudioFixtureURL() {
             simulatedRecordingSourceURL = e2eAudioURL
             recordingURL = e2eAudioURL
             startSimulatedLevelPollingLocked()
+            return
+        }
+
+        if let selectedDevice = Self.selectedCaptureDeviceForRecording() {
+            let audioURL = FileManager.default.temporaryDirectory
+                .appending(path: "petal-\(UUID().uuidString).m4a")
+            let recording = try SelectedInputAudioRecording(
+                device: selectedDevice,
+                outputURL: audioURL,
+                levelHandler: levelHandler
+            )
+            try recording.start()
+            selectedInputRecording = recording
+            recordingURL = audioURL
             return
         }
 
@@ -212,6 +259,14 @@ private final class LiveAudioCaptureRuntime: @unchecked Sendable {
             return try stopSimulatedRecordingLocked(sourceURL: fixtureURL)
         }
 
+        if let selectedInputRecording {
+            let url = try selectedInputRecording.stop()
+            self.selectedInputRecording = nil
+            recordingURL = nil
+            levelHandler(0)
+            return url
+        }
+
         guard let recorder, let url = recordingURL else {
             throw AudioClientError.notRecording
         }
@@ -252,6 +307,18 @@ private final class LiveAudioCaptureRuntime: @unchecked Sendable {
             simulatedRecordingSourceURL = nil
             recordingURL = nil
             levelHandler(0)
+            return
+        }
+
+        if let selectedInputRecording {
+            selectedInputRecording.cancel()
+            let url = recordingURL
+            self.selectedInputRecording = nil
+            recordingURL = nil
+            levelHandler(0)
+            if let url {
+                try? FileManager.default.removeItem(at: url)
+            }
             return
         }
 
@@ -335,7 +402,7 @@ private final class LiveAudioCaptureRuntime: @unchecked Sendable {
         levelTimer = nil
     }
 
-    nonisolated private static func normalizePower(_ power: Float) -> Double {
+    nonisolated fileprivate static func normalizePower(_ power: Float) -> Double {
         if power <= -80 {
             return 0
         }
@@ -361,6 +428,182 @@ private final class LiveAudioCaptureRuntime: @unchecked Sendable {
 
         return nil
     }
+
+    nonisolated static func availableInputDevices() -> [AudioInputDevice] {
+        let devices = inputCaptureDevices()
+        let defaultDeviceID = AVCaptureDevice.default(for: .audio)?.uniqueID
+        let systemDefaultName = AVCaptureDevice.default(for: .audio)?.localizedName ?? "System Default"
+
+        var inputDevices = [
+            AudioInputDevice(
+                id: AudioInputDevice.systemDefaultID,
+                name: "System Default (\(systemDefaultName))",
+                isSystemDefault: true
+            )
+        ]
+
+        for device in devices.sorted(by: { $0.localizedName.localizedCaseInsensitiveCompare($1.localizedName) == .orderedAscending }) {
+            guard !inputDevices.contains(where: { $0.id == device.uniqueID }) else { continue }
+            let name = device.uniqueID == defaultDeviceID
+                ? "\(device.localizedName) (Current Default)"
+                : device.localizedName
+            inputDevices.append(
+                AudioInputDevice(
+                    id: device.uniqueID,
+                    name: name,
+                    isSystemDefault: device.uniqueID == defaultDeviceID
+                )
+            )
+        }
+
+        return inputDevices
+    }
+
+    nonisolated private static func selectedInputDeviceIDForRecording() -> String {
+        @Shared(.selectedAudioInputDeviceID) var selectedInputDeviceID = AudioInputDevice.systemDefaultID
+        let trimmed = selectedInputDeviceID.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? AudioInputDevice.systemDefaultID : trimmed
+    }
+
+    nonisolated private static func selectedCaptureDeviceForRecording() -> AVCaptureDevice? {
+        let selectedID = selectedInputDeviceIDForRecording()
+        guard selectedID != AudioInputDevice.systemDefaultID else { return nil }
+        return inputCaptureDevices()
+            .first(where: { $0.uniqueID == selectedID })
+    }
+
+    nonisolated private static func inputCaptureDevices() -> [AVCaptureDevice] {
+        AVCaptureDevice.DiscoverySession(
+            deviceTypes: [.microphone, .external],
+            mediaType: .audio,
+            position: .unspecified
+        )
+        .devices
+    }
+}
+
+private final class SelectedInputAudioRecording: NSObject, AVCaptureAudioDataOutputSampleBufferDelegate, @unchecked Sendable {
+    private let session = AVCaptureSession()
+    private let audioOutput = AVCaptureAudioDataOutput()
+    private let captureQueue = DispatchQueue(label: "com.petal.audio.capture.selected-input")
+    private let writer: AVAssetWriter
+    private let writerInput: AVAssetWriterInput
+    private let outputURL: URL
+    private let levelHandler: @Sendable (Double) -> Void
+    private let levelSmoother = LevelSmoother()
+    private var didStartWriting = false
+    private var isStopping = false
+
+    init(
+        device: AVCaptureDevice,
+        outputURL: URL,
+        levelHandler: @escaping @Sendable (Double) -> Void
+    ) throws {
+        self.outputURL = outputURL
+        self.levelHandler = levelHandler
+        writer = try AVAssetWriter(outputURL: outputURL, fileType: .m4a)
+        writerInput = AVAssetWriterInput(
+            mediaType: .audio,
+            outputSettings: [
+                AVFormatIDKey: kAudioFormatMPEG4AAC,
+                AVSampleRateKey: 44_100,
+                AVNumberOfChannelsKey: 1,
+                AVEncoderBitRateKey: 128_000
+            ]
+        )
+        writerInput.expectsMediaDataInRealTime = true
+        super.init()
+
+        let input = try AVCaptureDeviceInput(device: device)
+        guard session.canAddInput(input), session.canAddOutput(audioOutput), writer.canAdd(writerInput) else {
+            throw AudioClientError.failedToStart
+        }
+
+        session.beginConfiguration()
+        session.addInput(input)
+        audioOutput.setSampleBufferDelegate(self, queue: captureQueue)
+        session.addOutput(audioOutput)
+        session.commitConfiguration()
+        writer.add(writerInput)
+    }
+
+    func start() throws {
+        session.startRunning()
+        guard session.isRunning else {
+            throw AudioClientError.failedToStart
+        }
+    }
+
+    func stop() throws -> URL {
+        session.stopRunning()
+        return try captureQueue.sync {
+            isStopping = true
+            guard didStartWriting else {
+                writer.cancelWriting()
+                throw AudioClientError.failedToStart
+            }
+
+            writerInput.markAsFinished()
+            let result = FinishWritingResult()
+            let semaphore = DispatchSemaphore(value: 0)
+            writer.finishWriting {
+                result.error = self.writer.error
+                semaphore.signal()
+            }
+            semaphore.wait()
+
+            if let error = result.error {
+                throw error
+            }
+
+            let fileSize = (try? FileManager.default.attributesOfItem(atPath: outputURL.path))?[.size] as? Int64 ?? 0
+            guard fileSize > 0 else {
+                try? FileManager.default.removeItem(at: outputURL)
+                throw AudioClientError.failedToStart
+            }
+
+            return outputURL
+        }
+    }
+
+    func cancel() {
+        session.stopRunning()
+        captureQueue.sync {
+            isStopping = true
+            writer.cancelWriting()
+        }
+    }
+
+    func captureOutput(
+        _ output: AVCaptureOutput,
+        didOutput sampleBuffer: CMSampleBuffer,
+        from connection: AVCaptureConnection
+    ) {
+        guard !isStopping else { return }
+
+        if !didStartWriting {
+            guard writer.startWriting() else { return }
+            writer.startSession(atSourceTime: CMSampleBufferGetPresentationTimeStamp(sampleBuffer))
+            didStartWriting = true
+        }
+
+        if writerInput.isReadyForMoreMediaData {
+            writerInput.append(sampleBuffer)
+        }
+
+        if let channel = connection.audioChannels.first {
+            let normalized = LiveAudioCaptureRuntime.normalizePower(channel.averagePowerLevel)
+            let smoothed = levelSmoother.smooth(normalized)
+            let handler = levelHandler
+            DispatchQueue.main.async {
+                handler(smoothed)
+            }
+        }
+    }
+}
+
+private final class FinishWritingResult: @unchecked Sendable {
+    var error: Error?
 }
 
 private enum LiveAudioCaptureRuntimeContainer {

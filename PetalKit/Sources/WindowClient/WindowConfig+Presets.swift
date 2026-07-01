@@ -16,13 +16,11 @@ extension WindowConfig {
     public static let settings = WindowConfig(
         id: "PetalSettingsWindow",
         title: "Petal Settings",
-        style: .chromeless(.init(
-            hidesCloseButton: false,
-            hidesMiniaturizeButton: true,
-            hidesZoomButton: true,
-            isFloating: true
+        style: .titled(.init(
+            showsCloseButton: true,
+            toolbarStyle: .unified
         )),
-        size: CGSize(width: 500, height: 800)
+        size: CGSize(width: 740, height: 680)
     )
 
     public static let onboarding = WindowConfig(
