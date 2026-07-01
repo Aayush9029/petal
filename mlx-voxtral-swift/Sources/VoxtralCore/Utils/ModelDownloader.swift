@@ -158,6 +158,7 @@ public class ModelDownloader {
 
     /// Verify that a sharded model has all required safetensors files
     public static func verifyShardedModel(at path: URL) -> (complete: Bool, missing: [String]) {
+        let incompleteFiles = incompleteAria2Files(at: path)
         let indexPath = path.appendingPathComponent("model.safetensors.index.json")
 
         // If no index file, it's either a single-file model or not sharded
@@ -165,12 +166,12 @@ public class ModelDownloader {
               let data = try? Data(contentsOf: indexPath),
               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let weightMap = json["weight_map"] as? [String: String] else {
-            return (true, [])
+            return (incompleteFiles.isEmpty, incompleteFiles)
         }
 
         // Get unique safetensors files from the weight map
         let requiredFiles = Set(weightMap.values)
-        var missingFiles: [String] = []
+        var missingFiles = incompleteFiles
 
         for filename in requiredFiles {
             let filePath = path.appendingPathComponent(filename)
@@ -180,6 +181,28 @@ public class ModelDownloader {
         }
 
         return (missingFiles.isEmpty, missingFiles)
+    }
+
+    private static func incompleteAria2Files(at path: URL) -> [String] {
+        guard let enumerator = FileManager.default.enumerator(
+            at: path,
+            includingPropertiesForKeys: nil,
+            options: [.skipsHiddenFiles]
+        ) else {
+            return []
+        }
+
+        let basePath = path.resolvingSymlinksInPath().path
+        var filenames: [String] = []
+        for case let url as URL in enumerator where url.pathExtension == "aria2" {
+            let filePath = url.resolvingSymlinksInPath().path
+            var relativePath = filePath.hasPrefix(basePath + "/")
+                ? String(filePath.dropFirst(basePath.count + 1))
+                : url.lastPathComponent
+            relativePath.removeLast(".aria2".count)
+            filenames.append("\(relativePath) (incomplete aria2 download)")
+        }
+        return filenames.sorted()
     }
 
     /// Download a model using Hub API

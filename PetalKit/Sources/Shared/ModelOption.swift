@@ -102,7 +102,7 @@ public enum ModelOption: String, CaseIterable, Identifiable, Sendable {
             return ModelDescriptor(
                 id: rawValue,
                 repoID: "apple/speech-transcriber",
-                name: "Apple Speech (Built-in)",
+                name: "Apple Speech",
                 summary: "Uses Apple's on-device Speech framework. No model download required.",
                 quantization: "System",
                 parameters: "On-device",
@@ -115,7 +115,7 @@ public enum ModelOption: String, CaseIterable, Identifiable, Sendable {
             return ModelDescriptor(
                 id: rawValue,
                 repoID: "FluidInference/qwen3-asr-0.6b-coreml/f32",
-                name: "Qwen3 ASR 0.6B (f32)",
+                name: "Qwen3 ASR 0.6B",
                 summary: "Fast multilingual transcription supporting 30+ languages including Chinese dialects.",
                 size: "~2.5 GB",
                 quantization: "FP32 CoreML",
@@ -129,7 +129,7 @@ public enum ModelOption: String, CaseIterable, Identifiable, Sendable {
             return ModelDescriptor(
                 id: rawValue,
                 repoID: "FluidInference/parakeet-tdt-0.6b-v3-coreml",
-                name: "Parakeet TDT 0.6B (v3)",
+                name: "Parakeet 0.6B V3",
                 summary: "Top-ranked accuracy on the Open ASR Leaderboard with 110x real-time speed.",
                 size: "~3.0 GB",
                 quantization: "CoreML",
@@ -143,7 +143,7 @@ public enum ModelOption: String, CaseIterable, Identifiable, Sendable {
             return ModelDescriptor(
                 id: rawValue,
                 repoID: "FluidInference/parakeet-tdt-0.6b-v2-coreml",
-                name: "Parakeet TDT 0.6B (v2)",
+                name: "Parakeet 0.6B V2",
                 summary: "Fastest English-only dictation, tuned for the lowest latency on Apple Silicon.",
                 size: "~2.6 GB",
                 quantization: "CoreML",
@@ -157,7 +157,7 @@ public enum ModelOption: String, CaseIterable, Identifiable, Sendable {
             return ModelDescriptor(
                 id: rawValue,
                 repoID: "FluidInference/parakeet-tdt-ctc-110m-coreml",
-                name: "Parakeet TDT-CTC 110M (Flash)",
+                name: "Parakeet 110M",
                 summary: "Ultra-light hybrid TDT-CTC model with a fused encoder for near-instant English dictation.",
                 size: "~455 MB",
                 quantization: "CoreML",
@@ -199,7 +199,7 @@ public enum ModelOption: String, CaseIterable, Identifiable, Sendable {
             return ModelDescriptor(
                 id: rawValue,
                 repoID: "mlx-community/Voxtral-Mini-3B-2507-bf16",
-                name: "Voxtral Mini 3B (bf16)",
+                name: "Voxtral Mini 3B BF16",
                 summary: "Mistral's speech model with transcription, Q&A, and summarization from voice.",
                 size: "~9.4 GB",
                 quantization: "BF16",
@@ -213,7 +213,7 @@ public enum ModelOption: String, CaseIterable, Identifiable, Sendable {
             return ModelDescriptor(
                 id: rawValue,
                 repoID: "mzbac/voxtral-mini-3b-8bit",
-                name: "Voxtral Mini 3B (8-bit)",
+                name: "Voxtral Mini 3B 8-bit",
                 summary: "Quantized Voxtral for lower memory with transcription, Q&A, and summarization.",
                 size: "~4.6 GB",
                 quantization: "8-bit",

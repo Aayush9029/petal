@@ -15,6 +15,7 @@ public final class ModelDownloadModel {
     public var onDownloadCompleted: (@MainActor () -> Void)?
 
     public private(set) var downloadingModelOption: ModelOption?
+    public private(set) var deletingModelOptions: Set<ModelOption> = []
 
     @ObservationIgnored @Dependency(\.downloadClient) private var downloadClient
 
@@ -73,17 +74,35 @@ public final class ModelDownloadModel {
 
     public func isModelDownloaded(_ option: ModelOption) -> Bool {
         guard option.requiresDownload else { return true }
+        guard !deletingModelOptions.contains(option) else { return false }
         return downloadClient.isModelDownloaded(option)
+    }
+
+    public func isDeletingModel(_ option: ModelOption) -> Bool {
+        deletingModelOptions.contains(option)
     }
 
     public func deleteModel(_ option: ModelOption) async {
         guard option.requiresDownload else { return }
+        guard !deletingModelOptions.contains(option) else { return }
+
+        deletingModelOptions.insert(option)
+        if option.rawValue == selectedModelID {
+            state = .notDownloaded
+        }
+
         do {
             try await downloadClient.deleteModel(option)
+            deletingModelOptions.remove(option)
             if option.rawValue == selectedModelID {
                 state = .notDownloaded
             }
+            lastError = nil
         } catch {
+            deletingModelOptions.remove(option)
+            if option.rawValue == selectedModelID {
+                refreshDownloadStateForSelectedModel()
+            }
             lastError = "Failed to delete model: \(error.localizedDescription)"
         }
     }
@@ -121,6 +140,7 @@ public final class ModelDownloadModel {
         }
 
         guard !state.isActive else { return }
+        guard !deletingModelOptions.contains(option) else { return }
 
         downloadingModelOption = option
         state = .preparing

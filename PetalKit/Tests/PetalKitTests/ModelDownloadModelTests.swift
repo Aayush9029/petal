@@ -104,6 +104,37 @@ func selectedModelChangedRefreshesDownloadedState() async {
     }
 }
 
+@Test
+func deletingModelMarksOptionUnavailableUntilDeletionFinishes() async {
+    let gate = AsyncGate()
+
+    await withDependencies {
+        $0.downloadClient.isModelDownloaded = { _ in true }
+        $0.downloadClient.deleteModel = { _ in
+            await gate.wait()
+        }
+    } operation: { @MainActor in
+        let model = ModelDownloadModel(isPreviewMode: true)
+        model.$selectedModelID.withLock { $0 = ModelOption.whisperTiny.rawValue }
+        model.state = .downloaded
+
+        let deleteTask = Task {
+            await model.deleteModel(.whisperTiny)
+        }
+
+        await gate.waitUntilWaiting()
+        #expect(model.isDeletingModel(.whisperTiny))
+        #expect(!model.isModelDownloaded(.whisperTiny))
+        expectNoDifference(model.state, .notDownloaded)
+
+        await gate.open()
+        await deleteTask.value
+
+        #expect(!model.isDeletingModel(.whisperTiny))
+        expectNoDifference(model.lastError, nil)
+    }
+}
+
 private actor AttemptCounter {
     private var value = 0
 
@@ -114,5 +145,36 @@ private actor AttemptCounter {
 
     func current() -> Int {
         value
+    }
+}
+
+private actor AsyncGate {
+    private var didStartWaiting = false
+    private var isOpen = false
+    private var startedContinuation: CheckedContinuation<Void, Never>?
+    private var waitContinuation: CheckedContinuation<Void, Never>?
+
+    func wait() async {
+        didStartWaiting = true
+        startedContinuation?.resume()
+        startedContinuation = nil
+
+        guard !isOpen else { return }
+        await withCheckedContinuation { continuation in
+            waitContinuation = continuation
+        }
+    }
+
+    func waitUntilWaiting() async {
+        guard !didStartWaiting else { return }
+        await withCheckedContinuation { continuation in
+            startedContinuation = continuation
+        }
+    }
+
+    func open() {
+        isOpen = true
+        waitContinuation?.resume()
+        waitContinuation = nil
     }
 }

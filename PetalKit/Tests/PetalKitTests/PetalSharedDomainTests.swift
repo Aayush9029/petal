@@ -47,6 +47,34 @@ func modelOptionDescriptorMatchesRawValue() {
 }
 
 @Test
+func modelOptionDisplayNamesUseCleanProductNames() {
+    expectNoDifference(
+        [
+            ModelOption.appleSpeech.displayName,
+            ModelOption.qwen3ASR06B4bit.displayName,
+            ModelOption.parakeetTDT06BV3.displayName,
+            ModelOption.parakeetTDT06BV2.displayName,
+            ModelOption.parakeetTDTCTC110M.displayName,
+            ModelOption.whisperTiny.displayName,
+            ModelOption.whisperLargeV3Turbo.displayName,
+            ModelOption.mini3b.displayName,
+            ModelOption.mini3b8bit.displayName,
+        ],
+        [
+            "Apple Speech",
+            "Qwen3 ASR 0.6B",
+            "Parakeet 0.6B V3",
+            "Parakeet 0.6B V2",
+            "Parakeet 110M",
+            "Whisper Tiny",
+            "Whisper Large V3 Turbo",
+            "Voxtral Mini 3B BF16",
+            "Voxtral Mini 3B 8-bit",
+        ]
+    )
+}
+
+@Test
 func modelCatalogIncludesBothBackends() {
     #expect(ModelOption.allCases.contains(.mini3b))
     #expect(ModelOption.allCases.contains(.mini3b8bit))

@@ -268,23 +268,6 @@ struct TranscriptionPane: View {
         }
         .formStyle(.grouped)
         .alert(
-            "Download Model",
-            isPresented: isShowingDownloadConfirmation,
-            presenting: downloadConfirmationOption
-        ) { option in
-            Button("Download") {
-                Task {
-                    await viewModel.downloadModelConfirmed(option)
-                    destination = nil
-                }
-            }
-            Button("Cancel", role: .cancel) {
-                destination = nil
-            }
-        } message: { option in
-            Text("\(option.displayName) needs to be downloaded before Petal can use it.")
-        }
-        .alert(
             "Delete Download",
             isPresented: isShowingDeleteConfirmation,
             presenting: deleteConfirmationOption
@@ -308,6 +291,7 @@ struct TranscriptionPane: View {
             option: option,
             isSelected: viewModel.selectedModelID == option.rawValue,
             downloadState: downloadState(for: option),
+            isEnabled: !viewModel.downloadModel.isDeletingModel(option),
             onDeleteDownloadedModel: {
                 destination = .deleteModel(option)
             },
@@ -322,7 +306,9 @@ struct TranscriptionPane: View {
             }
         ) {
             if let option = viewModel.modelOptionTapped(option) {
-                destination = .downloadModel(option)
+                Task {
+                    await viewModel.downloadModelConfirmed(option)
+                }
             }
         }
     }
@@ -347,6 +333,7 @@ struct TranscriptionPane: View {
 
     private func downloadState(for option: ModelOption) -> ModelSelectorCard.DownloadState {
         guard option.requiresDownload else { return .ready }
+        guard !viewModel.downloadModel.isDeletingModel(option) else { return .deleting }
 
         let state = viewModel.downloadModel.state
         let isDownloadingOption = viewModel.downloadModel.downloadingModelOption == option
@@ -371,25 +358,9 @@ struct TranscriptionPane: View {
         return viewModel.downloadModel.isModelDownloaded(option) ? .ready : .needsDownload
     }
 
-    private var downloadConfirmationOption: ModelOption? {
-        guard case let .downloadModel(option) = destination else { return nil }
-        return option
-    }
-
     private var deleteConfirmationOption: ModelOption? {
         guard case let .deleteModel(option) = destination else { return nil }
         return option
-    }
-
-    private var isShowingDownloadConfirmation: Binding<Bool> {
-        Binding(
-            get: { downloadConfirmationOption != nil },
-            set: { isPresented in
-                if !isPresented {
-                    destination = nil
-                }
-            }
-        )
     }
 
     private var isShowingDeleteConfirmation: Binding<Bool> {
@@ -405,7 +376,6 @@ struct TranscriptionPane: View {
 }
 
 private enum TranscriptionDestination {
-    case downloadModel(ModelOption)
     case deleteModel(ModelOption)
 }
 

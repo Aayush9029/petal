@@ -196,6 +196,8 @@ final class SettingsViewModel {
     }
 
     func modelOptionTapped(_ option: ModelOption) -> ModelOption? {
+        guard !downloadModel.isDeletingModel(option) else { return nil }
+
         if option.requiresDownload, !downloadModel.isModelDownloaded(option) {
             ensureReadySelectedModel(excluding: option)
             guard !downloadModel.state.isActive, !downloadModel.state.isPaused else { return nil }
@@ -207,6 +209,7 @@ final class SettingsViewModel {
     }
 
     func downloadModelConfirmed(_ option: ModelOption) async {
+        guard !downloadModel.isDeletingModel(option) else { return }
         guard !downloadModel.state.isActive, !downloadModel.state.isPaused else { return }
         ensureReadySelectedModel(excluding: option)
         await downloadModel.downloadModel(option)
@@ -229,7 +232,12 @@ final class SettingsViewModel {
     }
 
     func deleteDownloadedModel(_ option: ModelOption) async {
+        if selectedModelID == option.rawValue {
+            ensureReadySelectedModel(excluding: option)
+        }
+
         await downloadModel.deleteModel(option)
+
         if selectedModelID == option.rawValue {
             ensureReadySelectedModel(excluding: option)
         }

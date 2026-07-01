@@ -6,6 +6,7 @@ struct ModelSelectorCard: View {
     enum DownloadState: Equatable {
         case ready
         case needsDownload
+        case deleting
         case preparing
         case downloading(ModelDownloadState.Progress)
         case paused(ModelDownloadState.Progress)
@@ -60,7 +61,7 @@ struct ModelSelectorCard: View {
                 trailingAccessory
             }
             .padding(.vertical, 8)
-            .padding(.leading, leadingPadding)
+            .padding(.leading, 12)
             .padding(.trailing, 12)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(Color(nsColor: .controlBackgroundColor), in: .rect(cornerRadius: 12))
@@ -100,21 +101,13 @@ struct ModelSelectorCard: View {
         let image = icon
             .resizable()
             .aspectRatio(contentMode: .fit)
-            .frame(width: iconSize, height: iconSize)
+            .frame(width: 24, height: 24)
 
         if shouldClipIcon {
             image.clipShape(.rect(cornerRadius: 6))
         } else {
             image
         }
-    }
-
-    private var iconSize: CGFloat {
-        option.provider == .nvidia ? 26.4 : 24
-    }
-
-    private var leadingPadding: CGFloat {
-        option.provider == .nvidia ? 18 : 12
     }
 
     private var shouldClipIcon: Bool {
@@ -132,6 +125,11 @@ struct ModelSelectorCard: View {
             }
         case .needsDownload:
             pillAccessory(.get)
+        case .deleting:
+            ProgressView()
+                .progressViewStyle(.circular)
+                .scaleEffect(0.6)
+                .frame(width: 24, height: 24)
         case .preparing:
             ProgressView()
                 .progressViewStyle(.circular)
@@ -158,6 +156,8 @@ struct ModelSelectorCard: View {
             return isSelected ? "Active" : "Ready"
         case .needsDownload:
             return "Not downloaded"
+        case .deleting:
+            return "Deleting download"
         case .preparing:
             return "Preparing download"
         case let .downloading(progress):
@@ -173,7 +173,7 @@ struct ModelSelectorCard: View {
         switch downloadState {
         case .ready:
             return isSelected ? .accentColor : .secondary
-        case .needsDownload, .preparing, .downloading, .paused:
+        case .needsDownload, .deleting, .preparing, .downloading, .paused:
             return .secondary
         case .failed:
             return .red
@@ -184,7 +184,7 @@ struct ModelSelectorCard: View {
         switch downloadState {
         case .ready, .needsDownload:
             return false
-        case .preparing, .downloading, .paused, .failed:
+        case .deleting, .preparing, .downloading, .paused, .failed:
             return true
         }
     }
@@ -285,11 +285,10 @@ struct ModelSelectorCard: View {
 
     private func pillAccessory(_ style: AccessoryPillStyle) -> some View {
         Text(style.title)
-            .font(.subheadline.weight(.semibold))
+            .font(.caption.weight(.semibold))
             .foregroundStyle(style.foregroundColor)
             .lineLimit(1)
-            .padding(.horizontal, 14)
-            .frame(minWidth: 54, minHeight: 24)
+            .frame(width: 64, height: 24)
             .background(style.backgroundColor, in: .capsule)
             .overlay {
                 Capsule()
