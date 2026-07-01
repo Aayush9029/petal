@@ -1,6 +1,7 @@
 import Assets
 import Shared
 import SwiftUI
+import UI
 
 struct ModelSelectorCard: View {
     enum DownloadState: Equatable {
@@ -15,6 +16,7 @@ struct ModelSelectorCard: View {
 
     let option: ModelOption
     let isSelected: Bool
+    var isWarming = false
     let downloadState: DownloadState
     var isEnabled = true
     var onDeleteDownloadedModel: (() -> Void)?
@@ -46,7 +48,7 @@ struct ModelSelectorCard: View {
                     }
                     Text(subtitle)
                         .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(subtitleColor)
                         .lineLimit(1)
                     if showsStatusText {
                         Text(statusText)
@@ -64,12 +66,34 @@ struct ModelSelectorCard: View {
             .padding(.leading, 12)
             .padding(.trailing, 12)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color(nsColor: .controlBackgroundColor), in: .rect(cornerRadius: 12))
+            .background(rowBackground, in: .rect(cornerRadius: 12))
+            .overlay(alignment: .leading) {
+                if showsSelectionAccent {
+                    Capsule()
+                        .fill(rowAccentColor)
+                        .frame(width: 3)
+                        .padding(.vertical, 10)
+                        .padding(.leading, 1)
+                }
+            }
+            .clipShape(.rect(cornerRadius: 12))
+            .shimmering(
+                active: isWarming,
+                gradient: Gradient(colors: [
+                    .clear,
+                    .white.opacity(0.35),
+                    .clear,
+                ]),
+                mode: .overlay(blendMode: .screen)
+            )
+            .clipShape(.rect(cornerRadius: 12))
             .overlay {
                 RoundedRectangle(cornerRadius: 12)
-                    .strokeBorder(Color(nsColor: .separatorColor), lineWidth: 1)
+                    .strokeBorder(rowBorderColor, lineWidth: showsSelectionAccent ? 1.2 : 1)
             }
             .contentShape(.rect(cornerRadius: 12))
+            .animation(.easeInOut(duration: 0.18), value: isSelected)
+            .animation(.easeInOut(duration: 0.18), value: isWarming)
         }
         .buttonStyle(.plain)
         .opacity(isEnabled ? 1 : 0.55)
@@ -79,11 +103,19 @@ struct ModelSelectorCard: View {
     }
 
     private var subtitle: String {
+        if isWarming {
+            return "Warming up selected model"
+        }
+
         var parts = [option.descriptor.parameters]
         if let size = option.sizeLabel {
             parts.append(size)
         }
         return parts.joined(separator: " · ")
+    }
+
+    private var subtitleColor: Color {
+        isWarming ? .orange : .secondary
     }
 
     private var icon: Image {
@@ -114,12 +146,42 @@ struct ModelSelectorCard: View {
         option.provider != .nvidia
     }
 
+    private var showsSelectionAccent: Bool {
+        isSelected || isWarming
+    }
+
+    private var rowAccentColor: Color {
+        isWarming ? .orange : .accentColor
+    }
+
+    private var rowBackground: Color {
+        if isWarming {
+            return .orange.opacity(0.11)
+        }
+        if isSelected {
+            return Color.accentColor.opacity(0.11)
+        }
+        return Color(nsColor: .controlBackgroundColor)
+    }
+
+    private var rowBorderColor: Color {
+        if isWarming {
+            return .orange.opacity(0.75)
+        }
+        if isSelected {
+            return Color.accentColor.opacity(0.75)
+        }
+        return Color(nsColor: .separatorColor)
+    }
+
     @ViewBuilder
     private var trailingAccessory: some View {
         switch downloadState {
         case .ready:
-            if isSelected {
-                pillAccessory(.active)
+            if isWarming {
+                warmingAccessory
+            } else if isSelected {
+                EmptyView()
             } else {
                 pillAccessory(.use)
             }
@@ -236,14 +298,11 @@ struct ModelSelectorCard: View {
     }
 
     private enum AccessoryPillStyle {
-        case active
         case get
         case use
 
         var title: String {
             switch self {
-            case .active:
-                return "Active"
             case .get:
                 return "Get"
             case .use:
@@ -253,7 +312,7 @@ struct ModelSelectorCard: View {
 
         var foregroundColor: Color {
             switch self {
-            case .active, .get:
+            case .get:
                 return .white
             case .use:
                 return .black
@@ -262,8 +321,6 @@ struct ModelSelectorCard: View {
 
         var backgroundColor: Color {
             switch self {
-            case .active:
-                return .black
             case .get:
                 return .accentColor
             case .use:
@@ -273,13 +330,31 @@ struct ModelSelectorCard: View {
 
         var borderColor: Color {
             switch self {
-            case .active:
-                return .black
             case .get:
                 return .accentColor
             case .use:
                 return Color(nsColor: .separatorColor)
             }
+        }
+    }
+
+    private var warmingAccessory: some View {
+        HStack(spacing: 6) {
+            ProgressView()
+                .progressViewStyle(.circular)
+                .tint(.orange)
+                .scaleEffect(0.48)
+                .frame(width: 12, height: 12)
+            Text("Warming")
+                .font(.caption.weight(.semibold))
+                .lineLimit(1)
+        }
+        .foregroundStyle(.orange)
+        .frame(width: 82, height: 24)
+        .background(.orange.opacity(0.14), in: .capsule)
+        .overlay {
+            Capsule()
+                .strokeBorder(.orange.opacity(0.65), lineWidth: 1)
         }
     }
 

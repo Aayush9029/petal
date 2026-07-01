@@ -197,6 +197,7 @@ final class SettingsViewModel {
 
     func modelOptionTapped(_ option: ModelOption) -> ModelOption? {
         guard !downloadModel.isDeletingModel(option) else { return nil }
+        guard selectedModelID != option.rawValue else { return nil }
 
         if option.requiresDownload, !downloadModel.isModelDownloaded(option) {
             ensureReadySelectedModel(excluding: option)

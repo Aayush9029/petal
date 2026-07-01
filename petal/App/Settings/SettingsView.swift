@@ -214,10 +214,6 @@ struct TranscriptionPane: View {
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
                     }
-
-                    if viewModel.isWarmingModel {
-                        warmingStatus
-                    }
                 }
                 .modelSectionRowStyle()
             }
@@ -290,6 +286,7 @@ struct TranscriptionPane: View {
         ModelSelectorCard(
             option: option,
             isSelected: viewModel.selectedModelID == option.rawValue,
+            isWarming: viewModel.selectedModelID == option.rawValue && viewModel.isWarmingModel,
             downloadState: downloadState(for: option),
             isEnabled: !viewModel.downloadModel.isDeletingModel(option),
             onDeleteDownloadedModel: {
@@ -311,24 +308,6 @@ struct TranscriptionPane: View {
                 }
             }
         }
-    }
-
-    private var warmingStatus: some View {
-        HStack(spacing: 12) {
-            Image(systemName: "flame.fill")
-                .foregroundStyle(.orange)
-            VStack(alignment: .leading, spacing: 2) {
-                Text("Warming up")
-                    .font(.subheadline.weight(.medium))
-                Text("Petal is loading the selected model.")
-                    .settingDescription()
-            }
-        }
-        .padding(.vertical, 10)
-        .padding(.horizontal, 12)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color(nsColor: .controlBackgroundColor), in: .rect(cornerRadius: 12))
-        .shimmering()
     }
 
     private func downloadState(for option: ModelOption) -> ModelSelectorCard.DownloadState {
