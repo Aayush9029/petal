@@ -8,7 +8,7 @@ env:
   SCHEME: petal
   PRODUCT_NAME: petal
   BUNDLE_ID: com.optimalapps.petal
-  XCODE_VERSION: "26.2"
+  XCODE_VERSION: "26.5"
   DMG_NAME_PREFIX: Petal
   SPARKLE_VERSION: "2.8.1"
 
