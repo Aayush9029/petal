@@ -83,7 +83,8 @@ jobs:
           defaults write com.apple.dt.Xcode IDESkipMacroFingerprintValidation -bool YES
           xcodebuild -resolvePackageDependencies \
             -scheme "$SCHEME" \
-            -clonedSourcePackagesDirPath "$RUNNER_TEMP/spm"
+            -clonedSourcePackagesDirPath "$RUNNER_TEMP/spm" \
+            -skipPackagePluginValidation
 
       - name: Archive
         run: |
@@ -92,6 +93,7 @@ jobs:
             -configuration Release \
             -archivePath "$RUNNER_TEMP/petal.xcarchive" \
             -clonedSourcePackagesDirPath "$RUNNER_TEMP/spm" \
+            -skipPackagePluginValidation \
             ARCHS=arm64 \
             MARKETING_VERSION="${{ steps.version.outputs.version }}" \
             CURRENT_PROJECT_VERSION="${GITHUB_RUN_NUMBER}" \
