@@ -320,6 +320,7 @@ private struct TranscriptRow: View {
                 }
                 .font(.callout.weight(.semibold))
                 .frame(width: Self.iconButtonSize, height: Self.iconButtonSize)
+                .contentShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
                 .animation(.snappy(duration: 0.2), value: didCopy)
                 .animation(.snappy(duration: 0.15), value: copyIconHovering)
             }
@@ -332,6 +333,7 @@ private struct TranscriptRow: View {
                 Image(systemName: deleteIconName)
                     .font(.callout.weight(.semibold))
                     .frame(width: Self.iconButtonSize, height: Self.iconButtonSize)
+                    .contentShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
                     .animation(.snappy(duration: 0.15), value: deleteIconHovering)
             }
             .buttonStyle(.plain)
