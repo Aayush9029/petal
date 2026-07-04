@@ -119,7 +119,7 @@ struct MenuBarPopover: View {
     @ViewBuilder
     private var transcriptsSection: some View {
         Text("Recent Transcripts")
-            .font(.caption.weight(.semibold))
+            .font(.subheadline.weight(.semibold))
             .foregroundStyle(.secondary)
             .padding(.horizontal, 6)
             .padding(.bottom, 4)
@@ -155,32 +155,32 @@ struct MenuBarPopover: View {
     private var actions: some View {
         VStack(spacing: 1) {
             if isRecording {
-                PopoverRow(icon: "stop.fill", title: "Stop Recording", tint: .red) {
+                PopoverRow(title: "Stop Recording", tint: .red) {
                     viewModel.stopRecording()
                     dismiss()
                 }
             } else {
-                PopoverRow(icon: "record.circle", title: "Start Recording", tint: .accentColor) {
+                PopoverRow(title: "Start Recording", tint: .accentColor) {
                     viewModel.startRecording()
                     dismiss()
                 }
             }
-            PopoverRow(icon: "gearshape", title: "Settings", shortcut: "⌘,") {
+            PopoverRow(title: "Settings", shortcut: "⌘,") {
                 viewModel.openSettings()
                 dismiss()
             }
-            PopoverRow(icon: "info.circle", title: "About Petal") {
+            PopoverRow(title: "About Petal") {
                 viewModel.showAbout()
                 dismiss()
             }
             if viewModel.showsCheckForUpdates {
-                PopoverRow(icon: "arrow.triangle.2.circlepath", title: "Check for Updates…") {
+                PopoverRow(title: "Check for Updates…") {
                     viewModel.checkForUpdates()
                     dismiss()
                 }
                 .disabled(!viewModel.canCheckForUpdates)
             }
-            PopoverRow(icon: "power", title: "Quit Petal", shortcut: "⌘Q") {
+            PopoverRow(title: "Quit Petal", shortcut: "⌘Q") {
                 viewModel.quit()
             }
         }
@@ -190,63 +190,48 @@ struct MenuBarPopover: View {
 // MARK: - Rows
 
 private struct TranscriptRow: View {
+    private static let actionsWidth: CGFloat = 54
+    private static let actionsScrimWidth: CGFloat = 106
+    private static let iconButtonSize: CGFloat = 26
+
     var entry: MenuBarContentViewModel.HistoryMenuItem
     var copy: () -> Void
     var delete: () -> Void
 
     @State private var hovering = false
+    @State private var copyIconHovering = false
+    @State private var deleteIconHovering = false
     @State private var didCopy = false
     @State private var resetCopyIconTask: Task<Void, Never>?
 
     var body: some View {
-        HStack(spacing: 8) {
-            VStack(alignment: .leading, spacing: 1) {
-                Text(entry.title)
-                    .font(.subheadline)
-                    .foregroundStyle(.primary)
-                    .lineLimit(1)
-                Text(entry.subtitle)
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-            }
-            Spacer(minLength: 6)
-            HStack(spacing: 2) {
-                Button(action: copyButtonTapped) {
-                    ZStack {
-                        Image(systemName: "doc.on.doc")
-                            .scaleEffect(didCopy ? 0.65 : 1)
-                            .opacity(didCopy ? 0 : 1)
-                        Image(systemName: "checkmark")
-                            .scaleEffect(didCopy ? 1 : 0.65)
-                            .opacity(didCopy ? 1 : 0)
-                    }
-                    .font(.caption)
-                    .frame(width: 22, height: 22)
-                    .animation(.snappy(duration: 0.2), value: didCopy)
-                }
-                .buttonStyle(.plain)
-                .foregroundStyle(didCopy ? .green : .secondary)
-                .help(didCopy ? "Copied" : "Copy transcript")
+        ZStack(alignment: .trailing) {
+            Text(entry.title)
+                .font(.subheadline)
+                .foregroundStyle(.primary)
+                .lineLimit(2)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 6)
+                .padding(.vertical, 5)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .contentShape(Rectangle())
+                .onTapGesture(perform: copyButtonTapped)
 
-                Button(action: delete) {
-                    Image(systemName: "trash")
-                        .font(.caption)
-                        .frame(width: 22, height: 22)
-                }
-                .buttonStyle(.plain)
-                .foregroundStyle(.red)
-                .help("Delete transcript")
+            if actionsAreVisible {
+                actionOverlay
+                    .transition(
+                        .opacity.combined(with: .move(edge: .trailing))
+                    )
             }
         }
-        .padding(.horizontal, 6)
-        .padding(.vertical, 5)
-        .frame(maxWidth: .infinity, alignment: .leading)
         .background(hovering ? Color.primary.opacity(0.08) : .clear, in: RoundedRectangle(cornerRadius: 6))
         .contentShape(Rectangle())
+        .animation(.snappy(duration: 0.15), value: actionsAreVisible)
         .onHover { hovering = $0 }
         .onDisappear {
             resetCopyIconTask?.cancel()
+            copyIconHovering = false
+            deleteIconHovering = false
         }
     }
 
@@ -255,9 +240,104 @@ private struct TranscriptRow: View {
         didCopy = true
         resetCopyIconTask?.cancel()
         resetCopyIconTask = Task { @MainActor in
-            try? await Task.sleep(for: .seconds(3))
+            try? await Task.sleep(for: .seconds(1))
             guard !Task.isCancelled else { return }
             didCopy = false
+        }
+    }
+
+    private var actionsAreVisible: Bool {
+        hovering || didCopy
+    }
+
+    private var copyIconName: String {
+        copyIconHovering ? "doc.on.doc.fill" : "doc.on.doc"
+    }
+
+    private var copyIconColor: Color {
+        if didCopy {
+            return .green
+        }
+        return copyIconHovering ? .primary : .secondary
+    }
+
+    private var deleteIconName: String {
+        deleteIconHovering ? "trash.fill" : "trash"
+    }
+
+    private var deleteIconColor: Color {
+        deleteIconHovering ? .red : .secondary
+    }
+
+    private var actionOverlay: some View {
+        ZStack(alignment: .trailing) {
+            Rectangle()
+                .fill(.thinMaterial)
+                .overlay {
+                    LinearGradient(
+                        colors: [
+                            .clear,
+                            Color.primary.opacity(0.04),
+                        ],
+                        startPoint: .leading,
+                        endPoint: .trailing
+                    )
+                }
+                .mask {
+                    LinearGradient(
+                        stops: [
+                            .init(color: .clear, location: 0),
+                            .init(color: .white.opacity(0.45), location: 0.35),
+                            .init(color: .white.opacity(0.9), location: 0.68),
+                            .init(color: .white, location: 1),
+                        ],
+                        startPoint: .leading,
+                        endPoint: .trailing
+                    )
+                }
+                .blur(radius: 0.8)
+                .allowsHitTesting(false)
+
+            actionButtons
+                .frame(width: Self.actionsWidth)
+                .padding(.trailing, 6)
+                .allowsHitTesting(actionsAreVisible)
+        }
+        .frame(width: Self.actionsScrimWidth)
+        .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+    }
+
+    private var actionButtons: some View {
+        HStack(spacing: 2) {
+            Button(action: copyButtonTapped) {
+                ZStack {
+                    Image(systemName: copyIconName)
+                        .scaleEffect(didCopy ? 0.65 : 1)
+                        .opacity(didCopy ? 0 : 1)
+                    Image(systemName: "checkmark")
+                        .scaleEffect(didCopy ? 1 : 0.65)
+                        .opacity(didCopy ? 1 : 0)
+                }
+                .font(.callout.weight(.semibold))
+                .frame(width: Self.iconButtonSize, height: Self.iconButtonSize)
+                .animation(.snappy(duration: 0.2), value: didCopy)
+                .animation(.snappy(duration: 0.15), value: copyIconHovering)
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(copyIconColor)
+            .help(didCopy ? "Copied" : "Copy transcript")
+            .onHover { copyIconHovering = $0 }
+
+            Button(action: delete) {
+                Image(systemName: deleteIconName)
+                    .font(.callout.weight(.semibold))
+                    .frame(width: Self.iconButtonSize, height: Self.iconButtonSize)
+                    .animation(.snappy(duration: 0.15), value: deleteIconHovering)
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(deleteIconColor)
+            .help("Delete transcript")
+            .onHover { deleteIconHovering = $0 }
         }
     }
 }
@@ -268,6 +348,7 @@ private struct PopoverRow: View {
     var title: String
     var subtitle: String? = nil
     var shortcut: String? = nil
+    var titleFont: Font = .headline.weight(.regular)
     var tint: Color = .primary
     var action: () -> Void
 
@@ -284,12 +365,12 @@ private struct PopoverRow: View {
                 }
                 VStack(alignment: .leading, spacing: 1) {
                     Text(title)
-                        .font(.subheadline)
+                        .font(titleFont)
                         .foregroundStyle(tint)
                         .lineLimit(1)
                     if let subtitle {
                         Text(subtitle)
-                            .font(.caption2)
+                            .font(.caption)
                             .foregroundStyle(.secondary)
                             .lineLimit(1)
                     }

@@ -11,7 +11,6 @@ final class MenuBarContentViewModel {
     struct HistoryMenuItem: Identifiable {
         let id: UUID
         let title: String
-        let subtitle: String
     }
 
     private let appModel: AppModel
@@ -90,13 +89,11 @@ final class MenuBarContentViewModel {
                     .trimmingCharacters(in: .whitespacesAndNewlines)
                 guard !normalizedTranscript.isEmpty else { return nil }
 
-                let title = String(normalizedTranscript.prefix(56))
-                let subtitle = "\(entry.modeSummary.capitalized) • \(entry.preferredCharacterCount) chars"
+                let title = String(normalizedTranscript.prefix(112))
 
                 return HistoryMenuItem(
                     id: entry.id,
-                    title: title,
-                    subtitle: subtitle
+                    title: title
                 )
             }
         )
