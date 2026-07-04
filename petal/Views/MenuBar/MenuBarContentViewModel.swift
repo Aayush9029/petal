@@ -99,7 +99,6 @@ final class MenuBarContentViewModel {
                     subtitle: subtitle
                 )
             }
-            .prefix(6)
         )
     }
 
@@ -120,6 +119,10 @@ final class MenuBarContentViewModel {
 
     func copyHistoryEntry(_ entryID: UUID) {
         appModel.copyTranscriptHistoryButtonTapped(entryID)
+    }
+
+    func deleteHistoryEntry(_ entryID: UUID) {
+        appModel.deleteTranscriptHistoryButtonTapped(entryID)
     }
 
     func droppedAudioFileRejected(_ error: AudioFileDropValidationError) {

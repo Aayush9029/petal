@@ -17,6 +17,7 @@ public struct HistoryClient: Sendable {
     public var transcriptText: @Sendable (String?) -> String? = { _ in nil }
     public var modelsDirectoryPath: @Sendable () -> String = { "" }
     public var historyDirectoryPath: @Sendable () -> String = { "" }
+    public var deleteEntry: @Sendable ([TranscriptHistoryDay], UUID) -> [TranscriptHistoryDay] = { days, _ in days }
     public var deleteMediaOnly: @Sendable ([TranscriptHistoryDay]) -> [TranscriptHistoryDay] = { days in days }
 }
 
@@ -137,6 +138,9 @@ extension HistoryClient: DependencyKey {
             },
             historyDirectoryPath: {
                 runtime.historyDirectoryPath
+            },
+            deleteEntry: { days, entryID in
+                runtime.deleteEntry(id: entryID, from: days)
             },
             deleteMediaOnly: { days in
                 runtime.deleteMediaOnly(days: days)
@@ -335,6 +339,42 @@ private final class HistoryRuntime: @unchecked Sendable {
                 updatedDays[dayIndex].entries[id: entryID]?.audioRelativePath = nil
             }
         }
+        return updatedDays
+    }
+
+    func deleteEntry(id entryID: UUID, from days: [TranscriptHistoryDay]) -> [TranscriptHistoryDay] {
+        var pathsToDelete = Set<String>()
+        var updatedDays: [TranscriptHistoryDay] = []
+
+        for day in days {
+            let keptEntries = day.entries.filter { entry in
+                guard entry.id == entryID else { return true }
+                if let audioPath = entry.audioRelativePath {
+                    pathsToDelete.insert(audioPath)
+                }
+                for variant in entry.variants {
+                    if let transcriptPath = variant.transcriptRelativePath {
+                        pathsToDelete.insert(transcriptPath)
+                    }
+                }
+                return false
+            }
+
+            if !keptEntries.isEmpty {
+                updatedDays.append(
+                    TranscriptHistoryDay(
+                        day: day.day,
+                        entries: IdentifiedArray(uniqueElements: keptEntries)
+                    )
+                )
+            }
+        }
+
+        for path in pathsToDelete {
+            removeHistoryFile(relativePath: path)
+        }
+
+        updatedDays.sort { $0.day > $1.day }
         return updatedDays
     }
 

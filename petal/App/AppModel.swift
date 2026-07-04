@@ -363,6 +363,12 @@ final class AppModel {
         transientMessage = "Copied to clipboard"
     }
 
+    func deleteTranscriptHistoryButtonTapped(_ entryID: UUID) {
+        let updatedDays = historyClient.deleteEntry(transcriptHistoryDays, entryID)
+        $transcriptHistoryDays.withLock { $0 = updatedDays }
+        transientMessage = "Transcript deleted"
+    }
+
     // MARK: - Dropped Files
 
     func droppedAudioFileRejected(_ error: AudioFileDropValidationError) {

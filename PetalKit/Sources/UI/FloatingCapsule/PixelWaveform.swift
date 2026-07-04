@@ -8,8 +8,9 @@ import SwiftUI
 /// as a lively equalizer rather than a solid block. In `.recording` the overall
 /// amplitude tracks your voice; in `.processing` it holds a calm, low amplitude.
 /// Drawn in a single `Canvas`, composited on the GPU.
-struct PixelWaveform: View {
-    enum Mode: Equatable {
+public struct PixelWaveform: View {
+    public enum Mode: Equatable {
+        case idle
         case recording(level: Double)
         case processing
     }
@@ -24,7 +25,7 @@ struct PixelWaveform: View {
 
     private let ticker = Timer.publish(every: 1.0 / 20.0, on: .main, in: .common).autoconnect()
 
-    init(_ mode: Mode, bars: Int = 13, maxHalf: Int = 2, tint: Color = .red) {
+    public init(_ mode: Mode, bars: Int = 13, maxHalf: Int = 2, tint: Color = .red) {
         self.mode = mode
         self.bars = bars
         self.maxHalf = maxHalf
@@ -48,6 +49,8 @@ struct PixelWaveform: View {
         // Recording amplitude follows the voice; processing holds a calm level.
         let amplitude: Double
         switch mode {
+        case .idle:
+            amplitude = 0.26
         case .recording:
             amplitude = min(1, smoothed * 1.15)
         case .processing:
@@ -56,7 +59,7 @@ struct PixelWaveform: View {
         return (0..<bars).map { amplitude * profile($0) }
     }
 
-    var body: some View {
+    public var body: some View {
         Canvas { context, size in
             let centerY = size.height / 2
             for (index, value) in barValues.enumerated() {

@@ -2,49 +2,75 @@ import SwiftUI
 
 public struct FloatingCapsuleView: View {
     @Bindable var state: FloatingCapsuleState
+    // Pre-macOS 26 only: a blur pulse masks the swap between separate glass
+    // surfaces. On macOS 26 the surfaces are one morphing Liquid Glass capsule,
+    // so no pulse is needed and this stays at 0.
     @State private var blurRadius: CGFloat = 0
+    @Namespace private var glassNamespace
 
     public init(state: FloatingCapsuleState) {
         self.state = state
     }
 
     public var body: some View {
-        Group {
-            switch self.state.phase {
-            case .hidden:
-                Color.clear
-            case .recording:
-                recording
-            case .confirmCancel:
-                confirmCancel
-            case .trimming:
-                trimming
-            case .speeding:
-                speeding
-            case .transcribing:
-                transcribing
-            case .refining:
-                refining
-            case .copiedToClipboard:
-                copiedToClipboard
-            case .accessibilityPrompt:
-                accessibilityPrompt
-            case .accessibilityEnabled:
-                accessibilityEnabled
-            case .error:
-                error
+        capsule
+            .fixedSize()
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .animation(.smooth(duration: 0.4), value: self.state.phase)
+            .onChange(of: state.phase) { _, newPhase in
+                guard newPhase != .hidden else { return }
+                // Native Liquid Glass morphs the capsule between statuses, so
+                // the manual blur pulse is only needed on the pre-26 fallback.
+                if #unavailable(macOS 26.0) {
+                    blurRadius = 12
+                    withAnimation(.easeOut(duration: 0.5)) {
+                        blurRadius = 0
+                    }
+                }
             }
+    }
+
+    /// On macOS 26 every status renders into a single `GlassEffectContainer`
+    /// and shares one `glassEffectID`, so the capsule matched-geometry morphs
+    /// its shape as the status changes. Older systems get the blur-masked swap.
+    @ViewBuilder
+    private var capsule: some View {
+        if #available(macOS 26.0, *) {
+            GlassEffectContainer(spacing: 8) {
+                phaseContent
+            }
+            .environment(\.glassCapsuleNamespace, glassNamespace)
+        } else {
+            phaseContent
+                .blur(radius: blurRadius > 0 ? 8 : 0)
         }
-        .fixedSize()
-        .blur(radius: blurRadius > 0 ? 8 : 0)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .animation(.easeInOut(duration: 0.35), value: self.state.phase)
-        .onChange(of: state.phase) { _, newPhase in
-            guard newPhase != .hidden else { return }
-            blurRadius = 12
-            withAnimation(.easeOut(duration: 0.5)) {
-                blurRadius = 0
-            }
+    }
+
+    @ViewBuilder
+    private var phaseContent: some View {
+        switch self.state.phase {
+        case .hidden:
+            Color.clear
+        case .recording:
+            recording
+        case .confirmCancel:
+            confirmCancel
+        case .trimming:
+            trimming
+        case .speeding:
+            speeding
+        case .transcribing:
+            transcribing
+        case .refining:
+            refining
+        case .copiedToClipboard:
+            copiedToClipboard
+        case .accessibilityPrompt:
+            accessibilityPrompt
+        case .accessibilityEnabled:
+            accessibilityEnabled
+        case .error:
+            error
         }
     }
 

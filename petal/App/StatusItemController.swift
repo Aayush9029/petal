@@ -1,9 +1,10 @@
 import AppKit
 import Observation
 import Shared
+import SwiftUI
 
 @MainActor
-final class StatusItemController: NSObject, NSMenuDelegate {
+final class StatusItemController: NSObject, NSPopoverDelegate {
     // The rendered glyphs are 18pt wide; a snug fixed width keeps the item from
     // reserving the wide slot the previous SF Symbol used.
     private static let iconWidth: CGFloat = 22
@@ -11,7 +12,8 @@ final class StatusItemController: NSObject, NSMenuDelegate {
     private let statusItem: NSStatusItem
     private let dropOverlay: DropOverlayView
     private let viewModel: MenuBarContentViewModel
-    private let menu = NSMenu()
+    private let popover = NSPopover()
+    private var lastPopoverClose: Date = .distantPast
 
     private var animationTimer: Timer?
     private var animationTick = 0
@@ -23,21 +25,52 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         self.dropOverlay = DropOverlayView(frame: .zero)
         super.init()
 
+        configurePopover()
+
         if let button = statusItem.button {
             dropOverlay.frame = button.bounds
             dropOverlay.autoresizingMask = [.width, .height]
             dropOverlay.onDropURLs = { [weak self] urls in self?.handleDroppedURLs(urls) }
+            dropOverlay.onClick = { [weak self] in self?.togglePopover() }
             button.addSubview(dropOverlay)
         }
 
-        menu.delegate = self
-        statusItem.menu = menu
         observeViewModel()
     }
 
-    func menuWillOpen(_ menu: NSMenu) {
-        rebuildMenu()
+    // MARK: - Popover
+
+    private func configurePopover() {
+        popover.behavior = .transient
+        popover.animates = true
+        popover.delegate = self
+        let host = NSHostingController(
+            rootView: MenuBarPopover(viewModel: viewModel, dismiss: { [weak self] in
+                self?.popover.performClose(nil)
+            })
+        )
+        host.sizingOptions = [.preferredContentSize]
+        popover.contentViewController = host
     }
+
+    private func togglePopover() {
+        guard let button = statusItem.button else { return }
+        if popover.isShown {
+            popover.performClose(nil)
+            return
+        }
+        // The transient popover's own monitor closes it on the click that also
+        // reaches us; ignore that click so we don't immediately reopen.
+        if Date().timeIntervalSince(lastPopoverClose) < 0.25 { return }
+        popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
+        NSApp.activate(ignoringOtherApps: true)
+    }
+
+    func popoverDidClose(_ notification: Notification) {
+        lastPopoverClose = Date()
+    }
+
+    // MARK: - Status observation
 
     private func observeViewModel() {
         withObservationTracking {
@@ -56,7 +89,7 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         // is sampled per frame in renderAnimationFrame so level updates don't
         // churn observation.
         let state = viewModel.iconState
-        button.toolTip = "Petal - \(viewModel.statusTitle)"
+        button.toolTip = "Petal — \(viewModel.statusTitle)"
 
         if state.isAnimated {
             startAnimating()
@@ -124,140 +157,12 @@ final class StatusItemController: NSObject, NSMenuDelegate {
             viewModel.droppedAudioFileRejected(error)
         }
     }
-
-    private func rebuildMenu() {
-        menu.removeAllItems()
-        buildStatusSection(into: menu)
-        menu.addItem(.separator())
-        buildPermissionsSection(into: menu)
-        buildHistorySection(into: menu)
-        menu.addItem(.separator())
-        buildAppSection(into: menu)
-        menu.addItem(.separator())
-        buildQuitSection(into: menu)
-    }
-
-    private func buildStatusSection(into menu: NSMenu) {
-        menu.addItem(disabledItem(viewModel.statusTitle))
-
-        if viewModel.isRecording {
-            menu.addItem(actionItem("Stop Recording", action: #selector(stopRecording)))
-        }
-
-        if let error = viewModel.statusErrorMessage {
-            menu.addItem(disabledItem(error))
-        }
-
-        if !viewModel.isRecording, let message = viewModel.transientMessage {
-            menu.addItem(disabledItem(message))
-        }
-    }
-
-    private func buildPermissionsSection(into menu: NSMenu) {
-        guard viewModel.shouldShowPermissionsSection else { return }
-        if viewModel.needsMicrophonePermission {
-            menu.addItem(actionItem("Allow Microphone Access", action: #selector(requestMicrophonePermission)))
-        }
-        if viewModel.needsAccessibilityPermission {
-            menu.addItem(actionItem("Allow Accessibility Access", action: #selector(requestAccessibilityPermission)))
-        }
-    }
-
-    private func buildHistorySection(into menu: NSMenu) {
-        guard viewModel.shouldShowHistoryMenu else { return }
-
-        let historyItem = NSMenuItem(title: "History", action: nil, keyEquivalent: "")
-        let historyMenu = NSMenu()
-
-        if viewModel.historyMenuItems.isEmpty {
-            historyMenu.addItem(disabledItem("No transcripts yet"))
-        } else {
-            for entry in viewModel.historyMenuItems {
-                let item = actionItem("\(entry.title) - \(entry.subtitle)", action: #selector(copyHistoryEntry(_:)))
-                item.identifier = NSUserInterfaceItemIdentifier(entry.id.uuidString)
-                historyMenu.addItem(item)
-            }
-        }
-
-        historyItem.submenu = historyMenu
-        menu.addItem(historyItem)
-    }
-
-    private func buildAppSection(into menu: NSMenu) {
-        if viewModel.showsCheckForUpdates {
-            let item = actionItem("Check for Updates…", action: #selector(checkForUpdates))
-            item.isEnabled = viewModel.canCheckForUpdates
-            menu.addItem(item)
-        }
-
-        menu.addItem(actionItem("About Petal", action: #selector(showAbout)))
-        menu.addItem(actionItem("Settings", action: #selector(openSettings), key: ",", modifiers: [.command]))
-    }
-
-    private func buildQuitSection(into menu: NSMenu) {
-        menu.addItem(actionItem("Quit Petal", action: #selector(quit), key: "q", modifiers: [.command]))
-    }
-
-    private func disabledItem(_ title: String) -> NSMenuItem {
-        let item = NSMenuItem(title: title, action: nil, keyEquivalent: "")
-        item.isEnabled = false
-        return item
-    }
-
-    private func actionItem(
-        _ title: String,
-        action: Selector,
-        key: String = "",
-        modifiers: NSEvent.ModifierFlags = []
-    ) -> NSMenuItem {
-        let item = NSMenuItem(title: title, action: action, keyEquivalent: key)
-        item.target = self
-        if !modifiers.isEmpty {
-            item.keyEquivalentModifierMask = modifiers
-        }
-        return item
-    }
-
-    @objc private func requestMicrophonePermission() {
-        viewModel.requestMicrophonePermission()
-    }
-
-    @objc private func requestAccessibilityPermission() {
-        viewModel.requestAccessibilityPermission()
-    }
-
-    @objc private func stopRecording() {
-        viewModel.stopRecording()
-    }
-
-    @objc private func checkForUpdates() {
-        viewModel.checkForUpdates()
-    }
-
-    @objc private func showAbout() {
-        viewModel.showAbout()
-    }
-
-    @objc private func openSettings() {
-        viewModel.openSettings()
-    }
-
-    @objc private func quit() {
-        viewModel.quit()
-    }
-
-    @objc private func copyHistoryEntry(_ sender: NSMenuItem) {
-        guard
-            let rawValue = sender.identifier?.rawValue,
-            let id = UUID(uuidString: rawValue)
-        else { return }
-        viewModel.copyHistoryEntry(id)
-    }
 }
 
 @MainActor
 private final class DropOverlayView: NSView {
     var onDropURLs: (([URL]) -> Void)?
+    var onClick: (() -> Void)?
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
@@ -270,11 +175,7 @@ private final class DropOverlayView: NSView {
     }
 
     override func mouseDown(with event: NSEvent) {
-        superview?.mouseDown(with: event)
-    }
-
-    override func mouseUp(with event: NSEvent) {
-        superview?.mouseUp(with: event)
+        onClick?()
     }
 
     override func draggingEntered(_ sender: NSDraggingInfo) -> NSDragOperation {

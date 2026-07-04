@@ -50,6 +50,58 @@ func historyAudioAggressiveProfileProducesSmallerFile() async throws {
     #expect(compressedSize < standardSize)
 }
 
+@Test
+func deleteHistoryEntryRemovesEntryAndPersistedArtifacts() async throws {
+    let inputURL = try writeAudioFixture(durationSeconds: 2)
+    defer { try? FileManager.default.removeItem(at: inputURL) }
+
+    let historyClient = HistoryClient.liveValue
+    let entryID = UUID()
+    let modelID = "delete-history-test-\(entryID.uuidString)"
+    let timestamp = Date()
+
+    guard let artifacts = await historyClient.persistArtifacts(
+        PersistArtifactsRequest(
+            audioURL: inputURL,
+            transcript: "delete me",
+            timestamp: timestamp,
+            mode: "verbatim",
+            modelID: modelID,
+            retentionMode: .both,
+            persistAudio: true
+        )
+    ) else {
+        throw HistoryAudioPersistenceTestError.persistFailed
+    }
+
+    let days = historyClient.appendEntry(
+        AppendEntryRequest(
+            currentDays: [],
+            transcript: "delete me",
+            modelID: modelID,
+            mode: "verbatim",
+            audioDuration: 2,
+            transcriptionElapsed: 1,
+            pasteResult: "copied",
+            audioRelativePath: artifacts.audioRelativePath,
+            transcriptRelativePath: artifacts.transcriptRelativePath,
+            retentionMode: .both,
+            timestamp: timestamp,
+            sessionID: entryID
+        )
+    )
+
+    #expect(days.flatMap(\.entries).contains(where: { $0.id == entryID }))
+    #expect(historyClient.historyAudioURL(artifacts.audioRelativePath) != nil)
+    #expect(historyClient.transcriptText(artifacts.transcriptRelativePath) == "delete me")
+
+    let updatedDays = historyClient.deleteEntry(days, entryID)
+
+    #expect(updatedDays.flatMap(\.entries).contains(where: { $0.id == entryID }) == false)
+    #expect(historyClient.historyAudioURL(artifacts.audioRelativePath) == nil)
+    #expect(historyClient.transcriptText(artifacts.transcriptRelativePath) == nil)
+}
+
 private func persistHistoryAudio(
     historyClient: HistoryClient,
     audioURL: URL,
