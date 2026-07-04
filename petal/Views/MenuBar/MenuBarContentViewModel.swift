@@ -133,6 +133,10 @@ final class MenuBarContentViewModel {
         await appModel.transcribeDroppedAudioFile(url)
     }
 
+    func startRecording() {
+        Task { await appModel.handleDeepLink(.start) }
+    }
+
     func stopRecording() {
         Task { await appModel.handleDeepLink(.stop) }
     }

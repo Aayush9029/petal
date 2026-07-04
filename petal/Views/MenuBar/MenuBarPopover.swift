@@ -159,6 +159,11 @@ struct MenuBarPopover: View {
                     viewModel.stopRecording()
                     dismiss()
                 }
+            } else {
+                PopoverRow(icon: "record.circle", title: "Start Recording", tint: .accentColor) {
+                    viewModel.startRecording()
+                    dismiss()
+                }
             }
             PopoverRow(icon: "gearshape", title: "Settings", shortcut: "⌘,") {
                 viewModel.openSettings()
