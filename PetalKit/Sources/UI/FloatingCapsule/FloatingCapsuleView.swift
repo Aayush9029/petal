@@ -148,7 +148,7 @@ public struct FloatingCapsuleView: View {
             state.onAccessibilityTapped?()
         } label: {
             HStack(spacing: 8) {
-                Image(systemName: "accessibility")
+                Image(systemName: "hand.raised.fill")
                     .foregroundStyle(.blue)
                     .font(.caption2.weight(.bold))
 

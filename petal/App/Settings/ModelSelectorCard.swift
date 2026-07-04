@@ -67,15 +67,6 @@ struct ModelSelectorCard: View {
             .padding(.trailing, 12)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(rowBackground, in: .rect(cornerRadius: 12))
-            .overlay(alignment: .leading) {
-                if showsSelectionAccent {
-                    Capsule()
-                        .fill(rowAccentColor)
-                        .frame(width: 3)
-                        .padding(.vertical, 10)
-                        .padding(.leading, 1)
-                }
-            }
             .clipShape(.rect(cornerRadius: 12))
             .shimmering(
                 active: isWarming,

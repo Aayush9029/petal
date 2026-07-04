@@ -311,17 +311,18 @@ private struct TranscriptRow: View {
         HStack(spacing: 2) {
             Button(action: copyButtonTapped) {
                 ZStack {
-                    Image(systemName: copyIconName)
-                        .scaleEffect(didCopy ? 0.65 : 1)
-                        .opacity(didCopy ? 0 : 1)
-                    Image(systemName: "checkmark")
-                        .scaleEffect(didCopy ? 1 : 0.65)
-                        .opacity(didCopy ? 1 : 0)
+                    if didCopy {
+                        Image(systemName: "checkmark")
+                            .transition(.scale(scale: 0.72).combined(with: .opacity))
+                    } else {
+                        Image(systemName: copyIconName)
+                            .transition(.scale(scale: 0.72).combined(with: .opacity))
+                    }
                 }
                 .font(.callout.weight(.semibold))
                 .frame(width: Self.iconButtonSize, height: Self.iconButtonSize)
                 .contentShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
-                .animation(.snappy(duration: 0.2), value: didCopy)
+                .animation(.snappy(duration: 0.18), value: didCopy)
                 .animation(.snappy(duration: 0.15), value: copyIconHovering)
             }
             .buttonStyle(.plain)
