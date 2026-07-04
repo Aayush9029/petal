@@ -25,6 +25,10 @@ final class MenuBarContentViewModel {
 
     var statusTitle: String { appModel.statusTitle }
     var statusSymbolName: String { appModel.menuBarSymbolName }
+    var iconState: MenuBarIconState { appModel.menuBarIconState }
+    /// Smoothed input level for the recording pulse. Read per animation frame,
+    /// intentionally outside observation so level changes don't re-run status.
+    var audioLevel: Double { appModel.currentLevel }
     var isRecording: Bool {
         if case .recording = appModel.sessionState {
             return true
@@ -55,7 +59,7 @@ final class MenuBarContentViewModel {
         let allowedKeywords = [
             "accessibility",
             "microphone",
-            "complete setup",
+            "setup",
             "turn on",
             "warming",
             "preparing",

@@ -4,11 +4,13 @@
     {
       "layers" : [
         {
-          "glass" : true,
-          "image-name" : "OpenAI Playground 2026-02-26 at 00.26.26 (0).png",
-          "name" : "OpenAI Playground 2026-02-26 at 00.26.26 (0)",
+          "fill" : {
+            "solid" : "srgb:1.00000,1.00000,1.00000,1.00000"
+          },
+          "image-name" : "transparent.svg",
+          "name" : "transparent",
           "position" : {
-            "scale" : 1.46,
+            "scale" : 5,
             "translation-in-points" : [
               0,
               0
@@ -18,11 +20,11 @@
       ],
       "shadow" : {
         "kind" : "neutral",
-        "opacity" : 0.5
+        "opacity" : 0.6
       },
       "translucency" : {
         "enabled" : true,
-        "value" : 0.5
+        "value" : 0.2
       }
     }
   ],

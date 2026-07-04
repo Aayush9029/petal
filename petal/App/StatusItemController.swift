@@ -4,12 +4,18 @@ import Shared
 
 @MainActor
 final class StatusItemController: NSObject, NSMenuDelegate {
-    private static let iconWidth: CGFloat = 28
+    // The rendered glyphs are 18pt wide; a snug fixed width keeps the item from
+    // reserving the wide slot the previous SF Symbol used.
+    private static let iconWidth: CGFloat = 22
 
     private let statusItem: NSStatusItem
     private let dropOverlay: DropOverlayView
     private let viewModel: MenuBarContentViewModel
     private let menu = NSMenu()
+
+    private var animationTimer: Timer?
+    private var animationTick = 0
+    private var smoothedLevel: Double = 0
 
     init(viewModel: MenuBarContentViewModel) {
         self.viewModel = viewModel
@@ -45,10 +51,69 @@ final class StatusItemController: NSObject, NSMenuDelegate {
 
     private func applyStatus() {
         guard let button = statusItem.button else { return }
-        let image = NSImage(systemSymbolName: viewModel.statusSymbolName, accessibilityDescription: "Petal")
-        image?.isTemplate = true
-        button.image = image
+        // Reading these inside observation tracking re-runs applyStatus when the
+        // session state changes. Audio level is deliberately not read here — it
+        // is sampled per frame in renderAnimationFrame so level updates don't
+        // churn observation.
+        let state = viewModel.iconState
         button.toolTip = "Petal - \(viewModel.statusTitle)"
+
+        if state.isAnimated {
+            startAnimating()
+            renderAnimationFrame()
+        } else {
+            stopAnimating()
+            button.image = staticImage(for: state)
+        }
+    }
+
+    // MARK: - Pixel animation
+
+    private func startAnimating() {
+        guard animationTimer == nil else { return }
+        animationTick = 0
+        let timer = Timer(timeInterval: 1.0 / 24.0, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated { self?.renderAnimationFrame() }
+        }
+        RunLoop.main.add(timer, forMode: .common)
+        animationTimer = timer
+    }
+
+    private func stopAnimating() {
+        animationTimer?.invalidate()
+        animationTimer = nil
+        smoothedLevel = 0
+    }
+
+    private func renderAnimationFrame() {
+        guard let button = statusItem.button else { return }
+        animationTick += 1
+        switch viewModel.iconState {
+        case .recording:
+            // Fast attack, slow decay so the bars jump up with speech and settle
+            // gently — no jittery flicker. (The audio level is already enveloped
+            // upstream; this keeps the visual calm and matched.)
+            let target = viewModel.audioLevel
+            let coefficient = target > smoothedLevel ? 0.5 : 0.2
+            smoothedLevel += (target - smoothedLevel) * coefficient
+            button.image = MenuBarIconRenderer.recording(level: smoothedLevel)
+        case .working:
+            button.image = MenuBarIconRenderer.working(tick: animationTick)
+        case .idle, .error:
+            stopAnimating()
+            button.image = staticImage(for: viewModel.iconState)
+        }
+    }
+
+    private func staticImage(for state: MenuBarIconState) -> NSImage? {
+        switch state {
+        case .idle:
+            return MenuBarIconRenderer.idlePetal
+        case .error:
+            return MenuBarIconRenderer.error()
+        case .recording, .working:
+            return nil
+        }
     }
 
     private func handleDroppedURLs(_ urls: [URL]) {
@@ -91,10 +156,10 @@ final class StatusItemController: NSObject, NSMenuDelegate {
     private func buildPermissionsSection(into menu: NSMenu) {
         guard viewModel.shouldShowPermissionsSection else { return }
         if viewModel.needsMicrophonePermission {
-            menu.addItem(actionItem("Grant Microphone Access", action: #selector(requestMicrophonePermission)))
+            menu.addItem(actionItem("Allow Microphone Access", action: #selector(requestMicrophonePermission)))
         }
         if viewModel.needsAccessibilityPermission {
-            menu.addItem(actionItem("Enable Accessibility Access", action: #selector(requestAccessibilityPermission)))
+            menu.addItem(actionItem("Allow Accessibility Access", action: #selector(requestAccessibilityPermission)))
         }
     }
 
@@ -120,7 +185,7 @@ final class StatusItemController: NSObject, NSMenuDelegate {
 
     private func buildAppSection(into menu: NSMenu) {
         if viewModel.showsCheckForUpdates {
-            let item = actionItem("Check for Updates...", action: #selector(checkForUpdates))
+            let item = actionItem("Check for Updates…", action: #selector(checkForUpdates))
             item.isEnabled = viewModel.canCheckForUpdates
             menu.addItem(item)
         }

@@ -95,26 +95,30 @@ public extension DependencyValues {
     }
 }
 
-/// Thread-safe rolling-average level smoother, captured by the audio tap
-/// closure so that `LiveAudioCaptureRuntime` is never referenced from the
-/// real-time audio thread.
+/// Thread-safe fast-attack / slow-decay envelope follower, captured by the
+/// audio tap closure so that `LiveAudioCaptureRuntime` is never referenced
+/// from the real-time audio thread. Rising levels jump most of the way toward
+/// the new sample so speech transients register immediately; falling levels
+/// ease down slowly so the meter reads naturally instead of flickering.
 private final class LevelSmoother: @unchecked Sendable {
-    private var levels: [Double] = []
-    private let windowSize: Int
+    private var current: Double = 0
+    private let attack: Double
+    private let decay: Double
     private let lock = NSLock()
 
+    /// `windowSize` is retained for source compatibility; the follower is
+    /// window-free and instead blends via attack/decay coefficients.
     init(windowSize: Int = 8) {
-        self.windowSize = windowSize
+        self.attack = 0.65
+        self.decay = 0.15
     }
 
     func smooth(_ level: Double) -> Double {
         lock.lock()
         defer { lock.unlock() }
-        levels.append(level)
-        if levels.count > windowSize {
-            levels.removeFirst(levels.count - windowSize)
-        }
-        return levels.reduce(0, +) / Double(levels.count)
+        let coefficient = level > current ? attack : decay
+        current += (level - current) * coefficient
+        return current
     }
 }
 
@@ -403,10 +407,12 @@ private final class LiveAudioCaptureRuntime: @unchecked Sendable {
     }
 
     nonisolated fileprivate static func normalizePower(_ power: Float) -> Double {
-        if power <= -80 {
+        if power <= -65 {
             return 0
         }
-        let normalized = (Double(power) + 50.0) / 50.0
+        // Map roughly -60 dBFS -> 0.0 and -10 dBFS -> 1.0 so normal speech
+        // (~-35...-20 dBFS) swings across the middle of the range.
+        let normalized = (Double(power) + 60.0) / 50.0
         return max(0, min(1, normalized))
     }
 

@@ -80,6 +80,23 @@ struct GeneralPane: View {
                 }
             }
 
+            if #available(macOS 26.0, *) {
+                Section("Appearance") {
+                    LabeledContent("Recording Bar") {
+                        Picker("Recording Bar", selection: Binding(viewModel.$floatingCapsuleBackgroundStyle)) {
+                            ForEach(FloatingCapsuleBackgroundStyle.allCases) { style in
+                                Text(style.displayName).tag(style)
+                            }
+                        }
+                        .pickerStyle(.segmented)
+                        .frame(width: 180)
+                        .labelsHidden()
+                    }
+                    Text("Background style for the floating recording bar.")
+                        .settingDescription()
+                }
+            }
+
             Section("Permissions") {
                 LabeledContent("Microphone") {
                     if viewModel.microphoneAuthorized {

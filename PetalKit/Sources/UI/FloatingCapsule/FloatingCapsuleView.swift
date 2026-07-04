@@ -24,7 +24,7 @@ public struct FloatingCapsuleView: View {
             case .transcribing:
                 transcribing
             case .refining:
-                RefiningCapsuleContent(contentBlur: blurRadius)
+                refining
             case .copiedToClipboard:
                 copiedToClipboard
             case .accessibilityPrompt:
@@ -52,15 +52,15 @@ public struct FloatingCapsuleView: View {
 
     private var recording: some View {
         HStack(spacing: 8) {
-            Circle()
+            RoundedRectangle(cornerRadius: 2)
                 .fill(.red)
-                .frame(width: 8, height: 8)
+                .frame(width: 7, height: 7)
 
             Text("REC")
-                .font(.footnote.weight(.semibold))
+                .font(.system(.footnote, design: .monospaced).weight(.semibold))
                 .foregroundStyle(.primary)
 
-            RecordingBars(level: self.state.level)
+            PixelWaveform(.recording(level: self.state.level))
         }
         .floatingCapsuleChrome(blur: blurRadius)
     }
@@ -69,42 +69,26 @@ public struct FloatingCapsuleView: View {
         CancelConfirmationCapsule(isActive: state.cancelCountdownActive, blur: blurRadius)
     }
 
-    private var trimming: some View {
+    /// Processing states share one look: a short label + the self-animating pixel
+    /// EQ (same grid as recording, in the monochrome primary tint).
+    private func processing(_ label: String) -> some View {
         HStack(spacing: 8) {
-            Image(systemName: "scissors")
-                .font(.caption2.weight(.semibold))
-                .foregroundStyle(.orange)
-
-            Text("Trimming silence")
-                .font(.footnote.weight(.semibold))
+            Text(label)
+                .font(.system(.footnote, design: .monospaced).weight(.semibold))
                 .foregroundStyle(.primary)
+
+            PixelWaveform(.processing, tint: .primary)
         }
         .floatingCapsuleChrome(blur: blurRadius)
     }
 
-    private var speeding: some View {
-        HStack(spacing: 8) {
-            Image(systemName: "figure.run")
-                .font(.caption2.weight(.semibold))
-                .foregroundStyle(.teal)
+    private var trimming: some View { processing("Trimming") }
 
-            Text("Speeding audio")
-                .font(.footnote.weight(.semibold))
-                .foregroundStyle(.teal)
-        }
-        .floatingCapsuleChrome(blur: blurRadius)
-    }
+    private var speeding: some View { processing("Speeding up") }
 
-    private var transcribing: some View {
-        HStack(spacing: 8) {
-            CircularProgressRing(progress: self.state.transcriptionProgress)
+    private var transcribing: some View { processing("Transcribing") }
 
-            Text("Transcribing")
-                .font(.footnote.weight(.semibold))
-                .foregroundStyle(.primary)
-        }
-        .floatingCapsuleChrome(blur: blurRadius)
-    }
+    private var refining: some View { processing("Refining") }
 
     private var error: some View {
         HStack(spacing: 8) {

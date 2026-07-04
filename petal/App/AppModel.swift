@@ -66,6 +66,8 @@ final class AppModel {
     }
 
     var sessionState: SessionState = .idle
+    /// Smoothed microphone input level (0...1) for the menu bar pixel pulse.
+    var currentLevel: Double = 0
     var lastError: String?
     var transientMessage: String?
     var isWarmingModel = false
@@ -187,13 +189,13 @@ final class AppModel {
     var statusTitle: String {
         switch sessionState {
         case .idle:
-            return hasCompletedSetup ? "Ready" : "Setup Required"
+            return hasCompletedSetup ? "Ready" : "Setup needed"
         case .recording:
             return "REC"
         case let .processing(stage):
             switch stage {
             case .trimming: return "Trimming"
-            case .speeding: return "Speeding"
+            case .speeding: return "Speeding up"
             case .transcribing: return "Transcribing"
             case .refining: return "Refining"
             }
@@ -218,6 +220,19 @@ final class AppModel {
             case .refining: return "apple.intelligence"
             }
         case .error: return "exclamationmark.triangle.fill"
+        }
+    }
+
+    /// Visual state for the animated pixel menu bar icon.
+    var menuBarIconState: MenuBarIconState {
+        if modelDownloadViewModel.state.isActive || modelDownloadViewModel.state.isPaused {
+            return .working
+        }
+        switch sessionState {
+        case .idle: return .idle
+        case .recording: return .recording
+        case .processing: return .working
+        case .error: return .error
         }
     }
 
@@ -311,11 +326,11 @@ final class AppModel {
 
         if microphonePermissionState == .denied {
             await permissionsClient.openMicrophonePrivacySettings()
-            lastError = "Turn on microphone access in System Settings, then return to Petal."
+            lastError = "Turn on microphone access"
             return
         }
 
-        lastError = "Microphone access is required to record audio."
+        lastError = "Turn on microphone access"
     }
 
     func accessibilityPermissionButtonTapped() {
@@ -333,7 +348,7 @@ final class AppModel {
 
             if !accessibilityAuthorized {
                 await permissionsClient.openAccessibilityPrivacySettings()
-                transientMessage = "Turn on Accessibility in System Settings to continue using Petal."
+                transientMessage = "Turn on Accessibility access"
             }
         }
     }
@@ -345,7 +360,7 @@ final class AppModel {
         let transcript = formattedHistoryEntry(entry)
         guard transcript.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false else { return }
         copyTranscriptToClipboard(transcript)
-        transientMessage = "Copied to clipboard."
+        transientMessage = "Copied to clipboard"
     }
 
     // MARK: - Dropped Files
@@ -353,38 +368,38 @@ final class AppModel {
     func droppedAudioFileRejected(_ error: AudioFileDropValidationError) {
         switch error {
         case .noFile:
-            transientMessage = "Drop an audio file to transcribe."
+            transientMessage = "Drop an audio file to transcribe"
         case .multipleFiles:
-            transientMessage = "Drop one audio file at a time."
+            transientMessage = "Drop one file at a time"
         case .unsupportedFile:
-            transientMessage = "That file type is not supported."
+            transientMessage = "File type not supported"
         case .directory:
-            transientMessage = "Drop an audio file, not a folder."
+            transientMessage = "Drop a file, not a folder"
         }
     }
 
     func transcribeDroppedAudioFile(_ audioURL: URL) async {
         guard hasCompletedSetup else {
-            transientMessage = "Complete setup before transcribing files."
+            transientMessage = "Finish setup to transcribe"
             beginOnboardingFlow()
             showOnboardingWindow()
             return
         }
 
         guard !isTranscribingDroppedFile else {
-            transientMessage = "A file is already being transcribed."
+            transientMessage = "Already transcribing a file"
             return
         }
 
         let isCurrentlyRecording = await audioClient.isRecording()
         guard !isCurrentlyRecording, !isRecordingLifecycleBusy else {
-            transientMessage = "Finish the current transcription first."
+            transientMessage = "Finish the current one first"
             return
         }
 
         guard let selectedModelOption else {
             sessionState = .error(AppTranscriptionError.pipelineUnavailable.localizedDescription)
-            transientMessage = "Transcription pipeline is not available."
+            transientMessage = "Transcription unavailable"
             return
         }
 
@@ -488,7 +503,7 @@ final class AppModel {
             if isEmptyTranscript {
                 pipelineStage = "persist-empty"
                 await soundClient.playTranscriptionNoResult()
-                transientMessage = "No speech detected."
+                transientMessage = "No speech detected"
 
                 appendTranscriptHistory(
                     transcript: transcript,
@@ -507,7 +522,7 @@ final class AppModel {
                 copyTranscriptToClipboard(transcript)
                 await postCopiedToClipboardNotification(body: "Copied to clipboard")
                 await floatingCapsuleClient.showCopiedToClipboard()
-                transientMessage = "Copied to clipboard."
+                transientMessage = "Copied to clipboard"
 
                 appendTranscriptHistory(
                     transcript: transcript,
@@ -561,7 +576,7 @@ final class AppModel {
         } catch {
             reportIssue(error)
             lastError = error.localizedDescription
-            transientMessage = "Transcription failed."
+            transientMessage = "Transcription failed"
             sessionState = .error(error.localizedDescription)
             stopTranscriptionProgressTracking()
             await floatingCapsuleClient.showError("Transcription failed")
@@ -605,7 +620,7 @@ final class AppModel {
         }
 
         guard hasCompletedSetup else {
-            transientMessage = "Complete setup to start recording."
+            transientMessage = "Finish setup to record"
             beginOnboardingFlow()
             showOnboardingWindow()
             return
@@ -641,7 +656,7 @@ final class AppModel {
 
             guard microphoneAuthorized else {
                 sessionState = .error("Microphone permission denied")
-                transientMessage = "Turn on microphone access to record."
+                transientMessage = "Turn on microphone access"
                 pushToTalkIsActive = false
                 currentShortcutPressStart = nil
                 await floatingCapsuleClient.showError("Microphone denied")
@@ -912,7 +927,7 @@ final class AppModel {
             if isEmptyTranscript {
                 pipelineStage = "persist-empty"
                 await soundClient.playTranscriptionNoResult()
-                transientMessage = "No speech detected."
+                transientMessage = "No speech detected"
                 logger.info("Empty transcription result — no speech detected")
                 consoleLog("Empty transcription result — no speech detected")
 
@@ -1089,7 +1104,7 @@ final class AppModel {
             await stopPlaybackDuckingIfNeeded()
             reportIssue(error)
             lastError = error.localizedDescription
-            transientMessage = "Transcription failed."
+            transientMessage = "Transcription failed"
             sessionState = .error(error.localizedDescription)
             stopTranscriptionProgressTracking()
             await floatingCapsuleClient.showError("Transcription failed")
@@ -1728,6 +1743,7 @@ final class AppModel {
 
     private func recordingLevelDidUpdate(_ level: Double) {
         guard case .recording = sessionState else { return }
+        currentLevel = level
         Task { await floatingCapsuleClient.updateLevel(level) }
     }
 
