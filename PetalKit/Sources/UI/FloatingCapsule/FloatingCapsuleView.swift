@@ -95,8 +95,8 @@ public struct FloatingCapsuleView: View {
         CancelConfirmationCapsule(isActive: state.cancelCountdownActive, blur: blurRadius)
     }
 
-    /// Processing states share one look: a short label + the self-animating pixel
-    /// EQ (same grid as recording, in the monochrome primary tint).
+    /// Processing states share one look: a short label + the self-animating
+    /// pixel waveform (same grid as recording, in the monochrome primary tint).
     private func processing(_ label: String) -> some View {
         HStack(spacing: 8) {
             Text(label)

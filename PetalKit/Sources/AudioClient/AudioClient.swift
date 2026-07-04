@@ -95,30 +95,46 @@ public extension DependencyValues {
     }
 }
 
-/// Thread-safe fast-attack / slow-decay envelope follower, captured by the
-/// audio tap closure so that `LiveAudioCaptureRuntime` is never referenced
-/// from the real-time audio thread. Rising levels jump most of the way toward
-/// the new sample so speech transients register immediately; falling levels
-/// ease down slowly so the meter reads naturally instead of flickering.
-private final class LevelSmoother: @unchecked Sendable {
-    private var current: Double = 0
-    private let attack: Double
-    private let decay: Double
+/// Thread-safe envelope follower with auto-gain, captured by the audio tap
+/// closure so that `LiveAudioCaptureRuntime` is never referenced from the
+/// real-time audio thread.
+///
+/// Envelope: rising levels jump most of the way toward the new sample so
+/// speech transients register immediately; falling levels ease down slowly so
+/// the meter reads naturally instead of flickering.
+///
+/// Auto-gain: mics differ wildly in how hot they meter — the MacBook's
+/// built-in mic reports normal speech ~15 dB quieter than a typical headset.
+/// The processor tracks the loudest recent envelope as an adaptive ceiling
+/// and normalizes against it, so a quiet mic still swings the meter across
+/// its full range instead of hovering near the middle. `minCeiling` bounds
+/// the boost so room noise on a silent mic is never amplified into speech.
+private final class LevelProcessor: @unchecked Sendable {
+    private var envelope: Double = 0
+    private var ceiling: Double = LevelProcessor.minCeiling
     private let lock = NSLock()
 
-    /// `windowSize` is retained for source compatibility; the follower is
-    /// window-free and instead blends via attack/decay coefficients.
-    init(windowSize: Int = 8) {
-        self.attack = 0.65
-        self.decay = 0.15
-    }
+    private static let attack: Double = 0.7
+    private static let decay: Double = 0.18
+    /// Levels below this fraction of the adaptive range read as silence, so
+    /// steady room noise doesn't keep the meter twitching.
+    private static let gate: Double = 0.08
+    /// Lowest reference the auto-gain may normalize against (bounds the boost
+    /// at roughly 2.5×).
+    private static let minCeiling: Double = 0.42
+    /// Per-sample ceiling decay at the ~60 ms metering cadence — the reference
+    /// slides back down over ~30 s so one loud clap doesn't deafen the meter.
+    private static let ceilingDecay: Double = 0.9985
 
-    func smooth(_ level: Double) -> Double {
+    func process(_ level: Double) -> Double {
         lock.lock()
         defer { lock.unlock() }
-        let coefficient = level > current ? attack : decay
-        current += (level - current) * coefficient
-        return current
+        let clamped = max(0, min(1, level))
+        let coefficient = clamped > envelope ? Self.attack : Self.decay
+        envelope += (clamped - envelope) * coefficient
+        ceiling = max(envelope, ceiling * Self.ceilingDecay, Self.minCeiling)
+        let normalized = (envelope - Self.gate) / (ceiling - Self.gate)
+        return max(0, min(1, normalized))
     }
 }
 
@@ -132,7 +148,7 @@ private final class LiveAudioCaptureRuntime: @unchecked Sendable {
     private var recordingURL: URL?
     private var levelHandler: @Sendable (Double) -> Void = { _ in }
     private var levelTimer: DispatchSourceTimer?
-    private let levelSmoother = LevelSmoother()
+    private let levelProcessor = LevelProcessor()
 
     private nonisolated(unsafe) static let recordingSettings: [String: Any] = [
         AVFormatIDKey: Int(kAudioFormatLinearPCM),
@@ -372,7 +388,7 @@ private final class LiveAudioCaptureRuntime: @unchecked Sendable {
         timer.schedule(deadline: .now(), repeating: .milliseconds(60))
         timer.setEventHandler { [weak self] in
             guard let self else { return }
-            let smoothed = self.levelSmoother.smooth(0.34)
+            let smoothed = self.levelProcessor.process(0.34)
             let handler = self.levelHandler
             DispatchQueue.main.async {
                 handler(smoothed)
@@ -391,7 +407,7 @@ private final class LiveAudioCaptureRuntime: @unchecked Sendable {
             recorder.updateMeters()
             let power = recorder.averagePower(forChannel: 0)
             let normalized = Self.normalizePower(power)
-            let smoothed = self.levelSmoother.smooth(normalized)
+            let smoothed = self.levelProcessor.process(normalized)
             let handler = self.levelHandler
             DispatchQueue.main.async {
                 handler(smoothed)
@@ -407,12 +423,14 @@ private final class LiveAudioCaptureRuntime: @unchecked Sendable {
     }
 
     nonisolated fileprivate static func normalizePower(_ power: Float) -> Double {
-        if power <= -65 {
+        if power <= -58 {
             return 0
         }
-        // Map roughly -60 dBFS -> 0.0 and -10 dBFS -> 1.0 so normal speech
-        // (~-35...-20 dBFS) swings across the middle of the range.
-        let normalized = (Double(power) + 60.0) / 50.0
+        // Map -58 dBFS -> 0.0 and -18 dBFS -> 1.0. The built-in MacBook mic
+        // meters normal speech around -45...-30 dBFS, so the narrower window
+        // (vs the old -60...-10) puts speech in the upper half of the range;
+        // LevelProcessor's auto-gain then stretches it to full scale.
+        let normalized = (Double(power) + 58.0) / 40.0
         return max(0, min(1, normalized))
     }
 
@@ -496,7 +514,7 @@ private final class SelectedInputAudioRecording: NSObject, AVCaptureAudioDataOut
     private let writerInput: AVAssetWriterInput
     private let outputURL: URL
     private let levelHandler: @Sendable (Double) -> Void
-    private let levelSmoother = LevelSmoother()
+    private let levelProcessor = LevelProcessor()
     private var didStartWriting = false
     private var isStopping = false
 
@@ -599,7 +617,7 @@ private final class SelectedInputAudioRecording: NSObject, AVCaptureAudioDataOut
 
         if let channel = connection.audioChannels.first {
             let normalized = LiveAudioCaptureRuntime.normalizePower(channel.averagePowerLevel)
-            let smoothed = levelSmoother.smooth(normalized)
+            let smoothed = levelProcessor.process(normalized)
             let handler = levelHandler
             DispatchQueue.main.async {
                 handler(smoothed)

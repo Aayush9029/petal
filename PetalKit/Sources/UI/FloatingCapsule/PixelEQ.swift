@@ -26,8 +26,13 @@ public enum PixelEQ {
     /// Number of lit half-rows above/below the center for a `0…1` value, given
     /// the maximum half-rows available. `0 → just the center cell`, producing
     /// symmetric bars of 1, 3, 5 … cells.
+    ///
+    /// The range is split into `maxHalf + 1` even buckets rather than rounded:
+    /// with `maxHalf: 2`, rounding demanded 0.75 to light the full bar, which
+    /// made the meter look flat on quiet mics. Even buckets reach full height
+    /// from ~0.67 and use every step in between.
     public static func litHalf(_ value: Double, maxHalf: Int) -> Int {
         let clamped = max(0, min(1, value))
-        return Int((clamped * Double(maxHalf)).rounded())
+        return min(maxHalf, Int(clamped * Double(maxHalf + 1)))
     }
 }
