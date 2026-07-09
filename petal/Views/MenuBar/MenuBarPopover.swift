@@ -71,9 +71,15 @@ struct MenuBarPopover: View {
                 GameOfLifeView(tint: .accentColor)
                     .padding(4)
             case .recording:
-                LiveWaveform(level: viewModel.audioLevel, bars: 73, rows: 17, tint: .red)
+                LiveWaveform(
+                    level: viewModel.audioLevel,
+                    bars: 72,
+                    rows: 17,
+                    tint: .red,
+                    sampleInterval: .milliseconds(66)
+                )
             case .working:
-                ProcessingWaveform(bars: 73, rows: 17, tint: waveformTint)
+                ProcessingWaveform(bars: 72, rows: 17, tint: waveformTint)
             }
         }
         .frame(height: 68)
@@ -416,11 +422,15 @@ private struct CalloutButton: View {
             .padding(.horizontal, 10)
             .padding(.vertical, 7)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(hovering ? Color(red: 0.0, green: 0.33, blue: 0.82) : Color.blue, in: RoundedRectangle(cornerRadius: 8))
-            .foregroundStyle(.white)
-            .contentShape(Rectangle())
+            .background(
+                hovering ? Color.blue : Color.primary.opacity(0.08),
+                in: .rect(cornerRadius: 8)
+            )
+            .foregroundStyle(hovering ? Color.white : Color.primary)
+            .contentShape(.rect(cornerRadius: 8))
         }
         .buttonStyle(.plain)
+        .animation(.smooth(duration: 0.18), value: hovering)
         .onHover { hovering = $0 }
     }
 }

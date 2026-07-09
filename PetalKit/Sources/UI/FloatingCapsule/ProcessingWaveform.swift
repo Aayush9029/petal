@@ -27,10 +27,10 @@ public struct ProcessingWaveform: View {
     }
 
     public var body: some View {
-        TimelineView(.animation(minimumInterval: 1.0 / 30.0, paused: reduceMotion)) { timeline in
+        TimelineView(.animation(minimumInterval: 1.0 / 24.0, paused: reduceMotion)) { timeline in
             Canvas { context, size in
                 let phase = reduceMotion ? 0 : loopPhase(at: timeline.date)
-                WaveformCanvasRenderer.drawHelix(
+                DottedHelixRenderer.draw(
                     phase: phase,
                     bars: bars,
                     rows: rows,
@@ -46,7 +46,7 @@ public struct ProcessingWaveform: View {
     }
 
     private func loopPhase(at date: Date) -> Double {
-        let duration = 2.4
+        let duration = 2.8
         let progress = date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: duration) / duration
         return progress * .pi * 2
     }

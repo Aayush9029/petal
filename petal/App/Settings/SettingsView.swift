@@ -29,12 +29,11 @@ struct SettingsView: View {
                 }
             }
             .listStyle(.sidebar)
-            .navigationTitle("Settings")
-            .navigationSplitViewColumnWidth(min: 190, ideal: 215, max: 250)
+            .navigationSplitViewColumnWidth(min: 190, ideal: 205, max: 220)
         } detail: {
             pane
                 .id(selectedTab)
-                .transition(.opacity.combined(with: .scale(scale: 0.995)))
+                .transition(.opacity)
         }
         .navigationSplitViewStyle(.balanced)
         .animation(.easeOut(duration: 0.16), value: selectedTab)
@@ -78,12 +77,10 @@ struct GeneralPane: View {
         SettingsPaneLayout(tab: .general) {
             SettingsSectionGroup(
                 title: "Recording Shortcut",
-                subtitle: "Choose how Petal starts and stops listening."
+                subtitle: viewModel.shortcutDescription
             ) {
                 SettingsControlRow(
-                    title: "Shortcut",
-                    description: viewModel.shortcutDescription,
-                    symbol: "keyboard"
+                    title: "Shortcut"
                 ) {
                     UnifiedShortcutRecorder(shortcut: viewModel.unifiedShortcutBinding)
                 }
@@ -91,18 +88,16 @@ struct GeneralPane: View {
                 SettingsCardDivider()
 
                 SettingsControlRow(
-                    title: "Hold Duration",
-                    description: "How long a press becomes push-to-talk.",
-                    symbol: "timer"
+                    title: "Hold Duration"
                 ) {
-                    Picker("Hold Duration", selection: Binding(viewModel.$pushToTalkThreshold)) {
-                        ForEach(PushToTalkThreshold.allCases) { threshold in
-                            Text(threshold.displayName).tag(threshold)
-                        }
+                    SettingsSegmentedPicker(
+                        values: PushToTalkThreshold.allCases,
+                        selection: viewModel.pushToTalkThreshold,
+                        title: \.displayName
+                    ) { threshold in
+                        viewModel.$pushToTalkThreshold.withLock { $0 = threshold }
                     }
-                    .labelsHidden()
-                    .pickerStyle(.segmented)
-                    .frame(width: 190)
+                    .frame(width: 205)
                 }
             }
 
@@ -112,9 +107,10 @@ struct GeneralPane: View {
             ) {
                 CapsuleAppearancePicker(selection: viewModel.floatingCapsuleBackgroundStyle) { style in
                     withAnimation(.snappy(duration: 0.24)) {
-                        viewModel.floatingCapsuleBackgroundStyle = style
+                        viewModel.$floatingCapsuleBackgroundStyle.withLock { $0 = style }
                     }
                 }
+                .padding(14)
             }
 
             if !viewModel.microphoneAuthorized || !viewModel.accessibilityAuthorized {
@@ -189,49 +185,41 @@ struct RecordingPane: View {
                 subtitle: "Petal falls back to the system default if this device disappears."
             ) {
                 SettingsControlRow(title: "Microphone", symbol: "mic") {
-                    Picker("Microphone", selection: Binding(
-                        get: { viewModel.selectedAudioInputID },
-                        set: { viewModel.selectedAudioInputID = $0 }
-                    )) {
-                        ForEach(viewModel.audioInputDevices) { device in
-                            Text(device.name).tag(device.id)
+                    SettingsMenuPicker(
+                        values: viewModel.audioInputDevices.map(\.id),
+                        selection: viewModel.selectedAudioInputID,
+                        title: { id in
+                            viewModel.audioInputDevices.first(where: { $0.id == id })?.name ?? "System Default"
                         }
+                    ) { id in
+                        viewModel.selectedAudioInputID = id
                     }
-                    .labelsHidden()
-                    .frame(maxWidth: 250)
+                    .frame(maxWidth: 220)
                 }
             }
 
             SettingsSectionGroup(title: "Audio Processing") {
                 SettingsToggleRow(
                     title: "Trim Silence",
-                    description: "Remove quiet segments from the start and end.",
-                    symbol: "waveform.badge.minus",
-                    isOn: Binding(viewModel.$trimSilenceEnabled)
-                )
+                    isOn: viewModel.trimSilenceEnabled
+                ) { value in viewModel.$trimSilenceEnabled.withLock { $0 = value } }
                 SettingsCardDivider()
                 SettingsToggleRow(
                     title: "Auto Speed-up",
-                    description: "Speed up low-energy audio to reduce transcription time.",
-                    symbol: "gauge.with.dots.needle.50percent",
-                    isOn: Binding(viewModel.$autoSpeedEnabled)
-                )
+                    isOn: viewModel.autoSpeedEnabled
+                ) { value in viewModel.$autoSpeedEnabled.withLock { $0 = value } }
             }
 
             SettingsSectionGroup(title: "Behavior") {
                 SettingsToggleRow(
                     title: "Restore Clipboard After Paste",
-                    description: "Put the previous clipboard contents back after auto-pasting.",
-                    symbol: "clipboard",
-                    isOn: Binding(viewModel.$restoreClipboardAfterPaste)
-                )
+                    isOn: viewModel.restoreClipboardAfterPaste
+                ) { value in viewModel.$restoreClipboardAfterPaste.withLock { $0 = value } }
                 SettingsCardDivider()
                 SettingsToggleRow(
                     title: "Lower System Audio",
-                    description: "Reduce output volume while recording and restore it afterward.",
-                    symbol: "speaker.wave.1",
-                    isOn: Binding(viewModel.$duckSystemAudioDuringRecording)
-                )
+                    isOn: viewModel.duckSystemAudioDuringRecording
+                ) { value in viewModel.$duckSystemAudioDuringRecording.withLock { $0 = value } }
             }
         }
         .task {
@@ -268,16 +256,16 @@ struct TranscriptionPane: View {
                         }
                     }
                 }
+                .padding(14)
             }
 
             SettingsSectionGroup(title: "Intelligence") {
                 if viewModel.appleIntelligenceAvailable {
                     SettingsToggleRow(
                         title: "Enhance with Apple Intelligence",
-                        description: "Polish grammar, punctuation, and formatting on-device.",
                         symbol: "apple.intelligence",
-                        isOn: Binding(viewModel.$appleIntelligenceEnabled)
-                    )
+                        isOn: viewModel.appleIntelligenceEnabled
+                    ) { value in viewModel.$appleIntelligenceEnabled.withLock { $0 = value } }
                 } else {
                     SettingsControlRow(
                         title: "Apple Intelligence",
@@ -293,18 +281,16 @@ struct TranscriptionPane: View {
             if viewModel.smartModeAvailable {
                 SettingsSectionGroup(title: "Writing Style") {
                     SettingsControlRow(
-                        title: "Mode",
-                        description: viewModel.transcriptionMode.description,
-                        symbol: "text.badge.checkmark"
+                        title: "Mode"
                     ) {
-                        Picker("Transcription Mode", selection: Binding(viewModel.$transcriptionMode)) {
-                            ForEach(TranscriptionMode.allCases) { mode in
-                                Text(mode.displayName).tag(mode)
-                            }
+                        SettingsSegmentedPicker(
+                            values: TranscriptionMode.allCases,
+                            selection: viewModel.transcriptionMode,
+                            title: \.displayName
+                        ) { mode in
+                            viewModel.$transcriptionMode.withLock { $0 = mode }
                         }
-                        .labelsHidden()
-                        .pickerStyle(.segmented)
-                        .frame(width: 190)
+                        .frame(width: 205)
                     }
 
                     if viewModel.transcriptionMode == .smart {
@@ -312,6 +298,7 @@ struct TranscriptionPane: View {
                         TextField("Smart prompt", text: Binding(viewModel.$smartPrompt), axis: .vertical)
                             .textFieldStyle(.roundedBorder)
                             .lineLimit(3 ... 6)
+                            .padding(14)
                     }
                 }
                 .transition(.opacity.combined(with: .move(edge: .bottom)))
@@ -416,6 +403,8 @@ struct HistoryPane: View {
                             .buttonStyle(.borderless)
                             .help("Copy transcript")
                         }
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 11)
 
                         if index < viewModel.recentHistoryEntries.count - 1 {
                             SettingsCardDivider()
@@ -425,26 +414,22 @@ struct HistoryPane: View {
             }
 
             SettingsSectionGroup(title: "Storage") {
-                SettingsControlRow(title: "Keep", symbol: "clock.arrow.circlepath") {
-                    Picker("Keep", selection: Binding(
-                        get: { viewModel.historyRetentionMode },
-                        set: { viewModel.historyRetentionModeChanged($0) }
-                    )) {
-                        ForEach(HistoryRetentionMode.allCases) { mode in
-                            Text(mode.displayName).tag(mode)
-                        }
+                SettingsControlRow(title: "Keep") {
+                    SettingsMenuPicker(
+                        values: HistoryRetentionMode.allCases,
+                        selection: viewModel.historyRetentionMode,
+                        title: \.displayName
+                    ) { mode in
+                        viewModel.historyRetentionModeChanged(mode)
                     }
-                    .labelsHidden()
                 }
 
                 SettingsCardDivider()
 
                 SettingsToggleRow(
                     title: "Extra Compression",
-                    description: "Use lower-bitrate AAC files for saved audio.",
-                    symbol: "archivebox",
-                    isOn: Binding(viewModel.$compressHistoryAudio)
-                )
+                    isOn: viewModel.compressHistoryAudio
+                ) { value in viewModel.$compressHistoryAudio.withLock { $0 = value } }
 
                 SettingsCardDivider()
 
@@ -464,6 +449,7 @@ struct HistoryPane: View {
                     Button("Delete All History", role: .destructive) { historyAlert = .deleteAll }
                 }
                 .buttonStyle(.bordered)
+                .padding(14)
             }
         }
         .alert(historyAlert?.title ?? "", isPresented: isShowingHistoryAlert) {
@@ -528,10 +514,8 @@ struct AdvancedPane: View {
             ) {
                 SettingsToggleRow(
                     title: "Enable Logs",
-                    description: "Write diagnostic information to a local log file.",
-                    symbol: "doc.text.magnifyingglass",
-                    isOn: Binding(viewModel.$logsEnabled)
-                )
+                    isOn: viewModel.logsEnabled
+                ) { value in viewModel.$logsEnabled.withLock { $0 = value } }
                 SettingsCardDivider()
                 SettingsControlRow(
                     title: "Export Logs",
@@ -548,5 +532,5 @@ struct AdvancedPane: View {
 
 #Preview("Settings") {
     SettingsView(viewModel: SettingsViewModel(appModel: AppModel.makePreview()))
-        .frame(width: 920, height: 720)
+        .frame(width: 720, height: 680)
 }

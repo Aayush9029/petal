@@ -20,7 +20,7 @@ extension WindowConfig {
             showsCloseButton: true,
             toolbarStyle: .unified
         )),
-        size: CGSize(width: 920, height: 720)
+        size: CGSize(width: 720, height: 680)
     )
 
     public static let onboarding = WindowConfig(

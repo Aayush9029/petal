@@ -108,7 +108,7 @@ public struct FloatingCapsuleView: View {
     }
 
     private var processing: some View {
-        ProcessingWaveform(bars: 37, rows: 6, tint: .primary, metrics: .floating)
+        ProcessingWaveform(bars: 37, rows: 7, tint: .primary, metrics: .floating)
         .floatingCapsuleChrome(blur: blurRadius)
     }
 

@@ -156,6 +156,8 @@ final class WindowRuntimeImpl {
         )
         window.identifier = NSUserInterfaceItemIdentifier(config.id)
         window.title = config.title
+        window.titleVisibility = .hidden
+        window.titlebarAppearsTransparent = true
         window.isReleasedWhenClosed = config.isReleasedWhenClosed
         window.tabbingMode = config.tabbingMode
         window.animationBehavior = config.animationBehavior

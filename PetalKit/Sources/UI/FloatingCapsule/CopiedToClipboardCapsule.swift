@@ -25,7 +25,7 @@ struct CopiedToClipboardCapsule: View {
         .floatingCapsuleChrome(blur: blur)
         .animation(.smooth(duration: 0.24), value: showsCheckmark)
         .task {
-            try? await Task.sleep(for: .milliseconds(360))
+            try? await Task.sleep(for: .milliseconds(700))
             guard !Task.isCancelled else { return }
             showsCheckmark = true
         }

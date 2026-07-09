@@ -7,19 +7,19 @@ struct SettingsPaneLayout<Content: View>: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 24) {
-                HStack(spacing: 12) {
-                    SettingsTabIcon(tab: tab, size: 34)
+            VStack(alignment: .leading, spacing: 22) {
+                HStack(spacing: 10) {
+                    SettingsTabIcon(tab: tab, size: 28)
                     Text(tab.title)
-                        .font(.title2.weight(.bold))
+                        .font(.title3.weight(.semibold))
                 }
 
                 content()
             }
-            .frame(maxWidth: 720, alignment: .leading)
-            .padding(.horizontal, 30)
-            .padding(.top, 26)
-            .padding(.bottom, 40)
+            .frame(maxWidth: 500, alignment: .leading)
+            .padding(.horizontal, 22)
+            .padding(.top, 22)
+            .padding(.bottom, 32)
         }
         .scrollIndicators(.hidden)
         .background(Color(nsColor: .windowBackgroundColor))
@@ -45,12 +45,13 @@ struct SettingsSectionGroup<Content: View>: View {
             }
             .padding(.leading, 14)
 
-            content()
-                .padding(14)
-                .background(.quaternary.opacity(0.7), in: .rect(cornerRadius: 16))
+            VStack(spacing: 0) {
+                content()
+            }
+                .background(Color(nsColor: .controlBackgroundColor), in: .rect(cornerRadius: 14))
                 .overlay {
-                    RoundedRectangle(cornerRadius: 16, style: .continuous)
-                        .strokeBorder(.separator.opacity(0.65), lineWidth: 1)
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .strokeBorder(Color(nsColor: .separatorColor).opacity(0.8), lineWidth: 1)
                 }
         }
     }
@@ -82,10 +83,12 @@ struct SettingsControlRow<Control: View>: View {
                 }
             }
 
-            Spacer(minLength: 16)
+            Spacer(minLength: 12)
             control()
         }
-        .padding(.vertical, 3)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 11)
+        .frame(minHeight: 48)
     }
 }
 
@@ -93,21 +96,20 @@ struct SettingsToggleRow: View {
     let title: String
     var description: String?
     var symbol: String?
-    @Binding var isOn: Bool
+    let isOn: Bool
+    let onChange: (Bool) -> Void
 
     var body: some View {
         SettingsControlRow(title: title, description: description, symbol: symbol) {
-            Toggle(title, isOn: $isOn)
-                .labelsHidden()
-                .toggleStyle(.switch)
+            SettingsSwitch(isOn: isOn, onChange: onChange)
         }
     }
 }
 
 struct SettingsCardDivider: View {
     var body: some View {
-        Divider()
-            .padding(.horizontal, -14)
-            .padding(.vertical, 9)
+        Rectangle()
+            .fill(Color(nsColor: .separatorColor).opacity(0.65))
+            .frame(height: 1)
     }
 }

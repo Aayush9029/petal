@@ -13,7 +13,7 @@ struct RecordingCapsuleButton: View {
                 LiveWaveform(
                     level: level,
                     bars: 37,
-                    rows: 6,
+                    rows: 7,
                     tint: .red,
                     metrics: .floating,
                     gain: 1.15,

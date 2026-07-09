@@ -30,25 +30,18 @@ struct CapsuleAppearancePicker: View {
                         .padding(.horizontal, 22)
                 }
                 .frame(maxWidth: .infinity)
-                .frame(height: 92)
+                .frame(height: 58)
                 .clipShape(.rect(cornerRadius: 12))
                 .overlay {
                     RoundedRectangle(cornerRadius: 12, style: .continuous)
                         .strokeBorder(
-                            selection == style ? Color.accentColor : Color(nsColor: .separatorColor),
+                            selection == style ? Color.primary.opacity(0.5) : Color(nsColor: .separatorColor),
                             lineWidth: selection == style ? 3 : 1
                         )
                 }
 
-                HStack(spacing: 5) {
-                    Text(label)
-                        .font(.subheadline.weight(selection == style ? .semibold : .medium))
-                    if selection == style {
-                        Image(systemName: "checkmark.circle.fill")
-                            .font(.caption)
-                            .foregroundStyle(Color.accentColor)
-                    }
-                }
+                Text(label)
+                    .font(.subheadline.weight(selection == style ? .semibold : .medium))
                 .foregroundStyle(selection == style ? .primary : .secondary)
             }
             .contentShape(.rect)

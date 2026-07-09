@@ -103,6 +103,7 @@ private final class LiveFloatingCapsuleRuntime: NSObject {
     private var preferredScreen: NSScreen?
     private var globalMouseMonitor: Any?
     private var localMouseMonitor: Any?
+    private var deferredScreenFollowTask: Task<Void, Never>?
 
     override init() {
         let contentView = FloatingCapsuleView(state: state)
@@ -120,6 +121,8 @@ private final class LiveFloatingCapsuleRuntime: NSObject {
         panel.backgroundColor = .clear
         panel.isOpaque = false
         panel.hasShadow = true
+        panel.ignoresMouseEvents = false
+        panel.acceptsMouseMovedEvents = true
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
 
         self.panel = panel
@@ -216,12 +219,20 @@ private final class LiveFloatingCapsuleRuntime: NSObject {
     }
 
     private func startFollowingActiveScreen() {
-        globalMouseMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] _ in
+        let focusEvents: NSEvent.EventTypeMask = [
+            .leftMouseDown,
+            .leftMouseUp,
+            .rightMouseDown,
+            .rightMouseUp,
+            .otherMouseDown,
+            .otherMouseUp,
+        ]
+        globalMouseMonitor = NSEvent.addGlobalMonitorForEvents(matching: focusEvents) { [weak self] _ in
             Task { @MainActor [weak self] in
                 self?.mouseFocusDidChange()
             }
         }
-        localMouseMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] event in
+        localMouseMonitor = NSEvent.addLocalMonitorForEvents(matching: focusEvents) { [weak self] event in
             self?.mouseFocusDidChange()
             return event
         }
@@ -246,10 +257,21 @@ private final class LiveFloatingCapsuleRuntime: NSObject {
     }
 
     private func mouseFocusDidChange() {
+        moveToScreenAtMouseLocation()
+
+        deferredScreenFollowTask?.cancel()
+        deferredScreenFollowTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .milliseconds(80))
+            guard !Task.isCancelled else { return }
+            self?.moveToScreenAtMouseLocation()
+        }
+    }
+
+    private func moveToScreenAtMouseLocation() {
         guard let screen = screenAtMouseLocation() else { return }
         preferredScreen = screen
         guard panel.isVisible else { return }
-        positionPanel(on: screen, animated: true)
+        positionPanel(on: screen)
     }
 
     @objc private func activeApplicationDidChange() {

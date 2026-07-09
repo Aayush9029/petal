@@ -5,6 +5,7 @@ struct WaveformMetrics {
     let gapX: CGFloat
     let pitchY: CGFloat
     let corner: CGFloat
+    let inactiveCellOpacity: Double
 
     var pitchX: CGFloat { cell + gapX }
 
@@ -17,19 +18,20 @@ struct WaveformMetrics {
     }
 
     static let standard = WaveformMetrics(
-        cell: PixelEQ.cell,
-        gapX: PixelEQ.gapX,
-        pitchY: PixelEQ.pitchY,
-        corner: PixelEQ.corner
+        cell: 2,
+        gapX: 2,
+        pitchY: 3,
+        corner: 1,
+        inactiveCellOpacity: 0
     )
 
-    /// The floating capsule has more, smaller, fully opaque dots than the
-    /// expanded waveform. Integer-friendly dimensions keep them crisp on a
-    /// Retina display instead of reading as a soft continuous bar.
+    /// The floating capsule keeps all seven rows faintly visible so the grid's
+    /// full height is unambiguous even when the microphone input is quiet.
     static let floating = WaveformMetrics(
         cell: 2,
         gapX: 2,
         pitchY: 3,
-        corner: 1
+        corner: 1,
+        inactiveCellOpacity: 0.2
     )
 }

@@ -17,6 +17,7 @@ extension EnvironmentValues {
 
 private struct FloatingCapsuleChrome: ViewModifier {
     private static let contentWidth: CGFloat = 150
+    private static let contentHeight: CGFloat = 20
 
     var blur: CGFloat
     var highlight: Color?
@@ -39,7 +40,7 @@ private struct FloatingCapsuleChrome: ViewModifier {
     func body(content: Content) -> some View {
         let padded = content
             .blur(radius: blur)
-            .frame(width: Self.contentWidth, height: 18)
+            .frame(width: Self.contentWidth, height: Self.contentHeight, alignment: .center)
             .padding(.horizontal, 16)
             .padding(.vertical, 11)
         background(
