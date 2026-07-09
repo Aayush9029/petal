@@ -21,7 +21,7 @@ final class SettingsViewModel {
     @ObservationIgnored @Shared(.smartPrompt) var smartPrompt = "Clean up filler words and repeated phrases. Return a polished version of what was said."
     @ObservationIgnored @Shared(.historyRetentionMode) var historyRetentionMode: HistoryRetentionMode = .both
     @ObservationIgnored @Shared(.floatingCapsuleBackgroundStyle) var floatingCapsuleBackgroundStyle: FloatingCapsuleBackgroundStyle = .liquidGlass
-    @ObservationIgnored @Shared(.compressHistoryAudio) var compressHistoryAudio = false
+    @ObservationIgnored @Shared(.compressHistoryAudio) var compressHistoryAudio = true
     @ObservationIgnored @Shared(.appleIntelligenceEnabled) var appleIntelligenceEnabled = false
     @ObservationIgnored @Shared(.logsEnabled) var logsEnabled = false
     @ObservationIgnored @Shared(.restoreClipboardAfterPaste) var restoreClipboardAfterPaste = true
@@ -39,6 +39,8 @@ final class SettingsViewModel {
     var audioInputDevices: [AudioInputDevice] = [
         AudioInputDevice(id: AudioInputDevice.systemDefaultID, name: "System Default", isSystemDefault: true),
     ]
+    private(set) var historyTranscriptCache: [UUID: String] = [:]
+    private(set) var reprocessingHistoryEntryID: UUID?
 
     var selectedModelID: String {
         get { downloadModel.selectedModelID }
@@ -70,6 +72,10 @@ final class SettingsViewModel {
             .sorted { $0.timestamp > $1.timestamp }
             .prefix(3)
             .map { $0 }
+    }
+
+    var historyDays: [TranscriptHistoryDay] {
+        transcriptHistoryDays.sorted { $0.day > $1.day }
     }
 
     var canExportLogs: Bool {
@@ -172,6 +178,53 @@ final class SettingsViewModel {
         if !devices.contains(where: { $0.id == selectedAudioInputID }) {
             selectedAudioInputID = AudioInputDevice.systemDefaultID
         }
+    }
+
+    func refreshHistory() {
+        historyTranscriptCache = Dictionary(uniqueKeysWithValues: historyDays.flatMap { day in
+            day.entries.map { entry in
+                (entry.id, historyClient.transcriptText(entry.preferredTranscriptRelativePath) ?? "")
+            }
+        })
+    }
+
+    func historyDays(matching query: String) -> [TranscriptHistoryDay] {
+        let search = query.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard !search.isEmpty else { return historyDays }
+
+        return historyDays.compactMap { day in
+            var filteredDay = day
+            filteredDay.entries.removeAll { entry in
+                let transcript = historyTranscriptCache[entry.id, default: ""]
+                let searchableText = [transcript, entry.modelID, entry.modeSummary, day.day]
+                    .joined(separator: " ")
+                    .lowercased()
+                return !searchableText.contains(search)
+            }
+            return filteredDay.entries.isEmpty ? nil : filteredDay
+        }
+    }
+
+    func historyAudioURL(for entry: TranscriptHistoryEntry) -> URL? {
+        historyClient.historyAudioURL(entry.audioRelativePath)
+    }
+
+    func historyEntryFailed(_ entry: TranscriptHistoryEntry) -> Bool {
+        entry.variants[id: "failed"] != nil && entry.variants.count == 1
+    }
+
+    func reprocessHistoryEntry(_ entry: TranscriptHistoryEntry) async {
+        guard historyAudioURL(for: entry) != nil else {
+            permissionMessage = "The original recording is no longer available."
+            return
+        }
+
+        reprocessingHistoryEntryID = entry.id
+        defer {
+            reprocessingHistoryEntryID = nil
+            refreshHistory()
+        }
+        await appModel.reprocessTranscriptHistoryButtonTapped(entry.id)
     }
 
     func grantMicrophonePermissionButtonTapped() async {
@@ -288,17 +341,21 @@ final class SettingsViewModel {
     }
 
     func transcriptText(for entry: TranscriptHistoryEntry) -> String {
-        historyClient.transcriptText(entry.preferredTranscriptRelativePath) ?? ""
+        historyTranscriptCache[entry.id]
+            ?? historyClient.transcriptText(entry.preferredTranscriptRelativePath)
+            ?? ""
     }
 
     func deleteAllHistory() {
         let cleared = historyClient.applyRetention(.none, transcriptHistoryDays)
         $transcriptHistoryDays.withLock { $0 = cleared }
+        refreshHistory()
     }
 
     func deleteMediaOnly() {
         let updated = historyClient.deleteMediaOnly(transcriptHistoryDays)
         $transcriptHistoryDays.withLock { $0 = updated }
+        refreshHistory()
     }
 
     func shortcutRecorded(_ result: RecordedShortcut) {

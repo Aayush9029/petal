@@ -15,7 +15,7 @@ struct AccessibilityCapsuleButton: View {
                 )
 
                 Text("Enable Accessibility")
-                    .font(.footnote.weight(.semibold))
+                    .font(.callout.weight(.semibold))
                     .foregroundStyle(isHovering ? Color.white : Color.primary)
             }
             .floatingCapsuleChrome(blur: blur, highlight: isHovering ? .blue : nil)

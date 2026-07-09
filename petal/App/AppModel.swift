@@ -45,7 +45,7 @@ final class AppModel {
     @ObservationIgnored @Shared(.transcriptionMode) var transcriptionMode: TranscriptionMode = .verbatim
     @ObservationIgnored @Shared(.smartPrompt) var smartPrompt = "Clean up filler words and repeated phrases. Return a polished version of what was said."
     @ObservationIgnored @Shared(.appleIntelligenceEnabled) var appleIntelligenceEnabled = false
-    @ObservationIgnored @Shared(.compressHistoryAudio) var compressHistoryAudio = false
+    @ObservationIgnored @Shared(.compressHistoryAudio) var compressHistoryAudio = true
     @ObservationIgnored @Shared(.historyRetentionMode) var historyRetentionMode: HistoryRetentionMode = .both
     @ObservationIgnored @Shared(.pushToTalkThreshold) var pushToTalkThreshold: PushToTalkThreshold = .long
     @ObservationIgnored @Shared(.restoreClipboardAfterPaste) var restoreClipboardAfterPaste = true
@@ -117,6 +117,7 @@ final class AppModel {
     @ObservationIgnored private var downloadStateObserverTask: Task<Void, Never>?
     @ObservationIgnored private var isShowingMiniDownload = false
     @ObservationIgnored private var activeHistorySessionID: UUID?
+    @ObservationIgnored private var historyReprocessContext: TranscriptHistoryEntry?
     @ObservationIgnored private var isPlaybackDucked = false
     var menuBarFlashOn = true
     @ObservationIgnored private var estimatedTranscriptionRTF = 2.2
@@ -370,6 +371,19 @@ final class AppModel {
         transientMessage = "Transcript deleted"
     }
 
+    func reprocessTranscriptHistoryButtonTapped(_ entryID: UUID) async {
+        guard let entry = transcriptHistoryDays.lazy.compactMap({ $0.entries[id: entryID] }).first,
+              let audioURL = historyClient.historyAudioURL(entry.audioRelativePath)
+        else {
+            transientMessage = "Recording is no longer available"
+            return
+        }
+
+        historyReprocessContext = entry
+        defer { historyReprocessContext = nil }
+        await transcribeDroppedAudioFile(audioURL)
+    }
+
     // MARK: - Dropped Files
 
     func droppedAudioFileRejected(_ error: AudioFileDropValidationError) {
@@ -423,7 +437,10 @@ final class AppModel {
         sessionState = .processing(.trimming)
         await floatingCapsuleClient.showTrimming()
 
-        let historySessionID = uuid()
+        let reprocessContext = historyReprocessContext
+        let historySessionID = reprocessContext?.id ?? uuid()
+        let historyTimestamp = reprocessContext?.timestamp ?? now
+        let shouldPersistAudio = reprocessContext == nil
         let pipelineStart = now
         let transcriptionStart = now
         var pipelineStage = "file-setup"
@@ -502,9 +519,10 @@ final class AppModel {
             let persistedPaths = await persistHistoryArtifacts(
                 audioURL: audioURL,
                 transcript: transcript,
-                timestamp: transcriptionStart,
+                timestamp: historyTimestamp,
                 mode: mode.rawValue,
-                modelID: selectedModelOption.rawValue
+                modelID: selectedModelOption.rawValue,
+                persistAudio: shouldPersistAudio
             )
 
             if isEmptyTranscript {
@@ -521,7 +539,8 @@ final class AppModel {
                     pasteResult: .skipped,
                     audioRelativePath: persistedPaths?.audioRelativePath,
                     transcriptRelativePath: persistedPaths?.transcriptRelativePath,
-                    sessionID: historySessionID
+                    sessionID: historySessionID,
+                    timestamp: historyTimestamp
                 )
             } else {
                 pipelineStage = "clipboard"
@@ -540,14 +559,15 @@ final class AppModel {
                     pasteResult: .copiedOnly,
                     audioRelativePath: persistedPaths?.audioRelativePath,
                     transcriptRelativePath: persistedPaths?.transcriptRelativePath,
-                    sessionID: historySessionID
+                    sessionID: historySessionID,
+                    timestamp: historyTimestamp
                 )
 
                 if shouldPersistOriginalVariant {
                     let originalPaths = await persistHistoryArtifacts(
                         audioURL: audioURL,
                         transcript: originalTranscript,
-                        timestamp: transcriptionStart,
+                        timestamp: historyTimestamp,
                         mode: "original",
                         modelID: selectedModelOption.rawValue,
                         persistAudio: false
@@ -561,7 +581,8 @@ final class AppModel {
                         pasteResult: .skipped,
                         audioRelativePath: originalPaths?.audioRelativePath,
                         transcriptRelativePath: originalPaths?.transcriptRelativePath,
-                        sessionID: historySessionID
+                        sessionID: historySessionID,
+                        timestamp: historyTimestamp
                     )
                 }
             }
@@ -801,12 +822,20 @@ final class AppModel {
         defer { activeHistorySessionID = nil }
         let pipelineStart = now
         var pipelineStage = "stop-recording"
+        var recordedAudioURL: URL?
+        var recordedAudioDuration = 0.0
+        var historyWasPersisted = false
+        defer {
+            if let recordedAudioURL {
+                try? FileManager.default.removeItem(at: recordedAudioURL)
+            }
+        }
 
         do {
             let stopRecordingStart = now
             let audioURL = try await audioClient.stopRecording()
+            recordedAudioURL = audioURL
             await stopPlaybackDuckingIfNeeded()
-            defer { try? FileManager.default.removeItem(at: audioURL) }
             let stopRecordingElapsed = now.timeIntervalSince(stopRecordingStart)
             let audioSizeBytes = appAudioFileSizeBytes(audioURL) ?? 0
 
@@ -815,6 +844,7 @@ final class AppModel {
             }
 
             let audioDuration = transcriptionClient.audioDurationSeconds(audioURL)
+            recordedAudioDuration = audioDuration
             let expectedDuration = estimatedTranscriptionDuration(for: audioDuration)
 
             logClient.dumpDebug(
@@ -973,6 +1003,7 @@ final class AppModel {
                     transcriptRelativePath: persistedPaths?.transcriptRelativePath,
                     sessionID: historySessionID
                 )
+                historyWasPersisted = true
             } else {
                 pipelineStage = "paste"
                 await soundClient.playTranscriptionCompleted()
@@ -1042,6 +1073,7 @@ final class AppModel {
                     transcriptRelativePath: persistedPaths?.transcriptRelativePath,
                     sessionID: historySessionID
                 )
+                historyWasPersisted = true
 
                 if shouldPersistOriginalVariant {
                     pipelineStage = "persist-original"
@@ -1111,6 +1143,29 @@ final class AppModel {
             )
         } catch {
             await stopPlaybackDuckingIfNeeded()
+            if !historyWasPersisted, let recordedAudioURL {
+                let failurePaths = await persistHistoryArtifacts(
+                    audioURL: recordedAudioURL,
+                    transcript: "",
+                    timestamp: pipelineStart,
+                    mode: "failed",
+                    modelID: selectedModelOption?.rawValue ?? selectedModelID
+                )
+                appendTranscriptHistory(
+                    transcript: "",
+                    modelID: selectedModelOption?.rawValue ?? selectedModelID,
+                    mode: "failed",
+                    audioDuration: recordedAudioDuration > 0
+                        ? recordedAudioDuration
+                        : transcriptionClient.audioDurationSeconds(recordedAudioURL),
+                    transcriptionElapsed: now.timeIntervalSince(pipelineStart),
+                    pasteResult: .skipped,
+                    audioRelativePath: failurePaths?.audioRelativePath,
+                    transcriptRelativePath: failurePaths?.transcriptRelativePath,
+                    sessionID: historySessionID,
+                    timestamp: pipelineStart
+                )
+            }
             reportIssue(error)
             lastError = error.localizedDescription
             transientMessage = "Transcription failed"
@@ -2033,7 +2088,8 @@ final class AppModel {
         pasteResult: PasteResult,
         audioRelativePath: String?,
         transcriptRelativePath: String?,
-        sessionID: UUID
+        sessionID: UUID,
+        timestamp: Date? = nil
     ) {
         let entry = historyClient.appendEntry(
             AppendEntryRequest(
@@ -2047,7 +2103,7 @@ final class AppModel {
                 audioRelativePath: audioRelativePath,
                 transcriptRelativePath: transcriptRelativePath,
                 retentionMode: historyRetentionMode,
-                timestamp: now,
+                timestamp: timestamp ?? now,
                 sessionID: sessionID
             )
         )

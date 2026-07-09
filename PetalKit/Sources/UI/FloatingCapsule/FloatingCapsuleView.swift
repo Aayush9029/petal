@@ -138,7 +138,7 @@ public struct FloatingCapsuleView: View {
             DottedStatusGlyph(kind: .checkmark, tint: .green)
 
             Text("Accessibility Enabled")
-                .font(.footnote.weight(.semibold))
+                .font(.callout.weight(.semibold))
                 .foregroundStyle(.primary)
         }
         .floatingCapsuleChrome(blur: blurRadius)

@@ -19,7 +19,7 @@ struct CopiedToClipboardCapsule: View {
             .frame(width: 16, height: 16)
 
             Text("Copied to clipboard")
-                .font(.footnote.weight(.semibold))
+                .font(.callout.weight(.semibold))
                 .foregroundStyle(.primary)
         }
         .floatingCapsuleChrome(blur: blur)

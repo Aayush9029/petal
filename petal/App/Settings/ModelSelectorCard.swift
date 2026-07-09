@@ -1,7 +1,6 @@
 import Assets
 import Shared
 import SwiftUI
-import UI
 
 struct ModelSelectorCard: View {
     enum DownloadState: Equatable {
@@ -30,83 +29,40 @@ struct ModelSelectorCard: View {
             guard isEnabled else { return }
             action()
         } label: {
-            HStack(spacing: 12) {
+            HStack(spacing: 11) {
                 iconView
 
                 VStack(alignment: .leading, spacing: 2) {
-                    HStack(spacing: 6) {
-                        Text(option.displayName)
-                            .font(.headline)
-                            .fontDesign(.rounded)
-                            .foregroundStyle(.primary)
-                            .lineLimit(1)
-                        if option.isRecommended {
-                            Text("Recommended")
-                                .font(.caption2.weight(.medium))
-                                .foregroundStyle(Color.accentColor)
-                        }
-                    }
+                    Text(option.displayName)
+                        .font(.subheadline.weight(.semibold))
+                        .lineLimit(1)
                     Text(subtitle)
                         .font(.caption)
-                        .foregroundStyle(subtitleColor)
+                        .foregroundStyle(isWarming ? .orange : .secondary)
                         .lineLimit(1)
-                    if showsStatusText {
-                        Text(statusText)
-                            .font(.caption2)
-                            .foregroundStyle(statusColor)
-                            .lineLimit(1)
-                    }
                 }
 
                 Spacer(minLength: 8)
-
                 trailingAccessory
             }
-            .padding(.vertical, 8)
-            .padding(.leading, 12)
-            .padding(.trailing, 12)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 10)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(rowBackground, in: .rect(cornerRadius: 12))
-            .clipShape(.rect(cornerRadius: 12))
-            .shimmering(
-                active: isWarming,
-                gradient: Gradient(colors: [
-                    .clear,
-                    .white.opacity(0.35),
-                    .clear,
-                ]),
-                mode: .overlay(blendMode: .screen)
-            )
-            .clipShape(.rect(cornerRadius: 12))
-            .overlay {
-                RoundedRectangle(cornerRadius: 12)
-                    .strokeBorder(rowBorderColor, lineWidth: showsSelectionAccent ? 1.2 : 1)
-            }
-            .contentShape(.rect(cornerRadius: 12))
-            .animation(.easeInOut(duration: 0.18), value: isSelected)
-            .animation(.easeInOut(duration: 0.18), value: isWarming)
+            .background(selectionBackground)
+            .contentShape(.rect)
         }
         .buttonStyle(.plain)
         .opacity(isEnabled ? 1 : 0.55)
-        .contextMenu {
-            contextMenuItems
-        }
+        .contextMenu { contextMenuItems }
+        .animation(.easeInOut(duration: 0.18), value: isSelected)
+        .animation(.easeInOut(duration: 0.18), value: isWarming)
     }
 
     private var subtitle: String {
-        if isWarming {
-            return "Warming up selected model"
-        }
-
-        var parts = [option.descriptor.parameters]
-        if let size = option.sizeLabel {
-            parts.append(size)
-        }
-        return parts.joined(separator: " · ")
-    }
-
-    private var subtitleColor: Color {
-        isWarming ? .orange : .secondary
+        if isWarming { return "Warming up" }
+        return [option.providerDisplayName, option.sizeLabel]
+            .compactMap { $0 }
+            .joined(separator: " · ")
     }
 
     private var icon: Image {
@@ -126,43 +82,20 @@ struct ModelSelectorCard: View {
             .aspectRatio(contentMode: .fit)
             .frame(width: 24, height: 24)
 
-        if shouldClipIcon {
-            image.clipShape(.rect(cornerRadius: 6))
-        } else {
+        if option.provider == .nvidia {
             image
+        } else {
+            image.clipShape(.rect(cornerRadius: 6))
         }
     }
 
-    private var shouldClipIcon: Bool {
-        option.provider != .nvidia
-    }
-
-    private var showsSelectionAccent: Bool {
-        isSelected || isWarming
-    }
-
-    private var rowAccentColor: Color {
-        isWarming ? .orange : .accentColor
-    }
-
-    private var rowBackground: Color {
+    @ViewBuilder
+    private var selectionBackground: some View {
         if isWarming {
-            return .orange.opacity(0.11)
+            Color.orange.opacity(0.1)
+        } else if isSelected {
+            Color.accentColor.opacity(0.1)
         }
-        if isSelected {
-            return Color.accentColor.opacity(0.11)
-        }
-        return Color(nsColor: .controlBackgroundColor)
-    }
-
-    private var rowBorderColor: Color {
-        if isWarming {
-            return .orange.opacity(0.75)
-        }
-        if isSelected {
-            return Color.accentColor.opacity(0.75)
-        }
-        return Color(nsColor: .separatorColor)
     }
 
     @ViewBuilder
@@ -170,75 +103,31 @@ struct ModelSelectorCard: View {
         switch downloadState {
         case .ready:
             if isWarming {
-                warmingAccessory
+                ProgressView()
+                    .controlSize(.small)
+                    .tint(.orange)
             } else if isSelected {
-                EmptyView()
-            } else {
-                pillAccessory(.use)
+                Image(systemName: "checkmark.circle.fill")
+                    .foregroundStyle(Color.accentColor)
             }
         case .needsDownload:
-            pillAccessory(.get)
-        case .deleting:
+            Text("Get")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.white)
+                .padding(.horizontal, 12)
+                .frame(height: 24)
+                .background(Color.accentColor, in: .capsule)
+        case .deleting, .preparing:
             ProgressView()
-                .progressViewStyle(.circular)
-                .scaleEffect(0.6)
-                .frame(width: 24, height: 24)
-        case .preparing:
-            ProgressView()
-                .progressViewStyle(.circular)
-                .scaleEffect(0.6)
-                .frame(width: 24, height: 24)
+                .controlSize(.small)
         case let .downloading(progress):
             circularProgress(progress.fraction)
         case .paused:
             Image(systemName: "pause.circle.fill")
-                .font(.title3)
                 .foregroundStyle(Color.accentColor)
-                .frame(width: 24, height: 24)
         case .failed:
             Image(systemName: "exclamationmark.circle.fill")
-                .font(.title3)
                 .foregroundStyle(.red)
-                .frame(width: 24, height: 24)
-        }
-    }
-
-    private var statusText: String {
-        switch downloadState {
-        case .ready:
-            return isSelected ? "Active" : "Ready"
-        case .needsDownload:
-            return "Not downloaded"
-        case .deleting:
-            return "Deleting download"
-        case .preparing:
-            return "Preparing download"
-        case let .downloading(progress):
-            return "Downloading · \(progress.summaryText)"
-        case let .paused(progress):
-            return "Paused · \(progress.summaryText)"
-        case let .failed(message):
-            return message
-        }
-    }
-
-    private var statusColor: Color {
-        switch downloadState {
-        case .ready:
-            return isSelected ? .accentColor : .secondary
-        case .needsDownload, .deleting, .preparing, .downloading, .paused:
-            return .secondary
-        case .failed:
-            return .red
-        }
-    }
-
-    private var showsStatusText: Bool {
-        switch downloadState {
-        case .ready, .needsDownload:
-            return false
-        case .deleting, .preparing, .downloading, .paused, .failed:
-            return true
         }
     }
 
@@ -247,131 +136,38 @@ struct ModelSelectorCard: View {
         switch downloadState {
         case .ready where option.requiresDownload:
             if let onDeleteDownloadedModel {
-                Button(role: .destructive) {
+                Button("Delete Download…", systemImage: "trash", role: .destructive) {
                     onDeleteDownloadedModel()
-                } label: {
-                    Label("Delete Download…", systemImage: "trash")
                 }
             }
         case .downloading:
             if let onPauseDownload {
-                Button {
-                    onPauseDownload()
-                } label: {
-                    Label("Pause Download", systemImage: "pause.circle")
-                }
+                Button("Pause Download", systemImage: "pause.circle", action: onPauseDownload)
             }
             if let onCancelDownload {
-                Button(role: .destructive) {
-                    onCancelDownload()
-                } label: {
-                    Label("Cancel Download", systemImage: "xmark.circle")
-                }
+                Button("Cancel Download", systemImage: "xmark.circle", role: .destructive, action: onCancelDownload)
             }
         case .paused:
             if let onResumeDownload {
-                Button {
-                    onResumeDownload()
-                } label: {
-                    Label("Resume Download", systemImage: "play.circle")
-                }
+                Button("Resume Download", systemImage: "play.circle", action: onResumeDownload)
             }
             if let onCancelDownload {
-                Button(role: .destructive) {
-                    onCancelDownload()
-                } label: {
-                    Label("Cancel Download", systemImage: "xmark.circle")
-                }
+                Button("Cancel Download", systemImage: "xmark.circle", role: .destructive, action: onCancelDownload)
             }
         default:
             EmptyView()
         }
     }
 
-    private enum AccessoryPillStyle {
-        case get
-        case use
-
-        var title: String {
-            switch self {
-            case .get:
-                return "Get"
-            case .use:
-                return "Use"
-            }
-        }
-
-        var foregroundColor: Color {
-            switch self {
-            case .get:
-                return .white
-            case .use:
-                return .black
-            }
-        }
-
-        var backgroundColor: Color {
-            switch self {
-            case .get:
-                return .accentColor
-            case .use:
-                return .white
-            }
-        }
-
-        var borderColor: Color {
-            switch self {
-            case .get:
-                return .accentColor
-            case .use:
-                return Color(nsColor: .separatorColor)
-            }
-        }
-    }
-
-    private var warmingAccessory: some View {
-        HStack(spacing: 6) {
-            ProgressView()
-                .progressViewStyle(.circular)
-                .tint(.orange)
-                .scaleEffect(0.48)
-                .frame(width: 12, height: 12)
-            Text("Warming")
-                .font(.caption.weight(.semibold))
-                .lineLimit(1)
-        }
-        .foregroundStyle(.orange)
-        .frame(width: 82, height: 24)
-        .background(.orange.opacity(0.14), in: .capsule)
-        .overlay {
-            Capsule()
-                .strokeBorder(.orange.opacity(0.65), lineWidth: 1)
-        }
-    }
-
-    private func pillAccessory(_ style: AccessoryPillStyle) -> some View {
-        Text(style.title)
-            .font(.caption.weight(.semibold))
-            .foregroundStyle(style.foregroundColor)
-            .lineLimit(1)
-            .frame(width: 64, height: 24)
-            .background(style.backgroundColor, in: .capsule)
-            .overlay {
-                Capsule()
-                    .strokeBorder(style.borderColor, lineWidth: 1)
-            }
-    }
-
     private func circularProgress(_ progress: Double) -> some View {
         ZStack {
-            Circle()
-                .stroke(.secondary.opacity(0.24), lineWidth: 4.2)
+            Circle().stroke(.secondary.opacity(0.24), lineWidth: 3.5)
             Circle()
                 .trim(from: 0, to: max(0.03, min(1, progress)))
-                .stroke(Color.accentColor, style: StrokeStyle(lineWidth: 4.2, lineCap: .round))
+                .stroke(Color.accentColor, style: StrokeStyle(lineWidth: 3.5, lineCap: .round))
                 .rotationEffect(.degrees(-90))
         }
-        .frame(width: 17.4, height: 17.4)
+        .frame(width: 18, height: 18)
         .animation(.linear(duration: 0.15), value: progress)
     }
 }

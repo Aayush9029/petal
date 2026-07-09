@@ -16,15 +16,15 @@ struct RecordingCapsuleButton: View {
                     rows: 7,
                     tint: .red,
                     metrics: .floating,
-                    gain: 1.15,
-                    responseExponent: 0.82,
+                    gain: 0.82,
+                    responseExponent: 1.35,
                     sampleInterval: .milliseconds(36)
                 )
-                .blur(radius: interaction == .idle ? 0 : 5)
-                .opacity(interaction == .idle ? 1 : 0.16)
+                .blur(radius: interaction == .idle ? 0 : 2)
+                .opacity(interaction == .idle ? 1 : 0.28)
 
                 Text("Transcribe")
-                    .font(.footnote.weight(.semibold))
+                    .font(.callout.weight(.semibold))
                     .foregroundStyle(.primary)
                     .opacity(interaction == .idle ? 0 : 1)
             }

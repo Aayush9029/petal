@@ -213,7 +213,7 @@ private final class HistoryRuntime: @unchecked Sendable {
                 )
                 updatedDays[dayIndex].entries.insert(entry, at: 0)
             }
-            updatedDays[dayIndex].entries = Self.sortedAndCapped(updatedDays[dayIndex].entries)
+            updatedDays[dayIndex].entries = Self.sortedEntries(updatedDays[dayIndex].entries)
         } else {
             let entry = TranscriptHistoryEntry(
                 id: request.sessionID,
@@ -488,12 +488,8 @@ private final class HistoryRuntime: @unchecked Sendable {
         try? FileManager.default.removeItem(at: fileURL)
     }
 
-    private static func sortedAndCapped(_ entries: IdentifiedArrayOf<TranscriptHistoryEntry>) -> IdentifiedArrayOf<TranscriptHistoryEntry> {
-        var sorted = IdentifiedArray(uniqueElements: entries.sorted { $0.timestamp > $1.timestamp })
-        if sorted.count > 200 {
-            sorted.removeLast(sorted.count - 200)
-        }
-        return sorted
+    private static func sortedEntries(_ entries: IdentifiedArrayOf<TranscriptHistoryEntry>) -> IdentifiedArrayOf<TranscriptHistoryEntry> {
+        IdentifiedArray(uniqueElements: entries.sorted { $0.timestamp > $1.timestamp })
     }
 
     private static let historyDayFormatter: DateFormatter = {

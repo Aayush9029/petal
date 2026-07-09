@@ -75,12 +75,10 @@ struct GeneralPane: View {
 
     var body: some View {
         SettingsPaneLayout(tab: .general) {
-            SettingsSectionGroup(
-                title: "Recording Shortcut",
-                subtitle: viewModel.shortcutDescription
-            ) {
+            SettingsPanel {
                 SettingsControlRow(
-                    title: "Shortcut"
+                    title: "Recording Shortcut",
+                    description: viewModel.shortcutDescription
                 ) {
                     UnifiedShortcutRecorder(shortcut: viewModel.unifiedShortcutBinding)
                 }
@@ -101,10 +99,7 @@ struct GeneralPane: View {
                 }
             }
 
-            SettingsSectionGroup(
-                title: "Appearance",
-                subtitle: "Choose how the floating recording bar looks on your desktop."
-            ) {
+            SettingsPanel {
                 CapsuleAppearancePicker(selection: viewModel.floatingCapsuleBackgroundStyle) { style in
                     withAnimation(.snappy(duration: 0.24)) {
                         viewModel.$floatingCapsuleBackgroundStyle.withLock { $0 = style }
@@ -114,10 +109,7 @@ struct GeneralPane: View {
             }
 
             if !viewModel.microphoneAuthorized || !viewModel.accessibilityAuthorized {
-                SettingsSectionGroup(
-                    title: "Permissions Needed",
-                    subtitle: "Only missing permissions are shown."
-                ) {
+                SettingsPanel {
                     if !viewModel.microphoneAuthorized {
                         permissionRow(
                             title: "Microphone",
@@ -146,7 +138,7 @@ struct GeneralPane: View {
                         Text(message)
                             .font(.caption)
                             .foregroundStyle(.orange)
-                            .padding(.top, 8)
+                            .padding(14)
                     }
                 }
                 .transition(.move(edge: .bottom).combined(with: .opacity))
@@ -180,10 +172,7 @@ struct RecordingPane: View {
 
     var body: some View {
         SettingsPaneLayout(tab: .recording) {
-            SettingsSectionGroup(
-                title: "Input",
-                subtitle: "Petal falls back to the system default if this device disappears."
-            ) {
+            SettingsPanel {
                 SettingsControlRow(title: "Microphone", symbol: "mic") {
                     SettingsMenuPicker(
                         values: viewModel.audioInputDevices.map(\.id),
@@ -196,9 +185,7 @@ struct RecordingPane: View {
                     }
                     .frame(maxWidth: 220)
                 }
-            }
-
-            SettingsSectionGroup(title: "Audio Processing") {
+                SettingsCardDivider()
                 SettingsToggleRow(
                     title: "Trim Silence",
                     isOn: viewModel.trimSilenceEnabled
@@ -208,9 +195,7 @@ struct RecordingPane: View {
                     title: "Auto Speed-up",
                     isOn: viewModel.autoSpeedEnabled
                 ) { value in viewModel.$autoSpeedEnabled.withLock { $0 = value } }
-            }
-
-            SettingsSectionGroup(title: "Behavior") {
+                SettingsCardDivider()
                 SettingsToggleRow(
                     title: "Restore Clipboard After Paste",
                     isOn: viewModel.restoreClipboardAfterPaste
@@ -234,54 +219,32 @@ struct TranscriptionPane: View {
 
     var body: some View {
         SettingsPaneLayout(tab: .transcription) {
-            SettingsSectionGroup(
-                title: "Transcription Model",
-                subtitle: "Downloaded models stay on this Mac."
-            ) {
-                VStack(alignment: .leading, spacing: 12) {
-                    if let pinnedDownloadOption = viewModel.pinnedDownloadOption {
-                        modelCard(for: pinnedDownloadOption)
-                    }
-
-                    ForEach(viewModel.modelProviderGroups) { group in
-                        VStack(alignment: .leading, spacing: 7) {
-                            Text(group.title)
-                                .font(.caption.weight(.semibold))
-                                .foregroundStyle(.secondary)
-                                .padding(.leading, 4)
-
-                            ForEach(group.options) { option in
-                                modelCard(for: option)
-                            }
-                        }
+            SettingsPanel {
+                ForEach(Array(visibleModelOptions.enumerated()), id: \.element) { index, option in
+                    modelCard(for: option)
+                    if index < visibleModelOptions.count - 1 {
+                        SettingsCardDivider()
                     }
                 }
-                .padding(14)
             }
 
-            SettingsSectionGroup(title: "Intelligence") {
+            if viewModel.appleIntelligenceAvailable || viewModel.smartModeAvailable {
+                SettingsPanel {
                 if viewModel.appleIntelligenceAvailable {
                     SettingsToggleRow(
                         title: "Enhance with Apple Intelligence",
                         symbol: "apple.intelligence",
                         isOn: viewModel.appleIntelligenceEnabled
                     ) { value in viewModel.$appleIntelligenceEnabled.withLock { $0 = value } }
-                } else {
-                    SettingsControlRow(
-                        title: "Apple Intelligence",
-                        description: "Requires macOS 26 with Apple Intelligence enabled.",
-                        symbol: "apple.intelligence"
-                    ) {
-                        Text("Unavailable")
-                            .foregroundStyle(.secondary)
-                    }
                 }
-            }
 
-            if viewModel.smartModeAvailable {
-                SettingsSectionGroup(title: "Writing Style") {
+                if viewModel.appleIntelligenceAvailable && viewModel.smartModeAvailable {
+                    SettingsCardDivider()
+                }
+
+                if viewModel.smartModeAvailable {
                     SettingsControlRow(
-                        title: "Mode"
+                        title: "Writing Style"
                     ) {
                         SettingsSegmentedPicker(
                             values: TranscriptionMode.allCases,
@@ -300,6 +263,7 @@ struct TranscriptionPane: View {
                             .lineLimit(3 ... 6)
                             .padding(14)
                     }
+                }
                 }
                 .transition(.opacity.combined(with: .move(edge: .bottom)))
             }
@@ -340,6 +304,13 @@ struct TranscriptionPane: View {
         }
     }
 
+    private var visibleModelOptions: [ModelOption] {
+        var seen = Set<ModelOption>()
+        let options = [viewModel.pinnedDownloadOption].compactMap { $0 }
+            + viewModel.modelProviderGroups.flatMap(\.options)
+        return options.filter { seen.insert($0).inserted }
+    }
+
     private func downloadState(for option: ModelOption) -> ModelSelectorCard.DownloadState {
         guard option.requiresDownload else { return .ready }
         guard !viewModel.downloadModel.isDeletingModel(option) else { return .deleting }
@@ -378,102 +349,63 @@ private enum TranscriptionDestination {
 
 struct HistoryPane: View {
     @Bindable var viewModel: SettingsViewModel
-    @State private var historyAlert: HistoryAlert?
+    @State private var searchText = ""
+    @State private var playback = HistoryPlaybackModel()
 
     var body: some View {
         SettingsPaneLayout(tab: .history) {
-            if !viewModel.recentHistoryEntries.isEmpty {
-                SettingsSectionGroup(title: "Recent") {
-                    ForEach(Array(viewModel.recentHistoryEntries.enumerated()), id: \.element.id) { index, entry in
-                        let transcript = viewModel.transcriptText(for: entry)
-                        HStack(alignment: .top, spacing: 12) {
-                            VStack(alignment: .leading, spacing: 3) {
-                                Text(transcript)
-                                    .lineLimit(2)
-                                Text(entry.timestamp, style: .relative)
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            }
-                            Spacer()
-                            Button {
-                                viewModel.copyHistoryEntry(entry)
-                            } label: {
-                                Image(systemName: "doc.on.doc")
-                            }
-                            .buttonStyle(.borderless)
-                            .help("Copy transcript")
-                        }
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 11)
+            HistorySearchField(text: $searchText)
 
-                        if index < viewModel.recentHistoryEntries.count - 1 {
-                            SettingsCardDivider()
+            if filteredDays.isEmpty {
+                ContentUnavailableView(
+                    searchText.isEmpty ? "No Recordings" : "No Results",
+                    systemImage: searchText.isEmpty ? "waveform" : "magnifyingglass",
+                    description: Text(searchText.isEmpty ? "Your saved recordings will appear here." : "Try another search.")
+                )
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 80)
+            } else {
+                LazyVStack(alignment: .leading, spacing: 20) {
+                    ForEach(filteredDays) { day in
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text(dayTitle(day))
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(.secondary)
+                                .padding(.leading, 4)
+
+                            ForEach(day.entries) { entry in
+                                HistoryRecordingCard(
+                                    entry: entry,
+                                    transcript: viewModel.transcriptText(for: entry),
+                                    audioURL: viewModel.historyAudioURL(for: entry),
+                                    isFailed: viewModel.historyEntryFailed(entry),
+                                    isReprocessing: viewModel.reprocessingHistoryEntryID == entry.id,
+                                    playback: playback,
+                                    onCopy: { viewModel.copyHistoryEntry(entry) },
+                                    onReprocess: {
+                                        Task { await viewModel.reprocessHistoryEntry(entry) }
+                                    }
+                                )
+                            }
                         }
                     }
                 }
             }
-
-            SettingsSectionGroup(title: "Storage") {
-                SettingsControlRow(title: "Keep") {
-                    SettingsMenuPicker(
-                        values: HistoryRetentionMode.allCases,
-                        selection: viewModel.historyRetentionMode,
-                        title: \.displayName
-                    ) { mode in
-                        viewModel.historyRetentionModeChanged(mode)
-                    }
-                }
-
-                SettingsCardDivider()
-
-                SettingsToggleRow(
-                    title: "Extra Compression",
-                    isOn: viewModel.compressHistoryAudio
-                ) { value in viewModel.$compressHistoryAudio.withLock { $0 = value } }
-
-                SettingsCardDivider()
-
-                SettingsControlRow(
-                    title: "Location",
-                    description: viewModel.historyDirectoryPath,
-                    symbol: "folder"
-                ) {
-                    Button("Show in Finder") { viewModel.openHistoryInFinder() }
-                        .controlSize(.small)
-                }
-            }
-
-            SettingsSectionGroup(title: "Clear Data") {
-                HStack(spacing: 10) {
-                    Button("Delete Media", role: .destructive) { historyAlert = .deleteMedia }
-                    Button("Delete All History", role: .destructive) { historyAlert = .deleteAll }
-                }
-                .buttonStyle(.bordered)
-                .padding(14)
-            }
         }
-        .alert(historyAlert?.title ?? "", isPresented: isShowingHistoryAlert) {
-            if let historyAlert {
-                Button(historyAlert.confirmTitle, role: .destructive) {
-                    performHistoryAction(for: historyAlert)
-                    self.historyAlert = nil
-                }
-            }
-            Button("Cancel", role: .cancel) { historyAlert = nil }
-        } message: {
-            if let historyAlert { Text(historyAlert.message) }
+        .task {
+            viewModel.refreshHistory()
         }
     }
 
-    private var isShowingHistoryAlert: Binding<Bool> {
-        Binding(get: { historyAlert != nil }, set: { if !$0 { historyAlert = nil } })
+    private var filteredDays: [TranscriptHistoryDay] {
+        viewModel.historyDays(matching: searchText)
     }
 
-    private func performHistoryAction(for alert: HistoryAlert) {
-        switch alert {
-        case .deleteAll: viewModel.deleteAllHistory()
-        case .deleteMedia: viewModel.deleteMediaOnly()
-        }
+    private func dayTitle(_ day: TranscriptHistoryDay) -> String {
+        guard let date = day.entries.first?.timestamp else { return day.day }
+        if Calendar.current.isDateInToday(date) { return "Today" }
+        if Calendar.current.isDateInYesterday(date) { return "Yesterday" }
+        return date.formatted(.dateTime.weekday(.wide).month(.wide).day())
     }
 }
 
@@ -505,13 +437,46 @@ private enum HistoryAlert {
 
 struct AdvancedPane: View {
     @Bindable var viewModel: SettingsViewModel
+    @State private var historyAlert: HistoryAlert?
 
     var body: some View {
         SettingsPaneLayout(tab: .advanced) {
-            SettingsSectionGroup(
-                title: "Diagnostics",
-                subtitle: "Logging stays off unless you explicitly enable it."
-            ) {
+            SettingsPanel {
+                SettingsControlRow(title: "History") {
+                    SettingsMenuPicker(
+                        values: HistoryRetentionMode.allCases,
+                        selection: viewModel.historyRetentionMode,
+                        title: \.displayName
+                    ) { mode in
+                        viewModel.historyRetentionModeChanged(mode)
+                    }
+                }
+                SettingsCardDivider()
+                SettingsToggleRow(
+                    title: "Extra Compression",
+                    isOn: viewModel.compressHistoryAudio
+                ) { value in viewModel.$compressHistoryAudio.withLock { $0 = value } }
+                SettingsCardDivider()
+                SettingsControlRow(
+                    title: "History Folder",
+                    description: viewModel.historyDirectoryPath,
+                    symbol: "folder"
+                ) {
+                    Button("Show") { viewModel.openHistoryInFinder() }
+                        .controlSize(.small)
+                }
+            }
+
+            SettingsPanel {
+                HStack(spacing: 10) {
+                    Button("Delete Media", role: .destructive) { historyAlert = .deleteMedia }
+                    Button("Delete All History", role: .destructive) { historyAlert = .deleteAll }
+                }
+                .buttonStyle(.bordered)
+                .padding(14)
+            }
+
+            SettingsPanel {
                 SettingsToggleRow(
                     title: "Enable Logs",
                     isOn: viewModel.logsEnabled
@@ -526,6 +491,28 @@ struct AdvancedPane: View {
                         .disabled(!viewModel.canExportLogs)
                 }
             }
+        }
+        .alert(historyAlert?.title ?? "", isPresented: isShowingHistoryAlert) {
+            if let historyAlert {
+                Button(historyAlert.confirmTitle, role: .destructive) {
+                    performHistoryAction(for: historyAlert)
+                    self.historyAlert = nil
+                }
+            }
+            Button("Cancel", role: .cancel) { historyAlert = nil }
+        } message: {
+            if let historyAlert { Text(historyAlert.message) }
+        }
+    }
+
+    private var isShowingHistoryAlert: Binding<Bool> {
+        Binding(get: { historyAlert != nil }, set: { if !$0 { historyAlert = nil } })
+    }
+
+    private func performHistoryAction(for alert: HistoryAlert) {
+        switch alert {
+        case .deleteAll: viewModel.deleteAllHistory()
+        case .deleteMedia: viewModel.deleteMediaOnly()
         }
     }
 }
