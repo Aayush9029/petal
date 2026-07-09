@@ -103,12 +103,9 @@ public extension DependencyValues {
 /// speech transients register immediately; falling levels ease down slowly so
 /// the meter reads naturally instead of flickering.
 ///
-/// Auto-gain: mics differ wildly in how hot they meter — the MacBook's
-/// built-in mic reports normal speech ~15 dB quieter than a typical headset.
-/// The processor tracks the loudest recent envelope as an adaptive ceiling
-/// and normalizes against it, so a quiet mic still swings the meter across
-/// its full range instead of hovering near the middle. `minCeiling` bounds
-/// the boost so room noise on a silent mic is never amplified into speech.
+/// Auto-gain: mics differ wildly in how hot they meter. The processor tracks
+/// an adaptive ceiling, but places new peaks below full scale so syllables keep
+/// their shape instead of turning every visual meter into a solid block.
 private final class LevelProcessor: @unchecked Sendable {
     private var envelope: Double = 0
     private var ceiling: Double = LevelProcessor.minCeiling
@@ -118,10 +115,13 @@ private final class LevelProcessor: @unchecked Sendable {
     private static let decay: Double = 0.18
     /// Levels below this fraction of the adaptive range read as silence, so
     /// steady room noise doesn't keep the meter twitching.
-    private static let gate: Double = 0.08
+    private static let gate: Double = 0.1
     /// Lowest reference the auto-gain may normalize against (bounds the boost
     /// at roughly 2.5×).
     private static let minCeiling: Double = 0.42
+    /// A new recent peak should occupy this fraction of the visual range. The
+    /// remaining headroom preserves dynamics and leaves room for louder peaks.
+    private static let targetPeak: Double = 0.84
     /// Per-sample ceiling decay at the ~60 ms metering cadence — the reference
     /// slides back down over ~30 s so one loud clap doesn't deafen the meter.
     private static let ceilingDecay: Double = 0.9985
@@ -132,7 +132,8 @@ private final class LevelProcessor: @unchecked Sendable {
         let clamped = max(0, min(1, level))
         let coefficient = clamped > envelope ? Self.attack : Self.decay
         envelope += (clamped - envelope) * coefficient
-        ceiling = max(envelope, ceiling * Self.ceilingDecay, Self.minCeiling)
+        let peakReference = envelope / Self.targetPeak
+        ceiling = max(peakReference, ceiling * Self.ceilingDecay, Self.minCeiling)
         let normalized = (envelope - Self.gate) / (ceiling - Self.gate)
         return max(0, min(1, normalized))
     }

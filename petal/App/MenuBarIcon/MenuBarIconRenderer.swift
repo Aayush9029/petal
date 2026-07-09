@@ -46,7 +46,10 @@ enum MenuBarIconRenderer {
     /// only by a fixed spatial profile with slight center emphasis — so they rise
     /// and fall together with loudness rather than flickering on their own.
     static func recording(level: Double) -> NSImage {
-        let power = max(0, min(1, level))
+        // Preserve the approved icon geometry while giving speech more visual
+        // headroom. The old linear response plus near-uniform profile pushed
+        // all four bars to maximum height and read as a square blob.
+        let power = pow(max(0, min(1, level)), 1.25) * 0.94
         return barsImage(values: recordingProfile.map { $0 * power })
     }
 
@@ -78,8 +81,8 @@ enum MenuBarIconRenderer {
     // MARK: - Equalizer bars
 
     private static let barCount = 4
-    /// Slight center emphasis so the resting cluster looks intentional.
-    private static let recordingProfile: [Double] = [0.8, 1.0, 1.0, 0.8]
+    /// An asymmetric voice-like silhouette that stays legible at loud peaks.
+    private static let recordingProfile: [Double] = [0.46, 0.78, 1.0, 0.6]
 
     /// Draws `values` (0...1) as symmetric pixel bars centered in the canvas,
     /// using the shared `PixelEQ` grid so it matches the capsule meter.
