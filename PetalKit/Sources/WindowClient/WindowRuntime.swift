@@ -72,7 +72,7 @@ final class WindowRuntimeImpl {
     // MARK: - Window Factories
 
     private func makeChromelessWindow(config: WindowConfig, options: ChromelessOptions, contentView: NSView) -> NSWindow {
-        var styleMask: NSWindow.StyleMask = [.titled, .fullSizeContentView, .miniaturizable, .resizable]
+        var styleMask: NSWindow.StyleMask = [.titled, .fullSizeContentView]
         if !options.hidesCloseButton {
             styleMask.insert(.closable)
         }
@@ -143,7 +143,7 @@ final class WindowRuntimeImpl {
     }
 
     private func makeTitledWindow(config: WindowConfig, options: TitledOptions, contentView: NSView) -> NSWindow {
-        var styleMask: NSWindow.StyleMask = [.titled, .fullSizeContentView]
+        var styleMask: NSWindow.StyleMask = [.titled, .fullSizeContentView, .miniaturizable, .resizable]
         if options.showsCloseButton {
             styleMask.insert(.closable)
         }
