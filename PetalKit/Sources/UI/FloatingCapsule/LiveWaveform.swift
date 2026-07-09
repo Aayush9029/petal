@@ -6,8 +6,12 @@ import SwiftUI
 public struct LiveWaveform: View {
     private let level: Double
     private let bars: Int
-    private let maxHalf: Int
+    private let rows: Int
     private let tint: Color
+    private let metrics: WaveformMetrics
+    private let gain: Double
+    private let responseExponent: Double
+    private let sampleInterval: Duration
 
     @State private var model: LiveWaveformModel
 
@@ -17,10 +21,55 @@ public struct LiveWaveform: View {
         maxHalf: Int = 2,
         tint: Color = .red
     ) {
+        self.init(
+            level: level,
+            bars: bars,
+            rows: maxHalf * 2 + 1,
+            tint: tint,
+            metrics: .standard,
+            gain: 1,
+            responseExponent: 1,
+            sampleInterval: .milliseconds(52)
+        )
+    }
+
+    public init(
+        level: Double,
+        bars: Int,
+        rows: Int,
+        tint: Color,
+        sampleInterval: Duration = .milliseconds(52)
+    ) {
+        self.init(
+            level: level,
+            bars: bars,
+            rows: rows,
+            tint: tint,
+            metrics: .standard,
+            gain: 1,
+            responseExponent: 1,
+            sampleInterval: sampleInterval
+        )
+    }
+
+    init(
+        level: Double,
+        bars: Int,
+        rows: Int,
+        tint: Color,
+        metrics: WaveformMetrics,
+        gain: Double,
+        responseExponent: Double,
+        sampleInterval: Duration
+    ) {
         self.level = level
         self.bars = bars
-        self.maxHalf = maxHalf
+        self.rows = rows
         self.tint = tint
+        self.metrics = metrics
+        self.gain = gain
+        self.responseExponent = responseExponent
+        self.sampleInterval = sampleInterval
         _model = State(initialValue: LiveWaveformModel(sampleCount: bars))
     }
 
@@ -28,18 +77,20 @@ public struct LiveWaveform: View {
         Canvas { context, size in
             WaveformCanvasRenderer.draw(
                 values: model.samples,
-                maxHalf: maxHalf,
+                rows: rows,
                 tint: tint,
+                metrics: metrics,
                 in: context,
                 size: size
             )
         }
-        .frame(width: PixelEQ.width(bars: bars), height: PixelEQ.height(maxHalf: maxHalf))
+        .frame(width: metrics.width(bars: bars), height: metrics.height(rows: rows))
         .onChange(of: level, initial: true) { _, newLevel in
-            model.updateLevel(newLevel)
+            let clamped = min(max(newLevel, 0), 1)
+            model.updateLevel(pow(clamped, responseExponent) * gain)
         }
         .task {
-            await model.run()
+            await model.run(sampleInterval: sampleInterval)
         }
         .accessibilityLabel("Input level")
         .accessibilityValue(level < 0.08 ? "Quiet" : "Active")

@@ -3,11 +3,12 @@ import Dependencies
 import DependenciesMacros
 import UI
 import Observation
+import QuartzCore
 import SwiftUI
 
 @DependencyClient
 public struct FloatingCapsuleClient: Sendable {
-    public var showRecording: @Sendable () async -> Void = {}
+    public var showRecording: @Sendable (@escaping @Sendable () -> Void) async -> Void = { _ in }
     public var showTrimming: @Sendable () async -> Void = {}
     public var showSpeeding: @Sendable () async -> Void = {}
     public var updateLevel: @Sendable (Double) async -> Void = { _ in }
@@ -25,8 +26,8 @@ public struct FloatingCapsuleClient: Sendable {
 extension FloatingCapsuleClient: DependencyKey {
     public static var liveValue: Self {
         return Self(
-            showRecording: {
-                await MainActor.run { LiveFloatingCapsuleRuntimeContainer.shared.showRecording() }
+            showRecording: { onTap in
+                await MainActor.run { LiveFloatingCapsuleRuntimeContainer.shared.showRecording(onTap: onTap) }
             },
             showTrimming: {
                 await MainActor.run { LiveFloatingCapsuleRuntimeContainer.shared.showTrimming() }
@@ -71,7 +72,7 @@ extension FloatingCapsuleClient: DependencyKey {
 extension FloatingCapsuleClient: TestDependencyKey {
     public static var testValue: Self {
         Self(
-            showRecording: {},
+            showRecording: { _ in },
             showTrimming: {},
             showSpeeding: {},
             updateLevel: { _ in },
@@ -96,11 +97,14 @@ public extension DependencyValues {
 }
 
 @MainActor
-private final class LiveFloatingCapsuleRuntime {
+private final class LiveFloatingCapsuleRuntime: NSObject {
     private let state = FloatingCapsuleState()
     private let panel: NSPanel
+    private var preferredScreen: NSScreen?
+    private var globalMouseMonitor: Any?
+    private var localMouseMonitor: Any?
 
-    init() {
+    override init() {
         let contentView = FloatingCapsuleView(state: state)
         let hostingController = NSHostingController(rootView: contentView)
 
@@ -119,15 +123,20 @@ private final class LiveFloatingCapsuleRuntime {
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
 
         self.panel = panel
+        super.init()
+        startFollowingActiveScreen()
     }
 
-    func showRecording() {
+    func showRecording(onTap: @escaping @Sendable () -> Void) {
         state.cancelCountdownActive = false
+        state.onAccessibilityTapped = nil
+        state.onRecordingTapped = onTap
         state.phase = .recording
         showWindowIfNeeded()
     }
 
     func showTrimming() {
+        state.onRecordingTapped = nil
         state.phase = .trimming
         showWindowIfNeeded()
     }
@@ -173,6 +182,7 @@ private final class LiveFloatingCapsuleRuntime {
     }
 
     func showAccessibilityPrompt(onTap: @escaping @Sendable () -> Void) {
+        state.onRecordingTapped = nil
         state.onAccessibilityTapped = onTap
         state.phase = .accessibilityPrompt
         showWindowIfNeeded()
@@ -193,23 +203,106 @@ private final class LiveFloatingCapsuleRuntime {
         state.level = 0
         state.transcriptionProgress = 0
         state.cancelCountdownActive = false
+        state.onRecordingTapped = nil
+        state.onAccessibilityTapped = nil
         panel.orderOut(nil)
     }
 
     private func showWindowIfNeeded() {
-        positionPanel()
+        let screen = screenAtMouseLocation() ?? preferredScreen ?? NSScreen.main
+        preferredScreen = screen
+        positionPanel(on: screen)
         panel.orderFrontRegardless()
     }
 
-    private func positionPanel() {
-        guard let screen = NSScreen.main else { return }
+    private func startFollowingActiveScreen() {
+        globalMouseMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                self?.mouseFocusDidChange()
+            }
+        }
+        localMouseMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] event in
+            self?.mouseFocusDidChange()
+            return event
+        }
+        NSWorkspace.shared.notificationCenter.addObserver(
+            self,
+            selector: #selector(activeApplicationDidChange),
+            name: NSWorkspace.didActivateApplicationNotification,
+            object: nil
+        )
+        NSWorkspace.shared.notificationCenter.addObserver(
+            self,
+            selector: #selector(activeSpaceDidChange),
+            name: NSWorkspace.activeSpaceDidChangeNotification,
+            object: nil
+        )
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(screenConfigurationDidChange),
+            name: NSApplication.didChangeScreenParametersNotification,
+            object: nil
+        )
+    }
 
-        let panelWidth: CGFloat = 400
-        panel.setContentSize(NSSize(width: panelWidth, height: 52))
+    private func mouseFocusDidChange() {
+        guard let screen = screenAtMouseLocation() else { return }
+        preferredScreen = screen
+        guard panel.isVisible else { return }
+        positionPanel(on: screen, animated: true)
+    }
+
+    @objc private func activeApplicationDidChange() {
+        Task { @MainActor [weak self] in
+            await Task.yield()
+            guard let self else { return }
+            let screen = self.screenAtMouseLocation() ?? NSScreen.main
+            self.preferredScreen = screen
+            guard self.panel.isVisible else { return }
+            self.positionPanel(on: screen, animated: true)
+        }
+    }
+
+    @objc private func activeSpaceDidChange() {
+        Task { @MainActor [weak self] in
+            await Task.yield()
+            guard let self else { return }
+            let screen = self.screenAtMouseLocation() ?? self.preferredScreen ?? NSScreen.main
+            self.preferredScreen = screen
+            guard self.panel.isVisible else { return }
+            self.positionPanel(on: screen)
+            self.panel.orderFrontRegardless()
+        }
+    }
+
+    @objc private func screenConfigurationDidChange() {
+        preferredScreen = screenAtMouseLocation() ?? NSScreen.main
+        guard panel.isVisible else { return }
+        positionPanel(on: preferredScreen)
+    }
+
+    private func screenAtMouseLocation() -> NSScreen? {
+        let mouseLocation = NSEvent.mouseLocation
+        return NSScreen.screens.first { $0.frame.contains(mouseLocation) }
+    }
+
+    private func positionPanel(on screen: NSScreen?, animated: Bool = false) {
+        guard let screen else { return }
         let visibleFrame = screen.visibleFrame
-        let x = visibleFrame.midX - panelWidth / 2
+        let x = visibleFrame.midX - panel.frame.width / 2
         let y = visibleFrame.minY + 36
-        panel.setFrameOrigin(NSPoint(x: x, y: y))
+        let origin = NSPoint(x: x, y: y)
+
+        guard animated else {
+            panel.setFrameOrigin(origin)
+            return
+        }
+
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = 0.2
+            context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+            panel.animator().setFrameOrigin(origin)
+        }
     }
 }
 

@@ -6,8 +6,6 @@ import Shared
 import SwiftUI
 import UI
 
-// MARK: - Settings Root
-
 struct SettingsView: View {
     @State private var selectedTab: SettingsTab = .general
     @State private var columnVisibility = NavigationSplitViewVisibility.all
@@ -16,25 +14,44 @@ struct SettingsView: View {
     var body: some View {
         NavigationSplitView(columnVisibility: $columnVisibility) {
             List(selection: sidebarSelection) {
-                ForEach(SettingsTab.allCases, id: \.self) { tab in
-                    HStack(spacing: 10) {
-                        SettingsTabIcon(tab: tab, size: 20)
-                        Text(tab.title)
-                    }
-                    .tag(tab)
+                Section("Petal") {
+                    sidebarRow(.general)
+                    sidebarRow(.recording)
+                    sidebarRow(.transcription)
+                }
+
+                Section("Library") {
+                    sidebarRow(.history)
+                }
+
+                Section("Support") {
+                    sidebarRow(.advanced)
                 }
             }
             .listStyle(.sidebar)
-            .navigationSplitViewColumnWidth(min: 190, ideal: 210, max: 240)
+            .navigationTitle("Settings")
+            .navigationSplitViewColumnWidth(min: 190, ideal: 215, max: 250)
         } detail: {
             pane
-                .navigationTitle(selectedTab.title)
+                .id(selectedTab)
+                .transition(.opacity.combined(with: .scale(scale: 0.995)))
         }
         .navigationSplitViewStyle(.balanced)
+        .animation(.easeOut(duration: 0.16), value: selectedTab)
     }
 
     private var sidebarSelection: Binding<SettingsTab?> {
         Binding(get: { selectedTab }, set: { selectedTab = $0 ?? selectedTab })
+    }
+
+    private func sidebarRow(_ tab: SettingsTab) -> some View {
+        HStack(spacing: 11) {
+            SettingsTabIcon(tab: tab, size: 25)
+            Text(tab.title)
+                .font(.body.weight(.medium))
+        }
+        .padding(.vertical, 5)
+        .tag(tab)
     }
 
     @ViewBuilder
@@ -54,172 +71,192 @@ struct SettingsView: View {
     }
 }
 
-// MARK: - General Pane
-
 struct GeneralPane: View {
     @Bindable var viewModel: SettingsViewModel
 
     var body: some View {
-        Form {
-            Section("Shortcut") {
-                LabeledContent("Shortcut") {
+        SettingsPaneLayout(tab: .general) {
+            SettingsSectionGroup(
+                title: "Recording Shortcut",
+                subtitle: "Choose how Petal starts and stops listening."
+            ) {
+                SettingsControlRow(
+                    title: "Shortcut",
+                    description: viewModel.shortcutDescription,
+                    symbol: "keyboard"
+                ) {
                     UnifiedShortcutRecorder(shortcut: viewModel.unifiedShortcutBinding)
                 }
-                Text(viewModel.shortcutDescription)
-                    .settingDescription()
 
-                LabeledContent("Hold Duration") {
+                SettingsCardDivider()
+
+                SettingsControlRow(
+                    title: "Hold Duration",
+                    description: "How long a press becomes push-to-talk.",
+                    symbol: "timer"
+                ) {
                     Picker("Hold Duration", selection: Binding(viewModel.$pushToTalkThreshold)) {
                         ForEach(PushToTalkThreshold.allCases) { threshold in
                             Text(threshold.displayName).tag(threshold)
                         }
                     }
-                    .pickerStyle(.segmented)
-                    .frame(width: 180)
                     .labelsHidden()
+                    .pickerStyle(.segmented)
+                    .frame(width: 190)
                 }
             }
 
-            if #available(macOS 26.0, *) {
-                Section("Appearance") {
-                    LabeledContent("Recording Bar") {
-                        Picker("Recording Bar", selection: Binding(viewModel.$floatingCapsuleBackgroundStyle)) {
-                            ForEach(FloatingCapsuleBackgroundStyle.allCases) { style in
-                                Text(style.displayName).tag(style)
-                            }
-                        }
-                        .pickerStyle(.segmented)
-                        .frame(width: 180)
-                        .labelsHidden()
+            SettingsSectionGroup(
+                title: "Appearance",
+                subtitle: "Choose how the floating recording bar looks on your desktop."
+            ) {
+                CapsuleAppearancePicker(selection: viewModel.floatingCapsuleBackgroundStyle) { style in
+                    withAnimation(.snappy(duration: 0.24)) {
+                        viewModel.floatingCapsuleBackgroundStyle = style
                     }
-                    Text("Background style for the floating recording bar.")
-                        .settingDescription()
                 }
             }
 
-            Section("Permissions") {
-                LabeledContent("Microphone") {
-                    if viewModel.microphoneAuthorized {
-                        Label("Granted", systemImage: "checkmark.circle.fill")
-                            .foregroundStyle(.green)
-                    } else {
-                        Button("Grant Access") {
-                            Task { await viewModel.grantMicrophonePermissionButtonTapped() }
+            if !viewModel.microphoneAuthorized || !viewModel.accessibilityAuthorized {
+                SettingsSectionGroup(
+                    title: "Permissions Needed",
+                    subtitle: "Only missing permissions are shown."
+                ) {
+                    if !viewModel.microphoneAuthorized {
+                        permissionRow(
+                            title: "Microphone",
+                            description: "Required to hear and transcribe your voice.",
+                            symbol: "mic.fill"
+                        ) {
+                            await viewModel.grantMicrophonePermissionButtonTapped()
                         }
                     }
-                }
 
-                LabeledContent("Accessibility") {
-                    if viewModel.accessibilityAuthorized {
-                        Label("Granted", systemImage: "checkmark.circle.fill")
-                            .foregroundStyle(.green)
-                    } else {
-                        Button("Grant Access") {
-                            Task { await viewModel.grantAccessibilityPermissionButtonTapped() }
+                    if !viewModel.microphoneAuthorized && !viewModel.accessibilityAuthorized {
+                        SettingsCardDivider()
+                    }
+
+                    if !viewModel.accessibilityAuthorized {
+                        permissionRow(
+                            title: "Accessibility",
+                            description: "Allows Petal to paste into the app you are using.",
+                            symbol: "accessibility"
+                        ) {
+                            await viewModel.grantAccessibilityPermissionButtonTapped()
                         }
                     }
-                }
 
-                if let message = viewModel.permissionMessage {
-                    Text(message)
-                        .settingDescription()
+                    if let message = viewModel.permissionMessage {
+                        Text(message)
+                            .font(.caption)
+                            .foregroundStyle(.orange)
+                            .padding(.top, 8)
+                    }
                 }
+                .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
-        .formStyle(.grouped)
         .task {
             await viewModel.refreshPermissions()
         }
+        .animation(.smooth(duration: 0.3), value: viewModel.microphoneAuthorized)
+        .animation(.smooth(duration: 0.3), value: viewModel.accessibilityAuthorized)
     }
-}
 
-// MARK: - Advanced Pane
-
-struct AdvancedPane: View {
-    @Bindable var viewModel: SettingsViewModel
-
-    var body: some View {
-        Form {
-            Section("Diagnostics") {
-                Toggle("Enable logs", isOn: Binding(viewModel.$logsEnabled))
-                Text("Disabled by default to avoid creating log files unless you explicitly turn this on.")
-                    .settingDescription()
-
-                Button("Export Logs…") {
-                    viewModel.exportLogs()
-                }
-                .disabled(!viewModel.canExportLogs)
+    private func permissionRow(
+        title: String,
+        description: String,
+        symbol: String,
+        action: @escaping () async -> Void
+    ) -> some View {
+        SettingsControlRow(title: title, description: description, symbol: symbol) {
+            Button("Enable") {
+                Task { await action() }
             }
+            .buttonStyle(.borderedProminent)
+            .controlSize(.small)
         }
-        .formStyle(.grouped)
     }
 }
-
-// MARK: - Recording Pane
 
 struct RecordingPane: View {
     @Bindable var viewModel: SettingsViewModel
 
     var body: some View {
-        Form {
-            Section("Input") {
-                Picker("Microphone", selection: Binding(
-                    get: { viewModel.selectedAudioInputID },
-                    set: { viewModel.selectedAudioInputID = $0 }
-                )) {
-                    ForEach(viewModel.audioInputDevices) { device in
-                        Text(device.name).tag(device.id)
+        SettingsPaneLayout(tab: .recording) {
+            SettingsSectionGroup(
+                title: "Input",
+                subtitle: "Petal falls back to the system default if this device disappears."
+            ) {
+                SettingsControlRow(title: "Microphone", symbol: "mic") {
+                    Picker("Microphone", selection: Binding(
+                        get: { viewModel.selectedAudioInputID },
+                        set: { viewModel.selectedAudioInputID = $0 }
+                    )) {
+                        ForEach(viewModel.audioInputDevices) { device in
+                            Text(device.name).tag(device.id)
+                        }
                     }
+                    .labelsHidden()
+                    .frame(maxWidth: 250)
                 }
-                Text("Petal falls back to the system default microphone if the selected device is unavailable.")
-                    .settingDescription()
             }
 
-            Section("Audio Preprocessing") {
-                Toggle("Trim silence", isOn: Binding(viewModel.$trimSilenceEnabled))
-                Text("Removes silent segments from the start and end of your recording.")
-                    .settingDescription()
-                Toggle("Auto speed-up", isOn: Binding(viewModel.$autoSpeedEnabled))
-                Text("Speeds up quiet or low-energy audio to reduce transcription time.")
-                    .settingDescription()
+            SettingsSectionGroup(title: "Audio Processing") {
+                SettingsToggleRow(
+                    title: "Trim Silence",
+                    description: "Remove quiet segments from the start and end.",
+                    symbol: "waveform.badge.minus",
+                    isOn: Binding(viewModel.$trimSilenceEnabled)
+                )
+                SettingsCardDivider()
+                SettingsToggleRow(
+                    title: "Auto Speed-up",
+                    description: "Speed up low-energy audio to reduce transcription time.",
+                    symbol: "gauge.with.dots.needle.50percent",
+                    isOn: Binding(viewModel.$autoSpeedEnabled)
+                )
             }
 
-            Section("Clipboard") {
-                Toggle("Restore clipboard after paste", isOn: Binding(viewModel.$restoreClipboardAfterPaste))
-                Text("When enabled, Petal restores your previous clipboard contents after auto-pasting.")
-                    .settingDescription()
-            }
-
-            Section("System Audio") {
-                Toggle("Lower system volume while recording", isOn: Binding(viewModel.$duckSystemAudioDuringRecording))
-                Text("Reduces system output volume during dictation and restores it afterward.")
-                    .settingDescription()
+            SettingsSectionGroup(title: "Behavior") {
+                SettingsToggleRow(
+                    title: "Restore Clipboard After Paste",
+                    description: "Put the previous clipboard contents back after auto-pasting.",
+                    symbol: "clipboard",
+                    isOn: Binding(viewModel.$restoreClipboardAfterPaste)
+                )
+                SettingsCardDivider()
+                SettingsToggleRow(
+                    title: "Lower System Audio",
+                    description: "Reduce output volume while recording and restore it afterward.",
+                    symbol: "speaker.wave.1",
+                    isOn: Binding(viewModel.$duckSystemAudioDuringRecording)
+                )
             }
         }
-        .formStyle(.grouped)
         .task {
             await viewModel.refreshAudioInputDevices()
         }
     }
 }
 
-// MARK: - Transcription Pane
-
 struct TranscriptionPane: View {
     @Bindable var viewModel: SettingsViewModel
     @State private var destination: TranscriptionDestination?
 
     var body: some View {
-        Form {
-            Section {
-                VStack(alignment: .leading, spacing: 8) {
+        SettingsPaneLayout(tab: .transcription) {
+            SettingsSectionGroup(
+                title: "Transcription Model",
+                subtitle: "Downloaded models stay on this Mac."
+            ) {
+                VStack(alignment: .leading, spacing: 12) {
                     if let pinnedDownloadOption = viewModel.pinnedDownloadOption {
                         modelCard(for: pinnedDownloadOption)
-                            .padding(.bottom, 4)
                     }
 
                     ForEach(viewModel.modelProviderGroups) { group in
-                        VStack(alignment: .leading, spacing: 6) {
+                        VStack(alignment: .leading, spacing: 7) {
                             Text(group.title)
                                 .font(.caption.weight(.semibold))
                                 .foregroundStyle(.secondary)
@@ -229,57 +266,58 @@ struct TranscriptionPane: View {
                                 modelCard(for: option)
                             }
                         }
-                        .frame(maxWidth: .infinity, alignment: .leading)
                     }
                 }
-                .modelSectionRowStyle()
             }
 
-            Section {
+            SettingsSectionGroup(title: "Intelligence") {
                 if viewModel.appleIntelligenceAvailable {
-                    Toggle("Enhance with Apple Intelligence", isOn: Binding(viewModel.$appleIntelligenceEnabled))
-                    Text("Post-process transcriptions on-device to fix grammar, punctuation, and formatting. Enables Smart mode for all models.")
-                        .settingDescription()
+                    SettingsToggleRow(
+                        title: "Enhance with Apple Intelligence",
+                        description: "Polish grammar, punctuation, and formatting on-device.",
+                        symbol: "apple.intelligence",
+                        isOn: Binding(viewModel.$appleIntelligenceEnabled)
+                    )
                 } else {
-                    LabeledContent("Status") {
+                    SettingsControlRow(
+                        title: "Apple Intelligence",
+                        description: "Requires macOS 26 with Apple Intelligence enabled.",
+                        symbol: "apple.intelligence"
+                    ) {
                         Text("Unavailable")
                             .foregroundStyle(.secondary)
                     }
-                    Text("Requires macOS 26 with Apple Intelligence enabled.")
-                        .settingDescription()
-                }
-            } header: {
-                HStack(spacing: 6) {
-                    Image.appleIntelligence
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
-                        .frame(width: 16, height: 16)
-                        .clipShape(RoundedRectangle(cornerRadius: 3))
-                    Text("Apple Intelligence")
                 }
             }
 
             if viewModel.smartModeAvailable {
-                Section("Mode") {
-                    Picker("Transcription Mode", selection: Binding(viewModel.$transcriptionMode)) {
-                        ForEach(TranscriptionMode.allCases) { mode in
-                            Text(mode.displayName).tag(mode)
+                SettingsSectionGroup(title: "Writing Style") {
+                    SettingsControlRow(
+                        title: "Mode",
+                        description: viewModel.transcriptionMode.description,
+                        symbol: "text.badge.checkmark"
+                    ) {
+                        Picker("Transcription Mode", selection: Binding(viewModel.$transcriptionMode)) {
+                            ForEach(TranscriptionMode.allCases) { mode in
+                                Text(mode.displayName).tag(mode)
+                            }
                         }
+                        .labelsHidden()
+                        .pickerStyle(.segmented)
+                        .frame(width: 190)
                     }
-                    .pickerStyle(.segmented)
-                    Text(viewModel.transcriptionMode.description)
-                        .settingDescription()
-                }
 
-                if viewModel.transcriptionMode == .smart {
-                    Section("Smart Prompt") {
-                        TextField("Prompt", text: Binding(viewModel.$smartPrompt), axis: .vertical)
+                    if viewModel.transcriptionMode == .smart {
+                        SettingsCardDivider()
+                        TextField("Smart prompt", text: Binding(viewModel.$smartPrompt), axis: .vertical)
+                            .textFieldStyle(.roundedBorder)
                             .lineLimit(3 ... 6)
                     }
                 }
+                .transition(.opacity.combined(with: .move(edge: .bottom)))
             }
         }
-        .formStyle(.grouped)
+        .animation(.smooth(duration: 0.25), value: viewModel.transcriptionMode)
         .alert(
             "Delete Download",
             isPresented: isShowingDeleteConfirmation,
@@ -291,9 +329,7 @@ struct TranscriptionPane: View {
                     destination = nil
                 }
             }
-            Button("Cancel", role: .cancel) {
-                destination = nil
-            }
+            Button("Cancel", role: .cancel) { destination = nil }
         } message: { option in
             Text("Remove \(option.displayName) from this Mac? You can download it again later.")
         }
@@ -306,23 +342,13 @@ struct TranscriptionPane: View {
             isWarming: viewModel.selectedModelID == option.rawValue && viewModel.isWarmingModel,
             downloadState: downloadState(for: option),
             isEnabled: !viewModel.downloadModel.isDeletingModel(option),
-            onDeleteDownloadedModel: {
-                destination = .deleteModel(option)
-            },
-            onPauseDownload: {
-                viewModel.pauseButtonTapped()
-            },
-            onResumeDownload: {
-                Task { await viewModel.resumeButtonTapped() }
-            },
-            onCancelDownload: {
-                viewModel.cancelButtonTapped()
-            }
+            onDeleteDownloadedModel: { destination = .deleteModel(option) },
+            onPauseDownload: { viewModel.pauseButtonTapped() },
+            onResumeDownload: { Task { await viewModel.resumeButtonTapped() } },
+            onCancelDownload: { viewModel.cancelButtonTapped() }
         ) {
             if let option = viewModel.modelOptionTapped(option) {
-                Task {
-                    await viewModel.downloadModelConfirmed(option)
-                }
+                Task { await viewModel.downloadModelConfirmed(option) }
             }
         }
     }
@@ -332,22 +358,14 @@ struct TranscriptionPane: View {
         guard !viewModel.downloadModel.isDeletingModel(option) else { return .deleting }
 
         let state = viewModel.downloadModel.state
-        let isDownloadingOption = viewModel.downloadModel.downloadingModelOption == option
-
-        if isDownloadingOption {
+        if viewModel.downloadModel.downloadingModelOption == option {
             switch state {
-            case .downloaded:
-                return .ready
-            case .notDownloaded:
-                break
-            case .preparing:
-                return .preparing
-            case let .downloading(progress):
-                return .downloading(progress)
-            case let .paused(progress):
-                return .paused(progress)
-            case let .failed(message):
-                return .failed(message)
+            case .downloaded: return .ready
+            case .notDownloaded: break
+            case .preparing: return .preparing
+            case let .downloading(progress): return .downloading(progress)
+            case let .paused(progress): return .paused(progress)
+            case let .failed(message): return .failed(message)
             }
         }
 
@@ -362,11 +380,7 @@ struct TranscriptionPane: View {
     private var isShowingDeleteConfirmation: Binding<Bool> {
         Binding(
             get: { deleteConfirmationOption != nil },
-            set: { isPresented in
-                if !isPresented {
-                    destination = nil
-                }
-            }
+            set: { if !$0 { destination = nil } }
         )
     }
 }
@@ -375,25 +389,23 @@ private enum TranscriptionDestination {
     case deleteModel(ModelOption)
 }
 
-// MARK: - History Pane
-
 struct HistoryPane: View {
     @Bindable var viewModel: SettingsViewModel
     @State private var historyAlert: HistoryAlert?
 
     var body: some View {
-        Form {
+        SettingsPaneLayout(tab: .history) {
             if !viewModel.recentHistoryEntries.isEmpty {
-                Section("Recent") {
-                    ForEach(viewModel.recentHistoryEntries) { entry in
+                SettingsSectionGroup(title: "Recent") {
+                    ForEach(Array(viewModel.recentHistoryEntries.enumerated()), id: \.element.id) { index, entry in
                         let transcript = viewModel.transcriptText(for: entry)
-                        HStack(alignment: .top) {
-                            VStack(alignment: .leading, spacing: 2) {
+                        HStack(alignment: .top, spacing: 12) {
+                            VStack(alignment: .leading, spacing: 3) {
                                 Text(transcript)
                                     .lineLimit(2)
-                                    .truncationMode(.tail)
                                 Text(entry.timestamp, style: .relative)
-                                    .settingDescription()
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
                             }
                             Spacer()
                             Button {
@@ -404,56 +416,56 @@ struct HistoryPane: View {
                             .buttonStyle(.borderless)
                             .help("Copy transcript")
                         }
+
+                        if index < viewModel.recentHistoryEntries.count - 1 {
+                            SettingsCardDivider()
+                        }
                     }
                 }
             }
 
-            Section("Retention") {
-                Picker("Keep", selection: Binding(
-                    get: { viewModel.historyRetentionMode },
-                    set: { viewModel.historyRetentionModeChanged($0) }
-                )) {
-                    ForEach(HistoryRetentionMode.allCases) { mode in
-                        Text(mode.displayName).tag(mode)
+            SettingsSectionGroup(title: "Storage") {
+                SettingsControlRow(title: "Keep", symbol: "clock.arrow.circlepath") {
+                    Picker("Keep", selection: Binding(
+                        get: { viewModel.historyRetentionMode },
+                        set: { viewModel.historyRetentionModeChanged($0) }
+                    )) {
+                        ForEach(HistoryRetentionMode.allCases) { mode in
+                            Text(mode.displayName).tag(mode)
+                        }
                     }
+                    .labelsHidden()
+                }
+
+                SettingsCardDivider()
+
+                SettingsToggleRow(
+                    title: "Extra Compression",
+                    description: "Use lower-bitrate AAC files for saved audio.",
+                    symbol: "archivebox",
+                    isOn: Binding(viewModel.$compressHistoryAudio)
+                )
+
+                SettingsCardDivider()
+
+                SettingsControlRow(
+                    title: "Location",
+                    description: viewModel.historyDirectoryPath,
+                    symbol: "folder"
+                ) {
+                    Button("Show in Finder") { viewModel.openHistoryInFinder() }
+                        .controlSize(.small)
                 }
             }
 
-            Section("Compression") {
-                Toggle("Extra compression", isOn: Binding(viewModel.$compressHistoryAudio))
-                Text("History audio is saved as AAC (.m4a) by default. Enable for lower-bitrate files.")
-                    .settingDescription()
-            }
-
-            Section("Storage") {
-                LabeledContent("Location") {
-                    Text(viewModel.historyDirectoryPath)
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                        .foregroundStyle(.secondary)
-                        .textSelection(.enabled)
-                }
-                Button("Open in Finder") {
-                    viewModel.openHistoryInFinder()
-                }
-            }
-
-            Section("Clear Data") {
-                HStack(spacing: 12) {
-                    Button("Delete All History & Media", role: .destructive) {
-                        historyAlert = .deleteAll
-                    }
-                    .frame(maxWidth: .infinity)
-
-                    Button("Delete Media Only", role: .destructive) {
-                        historyAlert = .deleteMedia
-                    }
-                    .frame(maxWidth: .infinity)
+            SettingsSectionGroup(title: "Clear Data") {
+                HStack(spacing: 10) {
+                    Button("Delete Media", role: .destructive) { historyAlert = .deleteMedia }
+                    Button("Delete All History", role: .destructive) { historyAlert = .deleteAll }
                 }
                 .buttonStyle(.bordered)
             }
         }
-        .formStyle(.grouped)
         .alert(historyAlert?.title ?? "", isPresented: isShowingHistoryAlert) {
             if let historyAlert {
                 Button(historyAlert.confirmTitle, role: .destructive) {
@@ -461,33 +473,20 @@ struct HistoryPane: View {
                     self.historyAlert = nil
                 }
             }
-            Button("Cancel", role: .cancel) {
-                historyAlert = nil
-            }
+            Button("Cancel", role: .cancel) { historyAlert = nil }
         } message: {
-            if let historyAlert {
-                Text(historyAlert.message)
-            }
+            if let historyAlert { Text(historyAlert.message) }
         }
     }
 
     private var isShowingHistoryAlert: Binding<Bool> {
-        Binding(
-            get: { historyAlert != nil },
-            set: { isPresented in
-                if !isPresented {
-                    historyAlert = nil
-                }
-            }
-        )
+        Binding(get: { historyAlert != nil }, set: { if !$0 { historyAlert = nil } })
     }
 
     private func performHistoryAction(for alert: HistoryAlert) {
         switch alert {
-        case .deleteAll:
-            viewModel.deleteAllHistory()
-        case .deleteMedia:
-            viewModel.deleteMediaOnly()
+        case .deleteAll: viewModel.deleteAllHistory()
+        case .deleteMedia: viewModel.deleteMediaOnly()
         }
     }
 }
@@ -498,48 +497,56 @@ private enum HistoryAlert {
 
     var title: String {
         switch self {
-        case .deleteAll:
-            return "Delete All History & Media"
-        case .deleteMedia:
-            return "Delete Media Only"
+        case .deleteAll: "Delete All History & Media"
+        case .deleteMedia: "Delete Media Only"
         }
     }
 
     var confirmTitle: String {
         switch self {
-        case .deleteAll:
-            return "Delete All"
-        case .deleteMedia:
-            return "Delete Media"
+        case .deleteAll: "Delete All"
+        case .deleteMedia: "Delete Media"
         }
     }
 
     var message: String {
         switch self {
-        case .deleteAll:
-            return "This will permanently delete all transcription history, audio files, and transcript files."
-        case .deleteMedia:
-            return "This will delete all saved audio files but keep your transcription history intact."
+        case .deleteAll: "This permanently deletes all transcription history, audio, and transcript files."
+        case .deleteMedia: "This deletes saved audio files but keeps transcription history."
         }
     }
 }
 
-// MARK: - Helpers
+struct AdvancedPane: View {
+    @Bindable var viewModel: SettingsViewModel
 
-private extension View {
-    func settingDescription() -> some View {
-        font(.caption)
-            .foregroundStyle(.secondary)
-    }
-
-    func modelSectionRowStyle() -> some View {
-        listRowInsets(EdgeInsets(top: 4, leading: 0, bottom: 4, trailing: 0))
-            .listRowBackground(Color.clear)
-            .listRowSeparator(.hidden)
+    var body: some View {
+        SettingsPaneLayout(tab: .advanced) {
+            SettingsSectionGroup(
+                title: "Diagnostics",
+                subtitle: "Logging stays off unless you explicitly enable it."
+            ) {
+                SettingsToggleRow(
+                    title: "Enable Logs",
+                    description: "Write diagnostic information to a local log file.",
+                    symbol: "doc.text.magnifyingglass",
+                    isOn: Binding(viewModel.$logsEnabled)
+                )
+                SettingsCardDivider()
+                SettingsControlRow(
+                    title: "Export Logs",
+                    description: "Save a copy to share while troubleshooting.",
+                    symbol: "square.and.arrow.up"
+                ) {
+                    Button("Export…") { viewModel.exportLogs() }
+                        .disabled(!viewModel.canExportLogs)
+                }
+            }
+        }
     }
 }
 
 #Preview("Settings") {
     SettingsView(viewModel: SettingsViewModel(appModel: AppModel.makePreview()))
-        .frame(width: 740, height: 680)
+        .frame(width: 920, height: 720)
 }

@@ -21,6 +21,7 @@ public final class FloatingCapsuleState {
     public var level: Double = 0
     public var transcriptionProgress: Double = 0
     public var cancelCountdownActive: Bool = false
+    public var onRecordingTapped: (() -> Void)?
     public var onAccessibilityTapped: (() -> Void)?
 
     public init() {}

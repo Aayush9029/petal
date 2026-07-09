@@ -16,7 +16,10 @@ extension EnvironmentValues {
 }
 
 private struct FloatingCapsuleChrome: ViewModifier {
+    private static let contentWidth: CGFloat = 150
+
     var blur: CGFloat
+    var highlight: Color?
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.glassCapsuleNamespace) private var glassNamespace
     @Shared(.floatingCapsuleBackgroundStyle) private var backgroundStyle
@@ -36,10 +39,16 @@ private struct FloatingCapsuleChrome: ViewModifier {
     func body(content: Content) -> some View {
         let padded = content
             .blur(radius: blur)
-            .frame(height: 18)
+            .frame(width: Self.contentWidth, height: 18)
             .padding(.horizontal, 16)
             .padding(.vertical, 11)
-        background(padded)
+        background(
+            padded.background {
+                if let highlight {
+                    Capsule().fill(highlight)
+                }
+            }
+        )
     }
 
     @ViewBuilder
@@ -53,11 +62,16 @@ private struct FloatingCapsuleChrome: ViewModifier {
                 view.background { Capsule().fill(solidColor) }.overlay { stroke }
             }
         } else {
-            // Liquid Glass is unavailable before macOS 26; fall back to a
-            // translucent NSVisualEffectView rather than a flat color.
-            view
-                .background { CapsuleVisualEffectBackground().clipShape(Capsule()) }
-                .overlay { stroke }
+            switch backgroundStyle {
+            case .liquidGlass:
+                // Liquid Glass is unavailable before macOS 26; fall back to a
+                // translucent NSVisualEffectView rather than a flat color.
+                view
+                    .background { CapsuleVisualEffectBackground().clipShape(Capsule()) }
+                    .overlay { stroke }
+            case .solid:
+                view.background { Capsule().fill(solidColor) }.overlay { stroke }
+            }
         }
     }
 
@@ -78,7 +92,7 @@ private struct FloatingCapsuleChrome: ViewModifier {
 }
 
 extension View {
-    func floatingCapsuleChrome(blur: CGFloat = 0) -> some View {
-        modifier(FloatingCapsuleChrome(blur: blur))
+    func floatingCapsuleChrome(blur: CGFloat = 0, highlight: Color? = nil) -> some View {
+        modifier(FloatingCapsuleChrome(blur: blur, highlight: highlight))
     }
 }

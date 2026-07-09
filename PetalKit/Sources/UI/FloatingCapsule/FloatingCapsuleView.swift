@@ -16,7 +16,7 @@ public struct FloatingCapsuleView: View {
         capsule
             .fixedSize()
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .animation(.smooth(duration: 0.4), value: self.state.phase)
+            .animation(.smooth(duration: 0.3), value: self.state.phase)
             .onChange(of: state.phase) { _, newPhase in
                 guard newPhase != .hidden else { return }
                 // Native Liquid Glass morphs the capsule between statuses, so
@@ -38,11 +38,38 @@ public struct FloatingCapsuleView: View {
         if #available(macOS 26.0, *) {
             GlassEffectContainer(spacing: 8) {
                 phaseContent
+                    .id(phaseID)
+                    .transition(statusTransition)
             }
             .environment(\.glassCapsuleNamespace, glassNamespace)
         } else {
             phaseContent
+                .id(phaseID)
+                .transition(statusTransition)
                 .blur(radius: blurRadius > 0 ? 8 : 0)
+        }
+    }
+
+    private var statusTransition: AnyTransition {
+        .asymmetric(
+            insertion: .opacity.combined(with: .scale(scale: 0.94)),
+            removal: .opacity.combined(with: .scale(scale: 1.03))
+        )
+    }
+
+    private var phaseID: String {
+        switch state.phase {
+        case .hidden: "hidden"
+        case .recording: "recording"
+        case .confirmCancel: "confirmCancel"
+        case .trimming: "trimming"
+        case .speeding: "speeding"
+        case .transcribing: "transcribing"
+        case .refining: "refining"
+        case .copiedToClipboard: "copied"
+        case .accessibilityPrompt: "accessibilityPrompt"
+        case .accessibilityEnabled: "accessibilityEnabled"
+        case .error: "error"
         }
     }
 
@@ -55,14 +82,8 @@ public struct FloatingCapsuleView: View {
             recording
         case .confirmCancel:
             confirmCancel
-        case .trimming:
-            trimming
-        case .speeding:
-            speeding
-        case .transcribing:
-            transcribing
-        case .refining:
-            refining
+        case .trimming, .speeding, .transcribing, .refining:
+            processing
         case .copiedToClipboard:
             copiedToClipboard
         case .accessibilityPrompt:
@@ -77,50 +98,23 @@ public struct FloatingCapsuleView: View {
     // MARK: - Phase content
 
     private var recording: some View {
-        HStack(spacing: 8) {
-            RoundedRectangle(cornerRadius: 2)
-                .fill(.red)
-                .frame(width: 7, height: 7)
-
-            Text("REC")
-                .font(.system(.footnote, design: .monospaced).weight(.semibold))
-                .foregroundStyle(.primary)
-
-            LiveWaveform(level: state.level)
+        RecordingCapsuleButton(level: state.level, blur: blurRadius) {
+            state.onRecordingTapped?()
         }
-        .floatingCapsuleChrome(blur: blurRadius)
     }
 
     private var confirmCancel: some View {
         CancelConfirmationCapsule(isActive: state.cancelCountdownActive, blur: blurRadius)
     }
 
-    /// Processing states share one look: a short label + a seamless loopy
-    /// waveform in the monochrome primary tint.
-    private func processing(_ label: String) -> some View {
-        HStack(spacing: 8) {
-            Text(label)
-                .font(.system(.footnote, design: .monospaced).weight(.semibold))
-                .foregroundStyle(.primary)
-
-            ProcessingWaveform(tint: .primary)
-        }
+    private var processing: some View {
+        ProcessingWaveform(bars: 37, rows: 6, tint: .primary, metrics: .floating)
         .floatingCapsuleChrome(blur: blurRadius)
     }
 
-    private var trimming: some View { processing("Trimming") }
-
-    private var speeding: some View { processing("Speeding up") }
-
-    private var transcribing: some View { processing("Transcribing") }
-
-    private var refining: some View { processing("Refining") }
-
     private var error: some View {
         HStack(spacing: 8) {
-            Image(systemName: "exclamationmark.triangle.fill")
-                .foregroundStyle(.orange)
-                .font(.caption2.weight(.bold))
+            DottedStatusGlyph(kind: .warning, tint: .orange)
 
             Text("Error")
                 .font(.footnote.weight(.semibold))
@@ -130,49 +124,23 @@ public struct FloatingCapsuleView: View {
     }
 
     private var copiedToClipboard: some View {
-        HStack(spacing: 8) {
-            Image(systemName: "checkmark.circle.fill")
-                .foregroundStyle(.green)
-                .font(.caption2.weight(.bold))
-
-            Text("Copied to clipboard")
-                .font(.footnote.weight(.semibold))
-                .foregroundStyle(.primary)
-        }
-        .frame(height: 20)
-        .floatingCapsuleChrome(blur: blurRadius)
+        CopiedToClipboardCapsule(blur: blurRadius)
     }
 
     private var accessibilityPrompt: some View {
-        Button {
+        AccessibilityCapsuleButton(blur: blurRadius) {
             state.onAccessibilityTapped?()
-        } label: {
-            HStack(spacing: 8) {
-                Image(systemName: "hand.raised.fill")
-                    .foregroundStyle(.blue)
-                    .font(.caption2.weight(.bold))
-
-                Text("Enable Accessibility")
-                    .font(.footnote.weight(.semibold))
-                    .foregroundStyle(.primary)
-            }
-            .frame(height: 20)
-            .floatingCapsuleChrome(blur: blurRadius)
         }
-        .buttonStyle(.plain)
     }
 
     private var accessibilityEnabled: some View {
         HStack(spacing: 8) {
-            Image(systemName: "checkmark.circle.fill")
-                .foregroundStyle(.green)
-                .font(.caption2.weight(.bold))
+            DottedStatusGlyph(kind: .checkmark, tint: .green)
 
             Text("Accessibility Enabled")
                 .font(.footnote.weight(.semibold))
                 .foregroundStyle(.primary)
         }
-        .frame(height: 20)
         .floatingCapsuleChrome(blur: blurRadius)
     }
 

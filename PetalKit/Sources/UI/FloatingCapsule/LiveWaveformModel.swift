@@ -16,17 +16,17 @@ final class LiveWaveformModel {
         targetLevel = min(max(level, 0), 1)
     }
 
-    func run() async {
+    func run(sampleInterval: Duration) async {
         let clock = ContinuousClock()
 
         while !Task.isCancelled {
             advance()
-            try? await clock.sleep(for: .milliseconds(33))
+            try? await clock.sleep(for: sampleInterval)
         }
     }
 
     private func advance() {
-        let coefficient = targetLevel > displayedLevel ? 0.52 : 0.24
+        let coefficient = targetLevel > displayedLevel ? 0.68 : 0.46
         displayedLevel += (targetLevel - displayedLevel) * coefficient
 
         samples.removeFirst()

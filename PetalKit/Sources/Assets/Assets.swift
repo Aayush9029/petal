@@ -10,4 +10,5 @@ public extension Image {
     static let nvidia = Image("nvidia", bundle: .module)
     static let swiftLogo = Image("swift", bundle: .module)
     static let appleIntelligence = Image("appleIntelligence", bundle: .module)
+    static let settingsWallpaper = Image("settingsWallpaper", bundle: .module)
 }

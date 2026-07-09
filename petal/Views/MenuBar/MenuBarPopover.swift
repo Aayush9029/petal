@@ -71,9 +71,9 @@ struct MenuBarPopover: View {
                 GameOfLifeView(tint: .accentColor)
                     .padding(4)
             case .recording:
-                LiveWaveform(level: viewModel.audioLevel, bars: 46, maxHalf: 5, tint: .red)
+                LiveWaveform(level: viewModel.audioLevel, bars: 73, rows: 17, tint: .red)
             case .working:
-                ProcessingWaveform(bars: 46, maxHalf: 5, tint: waveformTint)
+                ProcessingWaveform(bars: 73, rows: 17, tint: waveformTint)
             }
         }
         .frame(height: 68)

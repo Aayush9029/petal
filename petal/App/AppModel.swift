@@ -109,6 +109,7 @@ final class AppModel {
     @ObservationIgnored private var isTranscribingDroppedFile = false
     @ObservationIgnored private var pendingStopAfterStart = false
     @ObservationIgnored private var transcriptionProgressTask: Task<Void, Never>?
+    @ObservationIgnored private var accessibilityFollowUpTask: Task<Void, Never>?
     @ObservationIgnored private var permissionMonitorTask: Task<Void, Never>?
     @ObservationIgnored private var miniDownloadRestoreTask: Task<Void, Never>?
     @ObservationIgnored private var warmupTask: Task<Void, Never>?
@@ -652,6 +653,8 @@ final class AppModel {
 
         guard !pushToTalkIsActive else { return }
 
+        cancelAccessibilityFollowUp()
+
         pushToTalkIsActive = true
         pendingStopAfterStart = false
         currentShortcutPressStart = now
@@ -694,7 +697,7 @@ final class AppModel {
             Task {
                 await soundClient.playRecordingStarted()
             }
-            await floatingCapsuleClient.showRecording()
+            await showRecordingCapsule()
 
             if pendingStopAfterStart {
                 pendingStopAfterStart = false
@@ -1085,7 +1088,7 @@ final class AppModel {
                     await postPasteFallbackNotification()
                     lastError = nil
                     sessionState = .idle
-                    await showCopiedThenAccessibilityPrompt()
+                    scheduleCopiedThenAccessibilityPrompt()
                     return
                 case .skipped:
                     break
@@ -1397,7 +1400,7 @@ final class AppModel {
         Task {
             let isCurrentlyRecording = await audioClient.isRecording()
             if isCurrentlyRecording {
-                await floatingCapsuleClient.showRecording()
+                await showRecordingCapsule()
             } else {
                 await floatingCapsuleClient.hide()
             }
@@ -1485,6 +1488,7 @@ final class AppModel {
     // MARK: - Private: Deep Links
 
     private func startRecordingFromDeepLink() async {
+        cancelAccessibilityFollowUp()
         await refreshPermissionStatusAsync()
         logger.info(
             "Deep link start requested. setupCompleted=\(self.hasCompletedSetup, privacy: .public), microphoneAuthorized=\(self.microphoneAuthorized, privacy: .public), isProcessing=\(self.isProcessing, privacy: .public)"
@@ -1548,7 +1552,7 @@ final class AppModel {
             logger.info("Recording started from deep link")
             consoleLog("Recording started from deep link")
             Task { await soundClient.playRecordingStarted() }
-            await floatingCapsuleClient.showRecording()
+            await showRecordingCapsule()
         } catch {
             reportIssue(error)
             sessionState = .error(error.localizedDescription)
@@ -1753,6 +1757,22 @@ final class AppModel {
         Task { await floatingCapsuleClient.updateLevel(level) }
     }
 
+    private func showRecordingCapsule() async {
+        await floatingCapsuleClient.showRecording { [weak self] in
+            Task { @MainActor [weak self] in
+                await self?.floatingCapsuleTranscribeButtonTapped()
+            }
+        }
+    }
+
+    private func floatingCapsuleTranscribeButtonTapped() async {
+        guard case .recording = sessionState else { return }
+        pushToTalkIsActive = false
+        toggleRecordingIsActive = false
+        currentShortcutPressStart = nil
+        await stopRecordingAndTranscribe()
+    }
+
     private func warmModelTask() async {
         if isPreviewMode { return }
         guard let selectedModelOption else { return }
@@ -1771,9 +1791,27 @@ final class AppModel {
         }
     }
 
+    private func scheduleCopiedThenAccessibilityPrompt() {
+        accessibilityFollowUpTask?.cancel()
+        accessibilityFollowUpTask = Task { [weak self] in
+            await self?.showCopiedThenAccessibilityPrompt()
+        }
+    }
+
+    private func cancelAccessibilityFollowUp() {
+        accessibilityFollowUpTask?.cancel()
+        accessibilityFollowUpTask = nil
+    }
+
     private func showCopiedThenAccessibilityPrompt() async {
         await floatingCapsuleClient.showCopiedToClipboard()
-        try? await clock.sleep(for: .seconds(3))
+        do {
+            try await clock.sleep(for: .seconds(3))
+        } catch {
+            return
+        }
+        guard !Task.isCancelled, case .idle = sessionState else { return }
+
         await floatingCapsuleClient.showAccessibilityPrompt { [permissionsClient] in
             Task {
                 await permissionsClient.promptForAccessibilityPermission()
@@ -1782,17 +1820,27 @@ final class AppModel {
         }
         // Poll for up to 10s — show success immediately if granted
         for _ in 0..<20 {
-            try? await clock.sleep(for: .milliseconds(500))
+            do {
+                try await clock.sleep(for: .milliseconds(500))
+            } catch {
+                return
+            }
+            guard !Task.isCancelled, case .idle = sessionState else { return }
             if await permissionsClient.hasAccessibilityPermission() {
                 await floatingCapsuleClient.showAccessibilityEnabled()
                 accessibilityAuthorized = true
-                try? await clock.sleep(for: .seconds(2))
+                do {
+                    try await clock.sleep(for: .seconds(2))
+                } catch {
+                    return
+                }
                 break
             }
         }
-        isAwaitingCancelRecordingConfirmation = false
+        guard !Task.isCancelled, case .idle = sessionState else { return }
         stopTranscriptionProgressTracking()
         await floatingCapsuleClient.hide()
+        accessibilityFollowUpTask = nil
     }
 
     private func hideCapsuleAfterDelay() async {
