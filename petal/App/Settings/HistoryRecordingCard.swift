@@ -1,5 +1,6 @@
 import Shared
 import SwiftUI
+import UI
 
 struct HistoryRecordingCard: View {
     let entry: TranscriptHistoryEntry
@@ -10,12 +11,12 @@ struct HistoryRecordingCard: View {
     let playback: HistoryPlaybackModel
     let onCopy: () -> Void
     let onReprocess: () -> Void
+    @State private var isShowingCopyConfirmation = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 11) {
             HStack(spacing: 8) {
-                Image(systemName: isFailed ? "exclamationmark.circle.fill" : "waveform")
-                    .foregroundStyle(isFailed ? .orange : Color.accentColor)
+                modelIcon
 
                 Text(entry.timestamp, format: .dateTime.hour().minute())
                     .font(.caption.weight(.semibold))
@@ -26,8 +27,15 @@ struct HistoryRecordingCard: View {
 
                 Spacer()
 
-                Button(action: onCopy) {
-                    Image(systemName: "doc.on.doc")
+                Button {
+                    onCopy()
+                    withAnimation(.snappy(duration: 0.18)) {
+                        isShowingCopyConfirmation = true
+                    }
+                } label: {
+                    Image(systemName: isShowingCopyConfirmation ? "checkmark" : "doc.on.doc")
+                        .contentTransition(.symbolEffect(.replace))
+                        .foregroundStyle(isShowingCopyConfirmation ? .green : .primary)
                 }
                 .disabled(transcript.isEmpty)
                 .help("Copy transcript")
@@ -48,7 +56,7 @@ struct HistoryRecordingCard: View {
             Text(displayTranscript)
                 .font(.subheadline)
                 .foregroundStyle(transcript.isEmpty ? .secondary : .primary)
-                .lineLimit(3)
+                .lineLimit(4)
                 .frame(maxWidth: .infinity, alignment: .leading)
 
             if let audioURL {
@@ -88,6 +96,32 @@ struct HistoryRecordingCard: View {
                 await playback.loadWaveform(for: entry.id, audioURL: audioURL)
             }
         }
+        .task(id: isShowingCopyConfirmation) {
+            guard isShowingCopyConfirmation else { return }
+            try? await Task.sleep(for: .seconds(1.2))
+            guard !Task.isCancelled else { return }
+            withAnimation(.easeOut(duration: 0.16)) {
+                isShowingCopyConfirmation = false
+            }
+        }
+    }
+
+    private var modelIcon: some View {
+        ModelOption.from(modelID: entry.modelID).provider.icon
+            .resizable()
+            .scaledToFill()
+            .frame(width: 22, height: 22)
+            .clipShape(.rect(cornerRadius: 6))
+            .overlay(alignment: .bottomTrailing) {
+                if isFailed {
+                    Image(systemName: "exclamationmark.circle.fill")
+                        .font(.system(size: 9, weight: .bold))
+                        .foregroundStyle(.orange)
+                        .background(.background, in: .circle)
+                        .offset(x: 3, y: 3)
+                }
+            }
+            .help(ModelOption.from(modelID: entry.modelID).displayName)
     }
 
     private var displayTranscript: String {

@@ -17,9 +17,11 @@ final class HistoryPlaybackModel {
     func loadWaveform(for entryID: UUID, audioURL: URL) async {
         guard waveforms[entryID] == nil, !loadingWaveforms.contains(entryID) else { return }
         loadingWaveforms.insert(entryID)
+        defer { loadingWaveforms.remove(entryID) }
+
         let samples = await HistoryWaveformSampler.samples(from: audioURL)
+        guard !Task.isCancelled, !samples.isEmpty else { return }
         waveforms[entryID] = samples
-        loadingWaveforms.remove(entryID)
     }
 
     func playButtonTapped(entryID: UUID, audioURL: URL) {

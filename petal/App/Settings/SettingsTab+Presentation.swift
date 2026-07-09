@@ -5,7 +5,7 @@ extension SettingsTab {
     var title: String {
         switch self {
         case .general: "General"
-        case .transcription: "Transcription"
+        case .transcription: "Models"
         case .recording: "Recording"
         case .history: "History"
         case .advanced: "Advanced"

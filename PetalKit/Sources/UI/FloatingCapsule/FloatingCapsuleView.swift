@@ -16,7 +16,7 @@ public struct FloatingCapsuleView: View {
         capsule
             .fixedSize()
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .animation(.smooth(duration: 0.3), value: self.state.phase)
+            .animation(.smooth(duration: 0.3), value: state.phase)
             .onChange(of: state.phase) { _, newPhase in
                 guard newPhase != .hidden else { return }
                 // Native Liquid Glass morphs the capsule between statuses, so
@@ -75,15 +75,17 @@ public struct FloatingCapsuleView: View {
 
     @ViewBuilder
     private var phaseContent: some View {
-        switch self.state.phase {
+        switch state.phase {
         case .hidden:
             Color.clear
         case .recording:
             recording
         case .confirmCancel:
             confirmCancel
-        case .trimming, .speeding, .transcribing, .refining:
+        case .trimming, .speeding, .transcribing:
             processing
+        case .refining:
+            intelligenceProcessing
         case .copiedToClipboard:
             copiedToClipboard
         case .accessibilityPrompt:
@@ -98,18 +100,29 @@ public struct FloatingCapsuleView: View {
     // MARK: - Phase content
 
     private var recording: some View {
-        RecordingCapsuleButton(level: state.level, blur: blurRadius) {
-            state.onRecordingTapped?()
-        }
+        RecordingCapsuleButton(
+            level: state.level,
+            blur: blurRadius,
+            transcribe: { state.onRecordingTapped?() },
+            cancel: { state.onCancelRecordingTapped?() }
+        )
     }
 
     private var confirmCancel: some View {
-        CancelConfirmationCapsule(isActive: state.cancelCountdownActive, blur: blurRadius)
+        CancelConfirmationCapsule(isActive: state.cancelCountdownActive)
     }
 
     private var processing: some View {
         ProcessingWaveform(bars: 37, rows: 7, tint: .primary, metrics: .floating)
-        .floatingCapsuleChrome(blur: blurRadius)
+            .floatingCapsuleChrome(blur: blurRadius)
+    }
+
+    private var intelligenceProcessing: some View {
+        ProcessingWaveform(bars: 37, rows: 7, tint: .white, metrics: .floating)
+            .intelligenceGradient()
+            .shadow(color: .purple.opacity(0.35), radius: 5)
+            .floatingCapsuleChrome(blur: blurRadius)
+            .accessibilityLabel("Enhancing with Apple Intelligence")
     }
 
     private var error: some View {
@@ -143,7 +156,6 @@ public struct FloatingCapsuleView: View {
         }
         .floatingCapsuleChrome(blur: blurRadius)
     }
-
 }
 
 // MARK: - Preview

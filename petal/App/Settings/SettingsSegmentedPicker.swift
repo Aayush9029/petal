@@ -5,6 +5,7 @@ struct SettingsSegmentedPicker<Value: Hashable>: View {
     let selection: Value
     let title: (Value) -> String
     let onSelect: (Value) -> Void
+    @State private var hoveredValue: Value?
 
     var body: some View {
         HStack(spacing: 3) {
@@ -19,16 +20,27 @@ struct SettingsSegmentedPicker<Value: Hashable>: View {
                         .frame(height: 28)
                         .contentShape(.rect)
                         .background {
-                            if selection == value {
+                            if selection == value || hoveredValue == value {
                                 RoundedRectangle(cornerRadius: 7, style: .continuous)
-                                    .fill(Color(nsColor: .controlBackgroundColor))
-                                    .shadow(color: .black.opacity(0.14), radius: 1.5, y: 1)
+                                    .fill(
+                                        selection == value
+                                            ? Color(nsColor: .controlBackgroundColor)
+                                            : Color.primary.opacity(0.07)
+                                    )
+                                    .shadow(
+                                        color: selection == value ? .black.opacity(0.14) : .clear,
+                                        radius: 1.5,
+                                        y: 1
+                                    )
                             }
                         }
                 }
                 .buttonStyle(.plain)
                 .frame(maxWidth: .infinity)
                 .contentShape(.rect)
+                .onHover { isHovering in
+                    hoveredValue = isHovering ? value : nil
+                }
             }
         }
         .padding(3)
@@ -38,5 +50,6 @@ struct SettingsSegmentedPicker<Value: Hashable>: View {
                 .strokeBorder(Color(nsColor: .separatorColor).opacity(0.55), lineWidth: 1)
         }
         .animation(.snappy(duration: 0.2), value: selection)
+        .animation(.easeOut(duration: 0.12), value: hoveredValue)
     }
 }

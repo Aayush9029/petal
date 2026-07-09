@@ -1,14 +1,17 @@
 import AppKit
 import Dependencies
 import DependenciesMacros
-import UI
 import Observation
 import QuartzCore
 import SwiftUI
+import UI
 
 @DependencyClient
 public struct FloatingCapsuleClient: Sendable {
-    public var showRecording: @Sendable (@escaping @Sendable () -> Void) async -> Void = { _ in }
+    public var showRecording: @Sendable (
+        @escaping @Sendable () -> Void,
+        @escaping @Sendable () -> Void
+    ) async -> Void = { _, _ in }
     public var showTrimming: @Sendable () async -> Void = {}
     public var showSpeeding: @Sendable () async -> Void = {}
     public var updateLevel: @Sendable (Double) async -> Void = { _ in }
@@ -26,8 +29,13 @@ public struct FloatingCapsuleClient: Sendable {
 extension FloatingCapsuleClient: DependencyKey {
     public static var liveValue: Self {
         return Self(
-            showRecording: { onTap in
-                await MainActor.run { LiveFloatingCapsuleRuntimeContainer.shared.showRecording(onTap: onTap) }
+            showRecording: { onTranscribe, onCancel in
+                await MainActor.run {
+                    LiveFloatingCapsuleRuntimeContainer.shared.showRecording(
+                        onTranscribe: onTranscribe,
+                        onCancel: onCancel
+                    )
+                }
             },
             showTrimming: {
                 await MainActor.run { LiveFloatingCapsuleRuntimeContainer.shared.showTrimming() }
@@ -72,7 +80,7 @@ extension FloatingCapsuleClient: DependencyKey {
 extension FloatingCapsuleClient: TestDependencyKey {
     public static var testValue: Self {
         Self(
-            showRecording: { _ in },
+            showRecording: { _, _ in },
             showTrimming: {},
             showSpeeding: {},
             updateLevel: { _ in },
@@ -130,16 +138,21 @@ private final class LiveFloatingCapsuleRuntime: NSObject {
         startFollowingActiveScreen()
     }
 
-    func showRecording(onTap: @escaping @Sendable () -> Void) {
+    func showRecording(
+        onTranscribe: @escaping @Sendable () -> Void,
+        onCancel: @escaping @Sendable () -> Void
+    ) {
         state.cancelCountdownActive = false
         state.onAccessibilityTapped = nil
-        state.onRecordingTapped = onTap
+        state.onRecordingTapped = onTranscribe
+        state.onCancelRecordingTapped = onCancel
         state.phase = .recording
         showWindowIfNeeded()
     }
 
     func showTrimming() {
         state.onRecordingTapped = nil
+        state.onCancelRecordingTapped = nil
         state.phase = .trimming
         showWindowIfNeeded()
     }
@@ -186,6 +199,7 @@ private final class LiveFloatingCapsuleRuntime: NSObject {
 
     func showAccessibilityPrompt(onTap: @escaping @Sendable () -> Void) {
         state.onRecordingTapped = nil
+        state.onCancelRecordingTapped = nil
         state.onAccessibilityTapped = onTap
         state.phase = .accessibilityPrompt
         showWindowIfNeeded()
@@ -207,6 +221,7 @@ private final class LiveFloatingCapsuleRuntime: NSObject {
         state.transcriptionProgress = 0
         state.cancelCountdownActive = false
         state.onRecordingTapped = nil
+        state.onCancelRecordingTapped = nil
         state.onAccessibilityTapped = nil
         panel.orderOut(nil)
     }

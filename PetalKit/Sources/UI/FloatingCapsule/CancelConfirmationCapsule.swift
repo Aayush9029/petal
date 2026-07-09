@@ -4,7 +4,6 @@ private let countdownDuration: TimeInterval = 4
 
 struct CancelConfirmationCapsule: View {
     var isActive: Bool
-    var blur: CGFloat = 0
 
     @State private var progress: CGFloat = 1
     @Environment(\.colorScheme) private var colorScheme
@@ -14,45 +13,49 @@ struct CancelConfirmationCapsule: View {
     }
 
     var body: some View {
-        HStack(spacing: 6) {
-            Image(systemName: "escape")
-                .font(.caption2.weight(.semibold))
-                .foregroundStyle(.secondary)
+        Color.clear
+            .floatingCapsuleChrome(blur: 0)
+            .overlay {
+                HStack(spacing: 6) {
+                    Image(systemName: "escape")
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(.secondary)
 
-            (
-                Text("Cancel recording?  ")
-                    + Text("Y").foregroundColor(.red)
-            )
-            .font(.footnote.weight(.semibold))
-            .foregroundStyle(.primary)
-            .lineLimit(1)
-        }
-        .floatingCapsuleChrome(blur: blur)
-        .overlay {
-            Capsule()
-                .trim(from: 0, to: progress)
-                .stroke(borderColor.opacity(0.6), lineWidth: 2)
-                .padding(2)
-        }
-        .onChange(of: isActive) { _, active in
-            if active {
-                progress = 1
-                withAnimation(.linear(duration: countdownDuration)) {
-                    progress = 0
+                    (
+                        Text("Cancel recording?  ")
+                            + Text("Y").foregroundColor(.red)
+                    )
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
                 }
-            } else {
-                withAnimation(.easeOut(duration: 0.15)) {
-                    progress = 0
+                .shadow(color: .black.opacity(0.18), radius: 1, y: 1)
+            }
+            .overlay {
+                Capsule()
+                    .trim(from: 0, to: progress)
+                    .stroke(borderColor.opacity(0.6), lineWidth: 2)
+                    .padding(2)
+            }
+            .onChange(of: isActive) { _, active in
+                if active {
+                    progress = 1
+                    withAnimation(.linear(duration: countdownDuration)) {
+                        progress = 0
+                    }
+                } else {
+                    withAnimation(.easeOut(duration: 0.15)) {
+                        progress = 0
+                    }
                 }
             }
-        }
-        .onAppear {
-            if isActive {
-                progress = 1
-                withAnimation(.linear(duration: countdownDuration)) {
-                    progress = 0
+            .onAppear {
+                if isActive {
+                    progress = 1
+                    withAnimation(.linear(duration: countdownDuration)) {
+                        progress = 0
+                    }
                 }
             }
-        }
     }
 }

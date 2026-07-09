@@ -1813,11 +1813,18 @@ final class AppModel {
     }
 
     private func showRecordingCapsule() async {
-        await floatingCapsuleClient.showRecording { [weak self] in
-            Task { @MainActor [weak self] in
-                await self?.floatingCapsuleTranscribeButtonTapped()
+        await floatingCapsuleClient.showRecording(
+            { [weak self] in
+                Task { @MainActor [weak self] in
+                    await self?.floatingCapsuleTranscribeButtonTapped()
+                }
+            },
+            { [weak self] in
+                Task { @MainActor [weak self] in
+                    self?.floatingCapsuleCancelButtonTapped()
+                }
             }
-        }
+        )
     }
 
     private func floatingCapsuleTranscribeButtonTapped() async {
@@ -1826,6 +1833,11 @@ final class AppModel {
         toggleRecordingIsActive = false
         currentShortcutPressStart = nil
         await stopRecordingAndTranscribe()
+    }
+
+    private func floatingCapsuleCancelButtonTapped() {
+        guard case .recording = sessionState else { return }
+        cancelRecordingFromConfirmation()
     }
 
     private func warmModelTask() async {

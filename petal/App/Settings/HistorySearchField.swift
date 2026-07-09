@@ -20,11 +20,12 @@ struct HistorySearchField: View {
             }
         }
         .padding(.horizontal, 11)
-        .frame(height: 34)
-        .background(Color(nsColor: .controlBackgroundColor), in: .rect(cornerRadius: 10))
+        .frame(height: 38)
+        .background(.regularMaterial, in: .capsule)
         .overlay {
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
+            Capsule()
                 .strokeBorder(Color(nsColor: .separatorColor).opacity(0.7), lineWidth: 1)
         }
+        .shadow(color: .black.opacity(0.12), radius: 8, y: 3)
     }
 }

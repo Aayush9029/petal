@@ -16,11 +16,12 @@ extension EnvironmentValues {
 }
 
 private struct FloatingCapsuleChrome: ViewModifier {
-    private static let contentWidth: CGFloat = 150
     private static let contentHeight: CGFloat = 20
 
     var blur: CGFloat
     var highlight: Color?
+    var contentWidth: CGFloat
+    var horizontalPadding: CGFloat
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.glassCapsuleNamespace) private var glassNamespace
     @Shared(.floatingCapsuleBackgroundStyle) private var backgroundStyle
@@ -40,8 +41,8 @@ private struct FloatingCapsuleChrome: ViewModifier {
     func body(content: Content) -> some View {
         let padded = content
             .blur(radius: blur)
-            .frame(width: Self.contentWidth, height: Self.contentHeight, alignment: .center)
-            .padding(.horizontal, 16)
+            .frame(width: contentWidth, height: Self.contentHeight, alignment: .center)
+            .padding(.horizontal, horizontalPadding)
             .padding(.vertical, 11)
         background(
             padded.background {
@@ -93,7 +94,17 @@ private struct FloatingCapsuleChrome: ViewModifier {
 }
 
 extension View {
-    func floatingCapsuleChrome(blur: CGFloat = 0, highlight: Color? = nil) -> some View {
-        modifier(FloatingCapsuleChrome(blur: blur, highlight: highlight))
+    func floatingCapsuleChrome(
+        blur: CGFloat = 0,
+        highlight: Color? = nil,
+        contentWidth: CGFloat = 150,
+        horizontalPadding: CGFloat = 16
+    ) -> some View {
+        modifier(FloatingCapsuleChrome(
+            blur: blur,
+            highlight: highlight,
+            contentWidth: contentWidth,
+            horizontalPadding: horizontalPadding
+        ))
     }
 }

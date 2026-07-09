@@ -13,7 +13,7 @@ struct SettingsView: View {
 
     var body: some View {
         NavigationSplitView(columnVisibility: $columnVisibility) {
-            List {
+            List(selection: sidebarSelection) {
                 Section("Petal") {
                     sidebarRow(.general)
                     sidebarRow(.recording)
@@ -34,35 +34,24 @@ struct SettingsView: View {
             pane
                 .id(selectedTab)
                 .transition(.opacity)
+                .navigationTitle(selectedTab.title)
         }
         .navigationSplitViewStyle(.balanced)
-        .toolbar(removing: .sidebarToggle)
         .animation(.easeOut(duration: 0.16), value: selectedTab)
     }
 
+    private var sidebarSelection: Binding<SettingsTab?> {
+        Binding(get: { selectedTab }, set: { selectedTab = $0 ?? selectedTab })
+    }
+
     private func sidebarRow(_ tab: SettingsTab) -> some View {
-        Button {
-            selectedTab = tab
-        } label: {
-            HStack(spacing: 11) {
-                SettingsTabIcon(tab: tab, size: 25)
-                Text(tab.title)
-                    .font(.body.weight(.medium))
-                Spacer(minLength: 0)
-            }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 8)
-            .foregroundStyle(selectedTab == tab ? .primary : .secondary)
-            .background(
-                selectedTab == tab ? Color.primary.opacity(0.08) : .clear,
-                in: .rect(cornerRadius: 10)
-            )
-            .contentShape(.rect)
+        HStack(spacing: 11) {
+            SettingsTabIcon(tab: tab, size: 25)
+            Text(tab.title)
+                .font(.body.weight(.medium))
         }
-        .buttonStyle(.plain)
-        .contentShape(.rect)
-        .listRowInsets(.init(top: 2, leading: 8, bottom: 2, trailing: 8))
-        .listRowBackground(Color.clear)
+        .padding(.vertical, 5)
+        .tag(tab)
     }
 
     @ViewBuilder
@@ -170,11 +159,9 @@ struct GeneralPane: View {
         action: @escaping () async -> Void
     ) -> some View {
         SettingsControlRow(title: title, description: description, symbol: symbol) {
-            Button("Enable") {
+            SettingsActionButton(title: "Enable") {
                 Task { await action() }
             }
-            .buttonStyle(.borderedProminent)
-            .controlSize(.small)
         }
     }
 }
@@ -189,39 +176,59 @@ struct RecordingPane: View {
                     SettingsMenuPicker(
                         values: viewModel.audioInputDevices.map(\.id),
                         selection: viewModel.selectedAudioInputID,
-                        title: { id in
-                            viewModel.audioInputDevices.first(where: { $0.id == id })?.name ?? "System Default"
-                        }
+                        title: microphoneTitle
                     ) { id in
                         viewModel.selectedAudioInputID = id
                     }
                     .frame(maxWidth: 220)
                 }
                 SettingsCardDivider()
-                SettingsToggleRow(
-                    title: "Trim Silence",
-                    isOn: viewModel.trimSilenceEnabled
-                ) { value in viewModel.$trimSilenceEnabled.withLock { $0 = value } }
-                SettingsCardDivider()
-                SettingsToggleRow(
-                    title: "Auto Speed-up",
-                    isOn: viewModel.autoSpeedEnabled
-                ) { value in viewModel.$autoSpeedEnabled.withLock { $0 = value } }
-                SettingsCardDivider()
-                SettingsToggleRow(
-                    title: "Restore Clipboard After Paste",
-                    isOn: viewModel.restoreClipboardAfterPaste
-                ) { value in viewModel.$restoreClipboardAfterPaste.withLock { $0 = value } }
-                SettingsCardDivider()
-                SettingsToggleRow(
-                    title: "Lower System Audio",
-                    isOn: viewModel.duckSystemAudioDuringRecording
-                ) { value in viewModel.$duckSystemAudioDuringRecording.withLock { $0 = value } }
+                VStack(spacing: 0) {
+                    RecordingOptionTile(
+                        title: "Trim Silence",
+                        description: "Remove quiet gaps from recordings.",
+                        symbol: .scissors,
+                        isOn: viewModel.trimSilenceEnabled
+                    ) { viewModel.$trimSilenceEnabled.withLock { $0.toggle() } }
+
+                    SettingsCardDivider()
+
+                    RecordingOptionTile(
+                        title: "Auto Speed-up",
+                        description: "Accelerate long recordings automatically.",
+                        symbol: .rabbit,
+                        isOn: viewModel.autoSpeedEnabled
+                    ) { viewModel.$autoSpeedEnabled.withLock { $0.toggle() } }
+
+                    SettingsCardDivider()
+
+                    RecordingOptionTile(
+                        title: "Restore Clipboard",
+                        description: "Put previous clipboard content back.",
+                        symbol: .clipboard,
+                        isOn: viewModel.restoreClipboardAfterPaste
+                    ) { viewModel.$restoreClipboardAfterPaste.withLock { $0.toggle() } }
+
+                    SettingsCardDivider()
+
+                    RecordingOptionTile(
+                        title: "Lower System Audio",
+                        description: "Quiet other audio while recording.",
+                        symbol: .speaker,
+                        isOn: viewModel.duckSystemAudioDuringRecording
+                    ) { viewModel.$duckSystemAudioDuringRecording.withLock { $0.toggle() } }
+                }
             }
         }
         .task {
             await viewModel.refreshAudioInputDevices()
         }
+    }
+
+    private func microphoneTitle(_ id: String) -> String {
+        guard id != AudioInputDevice.systemDefaultID else { return "Default" }
+        let name = viewModel.audioInputDevices.first(where: { $0.id == id })?.name ?? "Default"
+        return name.replacingOccurrences(of: " (Current Default)", with: "")
     }
 }
 
@@ -369,45 +376,51 @@ struct HistoryPane: View {
     @State private var playback = HistoryPlaybackModel()
 
     var body: some View {
-        SettingsPaneLayout(tab: .history) {
-            HistorySearchField(text: $searchText)
-
-            if filteredDays.isEmpty {
-                ContentUnavailableView(
-                    searchText.isEmpty ? "No Recordings" : "No Results",
-                    systemImage: searchText.isEmpty ? "waveform" : "magnifyingglass",
-                    description: Text(searchText.isEmpty ? "Your saved recordings will appear here." : "Try another search.")
-                )
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 80)
-            } else {
-                LazyVStack(alignment: .leading, spacing: 20) {
-                    ForEach(filteredDays) { day in
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text(dayTitle(day))
-                                .font(.subheadline.weight(.semibold))
-                                .foregroundStyle(.secondary)
-                                .padding(.leading, 4)
-
-                            ForEach(day.entries) { entry in
-                                HistoryRecordingCard(
-                                    entry: entry,
-                                    transcript: viewModel.transcriptText(for: entry),
-                                    audioURL: viewModel.historyAudioURL(for: entry),
-                                    isFailed: viewModel.historyEntryFailed(entry),
-                                    isReprocessing: viewModel.reprocessingHistoryEntryID == entry.id,
-                                    playback: playback,
-                                    onCopy: { viewModel.copyHistoryEntry(entry) },
-                                    onReprocess: {
-                                        Task { await viewModel.reprocessHistoryEntry(entry) }
+        ZStack(alignment: .bottom) {
+            VStack(alignment: .leading, spacing: 0) {
+                if filteredDays.isEmpty {
+                    emptyState
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else {
+                    ScrollView {
+                        LazyVStack(alignment: .leading, spacing: 12) {
+                            ForEach(filteredDays) { day in
+                                Section {
+                                    ForEach(day.entries) { entry in
+                                        HistoryRecordingCard(
+                                            entry: entry,
+                                            transcript: viewModel.transcriptText(for: entry),
+                                            audioURL: viewModel.historyAudioURL(for: entry),
+                                            isFailed: viewModel.historyEntryFailed(entry),
+                                            isReprocessing: viewModel.reprocessingHistoryEntryID == entry.id,
+                                            playback: playback,
+                                            onCopy: { viewModel.copyHistoryEntry(entry) },
+                                            onReprocess: {
+                                                Task { await viewModel.reprocessHistoryEntry(entry) }
+                                            }
+                                        )
                                     }
-                                )
+                                } header: {
+                                    Text(dayTitle(day))
+                                        .font(.subheadline.weight(.semibold))
+                                        .foregroundStyle(.secondary)
+                                        .padding(.leading, 4)
+                                }
                             }
                         }
                     }
+                    .scrollIndicators(.hidden)
                 }
             }
+            .frame(maxWidth: 500, maxHeight: .infinity, alignment: .topLeading)
+            .padding(.horizontal, 22)
+
+            HistorySearchField(text: $searchText)
+                .frame(maxWidth: 360)
+                .padding(.horizontal, 26)
+                .padding(.bottom, 12)
         }
+        .background(Color(nsColor: .windowBackgroundColor))
         .task {
             viewModel.refreshHistory()
         }
@@ -415,6 +428,19 @@ struct HistoryPane: View {
 
     private var filteredDays: [TranscriptHistoryDay] {
         viewModel.historyDays(matching: searchText)
+    }
+
+    @ViewBuilder
+    private var emptyState: some View {
+        if searchText.isEmpty {
+            ContentUnavailableView(
+                "No Recordings",
+                systemImage: "waveform",
+                description: Text("Your saved recordings will appear here.")
+            )
+        } else {
+            ContentUnavailableView.search(text: searchText)
+        }
     }
 
     private func dayTitle(_ day: TranscriptHistoryDay) -> String {

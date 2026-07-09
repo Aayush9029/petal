@@ -3,7 +3,7 @@ import SwiftUI
 
 enum HistoryWaveformSampler {
     nonisolated static func samples(from url: URL, count: Int = 64) async -> [CGFloat] {
-        await Task.detached(priority: .utility) {
+        let task: Task<[CGFloat], Never> = Task.detached(priority: .utility) {
             guard count > 0,
                   let file = try? AVAudioFile(forReading: url),
                   file.length > 0,
@@ -20,6 +20,8 @@ enum HistoryWaveformSampler {
             var processedFrames: Int64 = 0
 
             while processedFrames < totalFrames {
+                guard !Task.isCancelled else { return [] }
+
                 do {
                     try file.read(into: buffer, frameCount: buffer.frameCapacity)
                 } catch {
@@ -31,6 +33,10 @@ enum HistoryWaveformSampler {
                 let channelCount = Int(buffer.format.channelCount)
 
                 for frame in 0 ..< frameCount {
+                    if frame.isMultiple(of: 512), Task.isCancelled {
+                        return []
+                    }
+
                     let absoluteFrame = processedFrames + Int64(frame)
                     let bucket = min(count - 1, Int(absoluteFrame * Int64(count) / totalFrames))
                     var peak = Float.zero
@@ -48,6 +54,12 @@ enum HistoryWaveformSampler {
                 let normalized = Double(peak / maximum)
                 return CGFloat(max(0.08, pow(normalized, 0.55)))
             }
-        }.value
+        }
+
+        return await withTaskCancellationHandler {
+            await task.value
+        } onCancel: {
+            task.cancel()
+        }
     }
 }

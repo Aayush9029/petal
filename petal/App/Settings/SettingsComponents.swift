@@ -1,5 +1,6 @@
 import Shared
 import SwiftUI
+import UI
 
 struct SettingsPaneLayout<Content: View>: View {
     let tab: SettingsTab
@@ -8,21 +9,83 @@ struct SettingsPaneLayout<Content: View>: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 22) {
-                HStack(spacing: 10) {
-                    SettingsTabIcon(tab: tab, size: 28)
-                    Text(tab.title)
-                        .font(.title3.weight(.semibold))
-                }
-
                 content()
             }
             .frame(maxWidth: 500, alignment: .leading)
             .padding(.horizontal, 22)
-            .padding(.top, 22)
+            .padding(.top, 12)
             .padding(.bottom, 32)
         }
         .scrollIndicators(.hidden)
         .background(Color(nsColor: .windowBackgroundColor))
+    }
+}
+
+struct RecordingOptionTile: View {
+    let title: String
+    let description: String
+    let symbol: DottedStatusGlyph.Kind
+    let isOn: Bool
+    let action: () -> Void
+    @State private var isHovering = false
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 10) {
+                DottedStatusGlyph(
+                    kind: symbol,
+                    tint: isOn ? Color.accentColor : .secondary
+                )
+                .frame(width: 30, height: 30)
+                .background(Color.primary.opacity(isOn ? 0.12 : 0.06), in: .rect(cornerRadius: 8))
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title)
+                        .font(.subheadline.weight(.semibold))
+                        .lineLimit(1)
+
+                    Text(description)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .opacity(isHovering ? 1 : 0)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+                Image(systemName: isOn ? "checkmark.circle.fill" : "circle")
+                    .foregroundStyle(isOn ? Color.accentColor : Color.secondary.opacity(0.45))
+            }
+            .padding(.horizontal, 14)
+            .frame(maxWidth: .infinity, minHeight: 58)
+            .background(
+                Color.primary.opacity(isHovering ? 0.07 : (isOn ? 0.035 : 0)),
+                in: .rect(cornerRadius: 11)
+            )
+            .contentShape(.rect)
+        }
+        .buttonStyle(.plain)
+        .onHover { isHovering = $0 }
+        .animation(.easeOut(duration: 0.14), value: isHovering)
+        .accessibilityValue(isOn ? "On" : "Off")
+        .accessibilityHint(description)
+    }
+}
+
+struct SettingsActionButton: View {
+    let title: String
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Text(title)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.white)
+                .padding(.horizontal, 12)
+                .frame(height: 24)
+                .background(Color.accentColor, in: .capsule)
+                .contentShape(.capsule)
+        }
+        .buttonStyle(.plain)
     }
 }
 

@@ -1,10 +1,12 @@
 import Assets
 import Shared
 import SwiftUI
+import UI
 
 struct CapsuleAppearancePicker: View {
     let selection: FloatingCapsuleBackgroundStyle
     let onSelect: (FloatingCapsuleBackgroundStyle) -> Void
+    @State private var hoveredStyle: FloatingCapsuleBackgroundStyle?
 
     var body: some View {
         HStack(spacing: 12) {
@@ -26,7 +28,7 @@ struct CapsuleAppearancePicker: View {
                         .resizable()
                         .scaledToFill()
 
-                    capsule(for: style)
+                    capsule(for: style, animated: hoveredStyle == style)
                         .padding(.horizontal, 22)
                 }
                 .frame(maxWidth: .infinity)
@@ -42,22 +44,35 @@ struct CapsuleAppearancePicker: View {
 
                 Text(label)
                     .font(.subheadline.weight(selection == style ? .semibold : .medium))
-                .foregroundStyle(selection == style ? .primary : .secondary)
+                    .foregroundStyle(selection == style ? .primary : .secondary)
             }
             .contentShape(.rect)
         }
         .buttonStyle(.plain)
+        .onHover { isHovering in
+            withAnimation(.easeOut(duration: 0.16)) {
+                hoveredStyle = isHovering ? style : nil
+            }
+        }
         .accessibilityLabel("\(label) recording bar")
         .accessibilityAddTraits(selection == style ? .isSelected : [])
     }
 
     @ViewBuilder
-    private func capsule(for style: FloatingCapsuleBackgroundStyle) -> some View {
-        let content = HStack(spacing: 4) {
-            ForEach(0 ..< 22, id: \.self) { index in
-                Circle()
-                    .fill(.red)
-                    .frame(width: 2, height: CGFloat(2 + (index * 7) % 11))
+    private func capsule(for style: FloatingCapsuleBackgroundStyle, animated: Bool) -> some View {
+        let content = ZStack {
+            HStack(spacing: 4) {
+                ForEach(0 ..< 22, id: \.self) { index in
+                    Circle()
+                        .fill(.red)
+                        .frame(width: 2, height: CGFloat(2 + (index * 7) % 11))
+                }
+            }
+            .opacity(animated ? 0 : 1)
+
+            if animated {
+                ProcessingWaveform(bars: 32, rows: 5, tint: .red)
+                    .transition(.opacity.combined(with: .scale(scale: 0.96)))
             }
         }
         .frame(maxWidth: .infinity)
