@@ -59,7 +59,9 @@ struct ModelSelectorCard: View {
     }
 
     private var subtitle: String {
-        if isWarming { return "Warming up" }
+        if isWarming {
+            return "Warming up"
+        }
         return [option.providerDisplayName, option.sizeLabel]
             .compactMap { $0 }
             .joined(separator: " · ")

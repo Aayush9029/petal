@@ -13,7 +13,7 @@ struct SettingsView: View {
 
     var body: some View {
         NavigationSplitView(columnVisibility: $columnVisibility) {
-            List(selection: sidebarSelection) {
+            List {
                 Section("Petal") {
                     sidebarRow(.general)
                     sidebarRow(.recording)
@@ -36,21 +36,33 @@ struct SettingsView: View {
                 .transition(.opacity)
         }
         .navigationSplitViewStyle(.balanced)
+        .toolbar(removing: .sidebarToggle)
         .animation(.easeOut(duration: 0.16), value: selectedTab)
     }
 
-    private var sidebarSelection: Binding<SettingsTab?> {
-        Binding(get: { selectedTab }, set: { selectedTab = $0 ?? selectedTab })
-    }
-
     private func sidebarRow(_ tab: SettingsTab) -> some View {
-        HStack(spacing: 11) {
-            SettingsTabIcon(tab: tab, size: 25)
-            Text(tab.title)
-                .font(.body.weight(.medium))
+        Button {
+            selectedTab = tab
+        } label: {
+            HStack(spacing: 11) {
+                SettingsTabIcon(tab: tab, size: 25)
+                Text(tab.title)
+                    .font(.body.weight(.medium))
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 8)
+            .foregroundStyle(selectedTab == tab ? .primary : .secondary)
+            .background(
+                selectedTab == tab ? Color.primary.opacity(0.08) : .clear,
+                in: .rect(cornerRadius: 10)
+            )
+            .contentShape(.rect)
         }
-        .padding(.vertical, 5)
-        .tag(tab)
+        .buttonStyle(.plain)
+        .contentShape(.rect)
+        .listRowInsets(.init(top: 2, leading: 8, bottom: 2, trailing: 8))
+        .listRowBackground(Color.clear)
     }
 
     @ViewBuilder
@@ -230,40 +242,40 @@ struct TranscriptionPane: View {
 
             if viewModel.appleIntelligenceAvailable || viewModel.smartModeAvailable {
                 SettingsPanel {
-                if viewModel.appleIntelligenceAvailable {
-                    SettingsToggleRow(
-                        title: "Enhance with Apple Intelligence",
-                        symbol: "apple.intelligence",
-                        isOn: viewModel.appleIntelligenceEnabled
-                    ) { value in viewModel.$appleIntelligenceEnabled.withLock { $0 = value } }
-                }
-
-                if viewModel.appleIntelligenceAvailable && viewModel.smartModeAvailable {
-                    SettingsCardDivider()
-                }
-
-                if viewModel.smartModeAvailable {
-                    SettingsControlRow(
-                        title: "Writing Style"
-                    ) {
-                        SettingsSegmentedPicker(
-                            values: TranscriptionMode.allCases,
-                            selection: viewModel.transcriptionMode,
-                            title: \.displayName
-                        ) { mode in
-                            viewModel.$transcriptionMode.withLock { $0 = mode }
-                        }
-                        .frame(width: 205)
+                    if viewModel.appleIntelligenceAvailable {
+                        SettingsToggleRow(
+                            title: "Enhance with Apple Intelligence",
+                            symbol: "apple.intelligence",
+                            isOn: viewModel.appleIntelligenceEnabled
+                        ) { value in viewModel.$appleIntelligenceEnabled.withLock { $0 = value } }
                     }
 
-                    if viewModel.transcriptionMode == .smart {
+                    if viewModel.appleIntelligenceAvailable && viewModel.smartModeAvailable {
                         SettingsCardDivider()
-                        TextField("Smart prompt", text: Binding(viewModel.$smartPrompt), axis: .vertical)
-                            .textFieldStyle(.roundedBorder)
-                            .lineLimit(3 ... 6)
-                            .padding(14)
                     }
-                }
+
+                    if viewModel.smartModeAvailable {
+                        SettingsControlRow(
+                            title: "Writing Style"
+                        ) {
+                            SettingsSegmentedPicker(
+                                values: TranscriptionMode.allCases,
+                                selection: viewModel.transcriptionMode,
+                                title: \.displayName
+                            ) { mode in
+                                viewModel.$transcriptionMode.withLock { $0 = mode }
+                            }
+                            .frame(width: 205)
+                        }
+
+                        if viewModel.transcriptionMode == .smart {
+                            SettingsCardDivider()
+                            TextField("Smart prompt", text: Binding(viewModel.$smartPrompt), axis: .vertical)
+                                .textFieldStyle(.roundedBorder)
+                                .lineLimit(3 ... 6)
+                                .padding(14)
+                        }
+                    }
                 }
                 .transition(.opacity.combined(with: .move(edge: .bottom)))
             }
@@ -338,7 +350,11 @@ struct TranscriptionPane: View {
     private var isShowingDeleteConfirmation: Binding<Bool> {
         Binding(
             get: { deleteConfirmationOption != nil },
-            set: { if !$0 { destination = nil } }
+            set: {
+                if !$0 {
+                    destination = nil
+                }
+            }
         )
     }
 }
@@ -403,8 +419,12 @@ struct HistoryPane: View {
 
     private func dayTitle(_ day: TranscriptHistoryDay) -> String {
         guard let date = day.entries.first?.timestamp else { return day.day }
-        if Calendar.current.isDateInToday(date) { return "Today" }
-        if Calendar.current.isDateInYesterday(date) { return "Yesterday" }
+        if Calendar.current.isDateInToday(date) {
+            return "Today"
+        }
+        if Calendar.current.isDateInYesterday(date) {
+            return "Yesterday"
+        }
         return date.formatted(.dateTime.weekday(.wide).month(.wide).day())
     }
 }
@@ -501,12 +521,18 @@ struct AdvancedPane: View {
             }
             Button("Cancel", role: .cancel) { historyAlert = nil }
         } message: {
-            if let historyAlert { Text(historyAlert.message) }
+            if let historyAlert {
+                Text(historyAlert.message)
+            }
         }
     }
 
     private var isShowingHistoryAlert: Binding<Bool> {
-        Binding(get: { historyAlert != nil }, set: { if !$0 { historyAlert = nil } })
+        Binding(get: { historyAlert != nil }, set: {
+            if !$0 {
+                historyAlert = nil
+            }
+        })
     }
 
     private func performHistoryAction(for alert: HistoryAlert) {

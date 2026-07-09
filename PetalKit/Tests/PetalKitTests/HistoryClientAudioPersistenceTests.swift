@@ -102,6 +102,35 @@ func deleteHistoryEntryRemovesEntryAndPersistedArtifacts() async throws {
     #expect(historyClient.transcriptText(artifacts.transcriptRelativePath) == nil)
 }
 
+@Test
+func historyDoesNotCapEntriesWithinADay() {
+    let historyClient = HistoryClient.liveValue
+    let timestamp = Date()
+    var days: [TranscriptHistoryDay] = []
+
+    for index in 0 ..< 250 {
+        days = historyClient.appendEntry(
+            AppendEntryRequest(
+                currentDays: days,
+                transcript: "Transcript \(index)",
+                modelID: "test-model",
+                mode: "verbatim",
+                audioDuration: 1,
+                transcriptionElapsed: 1,
+                pasteResult: "skipped",
+                audioRelativePath: nil,
+                transcriptRelativePath: nil,
+                retentionMode: .both,
+                timestamp: timestamp.addingTimeInterval(Double(index)),
+                sessionID: UUID()
+            )
+        )
+    }
+
+    #expect(days.count == 1)
+    #expect(days[0].entries.count == 250)
+}
+
 private func persistHistoryAudio(
     historyClient: HistoryClient,
     audioURL: URL,

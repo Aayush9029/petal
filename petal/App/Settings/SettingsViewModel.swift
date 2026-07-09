@@ -66,14 +66,6 @@ final class SettingsViewModel {
         historyClient.historyDirectoryPath()
     }
 
-    var recentHistoryEntries: [TranscriptHistoryEntry] {
-        transcriptHistoryDays.flatMap(\.entries)
-            .filter { transcriptText(for: $0).trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false }
-            .sorted { $0.timestamp > $1.timestamp }
-            .prefix(3)
-            .map { $0 }
-    }
-
     var historyDays: [TranscriptHistoryDay] {
         transcriptHistoryDays.sorted { $0.day > $1.day }
     }
@@ -93,9 +85,15 @@ final class SettingsViewModel {
                     }
                     var displayNames = [String]()
                     let mods = shortcut.modifiers
-                    if mods.contains(.control) { displayNames.append("\u{2303}") }
-                    if mods.contains(.option) { displayNames.append("\u{2325}") }
-                    if mods.contains(.command) { displayNames.append("\u{2318}") }
+                    if mods.contains(.control) {
+                        displayNames.append("\u{2303}")
+                    }
+                    if mods.contains(.option) {
+                        displayNames.append("\u{2325}")
+                    }
+                    if mods.contains(.command) {
+                        displayNames.append("\u{2318}")
+                    }
                     let keyChar = shortcut.keyToCharacter()?.capitalized ?? "Key \(shortcut.carbonKeyCode)"
                     displayNames.append(keyChar)
                     return .combo(

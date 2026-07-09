@@ -30,6 +30,7 @@ struct SettingsMenuPicker<Value: Hashable>: View {
             .font(.subheadline.weight(.medium))
             .padding(.horizontal, 11)
             .frame(height: 30)
+            .contentShape(.rect)
             .background(Color.primary.opacity(0.06), in: .rect(cornerRadius: 9))
             .overlay {
                 RoundedRectangle(cornerRadius: 9, style: .continuous)
@@ -37,6 +38,7 @@ struct SettingsMenuPicker<Value: Hashable>: View {
             }
         }
         .menuStyle(.borderlessButton)
+        .contentShape(.rect)
         .fixedSize()
     }
 }

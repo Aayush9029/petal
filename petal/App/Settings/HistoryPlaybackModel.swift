@@ -68,7 +68,7 @@ final class HistoryPlaybackModel {
             progress = 0
             startProgressUpdates()
         } catch {
-            self.player = nil
+            player = nil
             activeEntryID = nil
             isPlaying = false
             progress = 0

@@ -10,7 +10,7 @@ struct SettingsSwitch: View {
         } label: {
             ZStack(alignment: isOn ? .trailing : .leading) {
                 Capsule()
-                    .fill(isOn ? Color.accentColor : Color.secondary.opacity(0.28))
+                    .fill(Color.secondary.opacity(isOn ? 0.48 : 0.25))
 
                 Circle()
                     .fill(.white)

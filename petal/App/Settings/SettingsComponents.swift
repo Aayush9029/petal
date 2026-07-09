@@ -26,37 +26,6 @@ struct SettingsPaneLayout<Content: View>: View {
     }
 }
 
-struct SettingsSectionGroup<Content: View>: View {
-    let title: String
-    var subtitle: String?
-    @ViewBuilder let content: () -> Content
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 9) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title)
-                    .font(.headline)
-                    .foregroundStyle(.secondary)
-                if let subtitle {
-                    Text(subtitle)
-                        .font(.caption)
-                        .foregroundStyle(.tertiary)
-                }
-            }
-            .padding(.leading, 14)
-
-            VStack(spacing: 0) {
-                content()
-            }
-                .background(Color(nsColor: .controlBackgroundColor), in: .rect(cornerRadius: 14))
-                .overlay {
-                    RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .strokeBorder(Color(nsColor: .separatorColor).opacity(0.8), lineWidth: 1)
-                }
-        }
-    }
-}
-
 struct SettingsControlRow<Control: View>: View {
     let title: String
     var description: String?

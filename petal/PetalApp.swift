@@ -50,7 +50,12 @@ struct PetalApp: App {
                     NSApp.sendAction(#selector(AppDelegate.showAboutPanel), to: nil, from: nil)
                 }
             }
-            CommandGroup(replacing: .appSettings) { }
+            CommandGroup(replacing: .appSettings) {
+                Button("Settings…") {
+                    model.openSettingsWindow()
+                }
+                .keyboardShortcut(",", modifiers: .command)
+            }
         }
 
 

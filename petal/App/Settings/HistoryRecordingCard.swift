@@ -91,13 +91,17 @@ struct HistoryRecordingCard: View {
     }
 
     private var displayTranscript: String {
-        if !transcript.isEmpty { return transcript }
+        if !transcript.isEmpty {
+            return transcript
+        }
         return isFailed ? "Transcription failed — the recording was saved." : "No speech was detected."
     }
 
     private var durationText: String {
         let total = max(0, Int(entry.audioDurationSeconds.rounded()))
-        if total < 60 { return "\(total)s" }
+        if total < 60 {
+            return "\(total)s"
+        }
         return String(format: "%d:%02d", total / 60, total % 60)
     }
 }

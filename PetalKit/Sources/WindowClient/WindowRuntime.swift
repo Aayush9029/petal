@@ -72,7 +72,7 @@ final class WindowRuntimeImpl {
     // MARK: - Window Factories
 
     private func makeChromelessWindow(config: WindowConfig, options: ChromelessOptions, contentView: NSView) -> NSWindow {
-        var styleMask: NSWindow.StyleMask = [.titled, .fullSizeContentView]
+        var styleMask: NSWindow.StyleMask = [.titled, .fullSizeContentView, .miniaturizable, .resizable]
         if !options.hidesCloseButton {
             styleMask.insert(.closable)
         }
@@ -163,6 +163,7 @@ final class WindowRuntimeImpl {
         window.animationBehavior = config.animationBehavior
         window.collectionBehavior = config.collectionBehavior
         window.contentView = contentView
+        window.minSize = config.size
 
         if let toolbarStyle = options.toolbarStyle {
             window.toolbarStyle = toolbarStyle

@@ -17,6 +17,7 @@ struct SettingsSegmentedPicker<Value: Hashable>: View {
                         .foregroundStyle(selection == value ? .primary : .secondary)
                         .frame(maxWidth: .infinity)
                         .frame(height: 28)
+                        .contentShape(.rect)
                         .background {
                             if selection == value {
                                 RoundedRectangle(cornerRadius: 7, style: .continuous)
@@ -26,6 +27,8 @@ struct SettingsSegmentedPicker<Value: Hashable>: View {
                         }
                 }
                 .buttonStyle(.plain)
+                .frame(maxWidth: .infinity)
+                .contentShape(.rect)
             }
         }
         .padding(3)
