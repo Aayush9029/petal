@@ -118,11 +118,9 @@ public struct FloatingCapsuleView: View {
     }
 
     private var intelligenceProcessing: some View {
-        ProcessingWaveform(bars: 37, rows: 7, tint: .white, metrics: .floating)
-            .intelligenceGradient()
+        IntelligenceProcessingWaveform(bars: 37, rows: 7, metrics: .floating)
             .shadow(color: .purple.opacity(0.35), radius: 5)
             .floatingCapsuleChrome(blur: blurRadius)
-            .accessibilityLabel("Enhancing with Apple Intelligence")
     }
 
     private var error: some View {

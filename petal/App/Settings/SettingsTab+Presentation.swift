@@ -15,7 +15,7 @@ extension SettingsTab {
     var symbol: String {
         switch self {
         case .general: "gearshape"
-        case .transcription: "waveform"
+        case .transcription: "cube"
         case .recording: "mic"
         case .history: "clock"
         case .advanced: "slider.horizontal.3"

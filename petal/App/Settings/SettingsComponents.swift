@@ -48,7 +48,6 @@ struct RecordingOptionTile: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
-                        .opacity(isHovering ? 1 : 0)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
 
@@ -58,8 +57,7 @@ struct RecordingOptionTile: View {
             .padding(.horizontal, 14)
             .frame(maxWidth: .infinity, minHeight: 58)
             .background(
-                Color.primary.opacity(isHovering ? 0.07 : (isOn ? 0.035 : 0)),
-                in: .rect(cornerRadius: 11)
+                Color.primary.opacity(isHovering ? 0.055 : (isOn ? 0.025 : 0))
             )
             .contentShape(.rect)
         }
@@ -73,6 +71,7 @@ struct RecordingOptionTile: View {
 
 struct SettingsActionButton: View {
     let title: String
+    var tint = Color.accentColor
     let action: () -> Void
 
     var body: some View {
@@ -82,10 +81,27 @@ struct SettingsActionButton: View {
                 .foregroundStyle(.white)
                 .padding(.horizontal, 12)
                 .frame(height: 24)
-                .background(Color.accentColor, in: .capsule)
+                .background(tint, in: .capsule)
                 .contentShape(.capsule)
         }
         .buttonStyle(.plain)
+    }
+}
+
+struct SettingsPanelSection<Content: View>: View {
+    let title: String
+    @ViewBuilder let content: () -> Content
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(title)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.secondary)
+                .padding(.leading, 4)
+                .accessibilityAddTraits(.isHeader)
+
+            SettingsPanel(content: content)
+        }
     }
 }
 

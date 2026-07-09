@@ -182,7 +182,9 @@ struct RecordingPane: View {
                     }
                     .frame(maxWidth: 220)
                 }
-                SettingsCardDivider()
+            }
+
+            SettingsPanel {
                 VStack(spacing: 0) {
                     RecordingOptionTile(
                         title: "Trim Silence",
@@ -487,8 +489,12 @@ struct AdvancedPane: View {
 
     var body: some View {
         SettingsPaneLayout(tab: .advanced) {
-            SettingsPanel {
-                SettingsControlRow(title: "History") {
+            SettingsPanelSection(title: "Storage") {
+                SettingsControlRow(
+                    title: "Save History",
+                    description: "Choose what Petal keeps after transcription.",
+                    symbol: "archivebox"
+                ) {
                     SettingsMenuPicker(
                         values: HistoryRetentionMode.allCases,
                         selection: viewModel.historyRetentionMode,
@@ -500,31 +506,51 @@ struct AdvancedPane: View {
                 SettingsCardDivider()
                 SettingsToggleRow(
                     title: "Extra Compression",
+                    description: "Use smaller audio files with slightly lower fidelity.",
+                    symbol: "arrow.down.right.and.arrow.up.left",
                     isOn: viewModel.compressHistoryAudio
                 ) { value in viewModel.$compressHistoryAudio.withLock { $0 = value } }
                 SettingsCardDivider()
                 SettingsControlRow(
                     title: "History Folder",
-                    description: viewModel.historyDirectoryPath,
+                    description: viewModel.historyDirectoryDisplayPath,
                     symbol: "folder"
                 ) {
-                    Button("Show") { viewModel.openHistoryInFinder() }
-                        .controlSize(.small)
+                    SettingsActionButton(title: "Open") {
+                        viewModel.openHistoryInFinder()
+                    }
                 }
             }
 
-            SettingsPanel {
-                HStack(spacing: 10) {
-                    Button("Delete Media", role: .destructive) { historyAlert = .deleteMedia }
-                    Button("Delete All History", role: .destructive) { historyAlert = .deleteAll }
+            SettingsPanelSection(title: "Maintenance") {
+                SettingsControlRow(
+                    title: "Remove Saved Audio",
+                    description: "Keep transcripts but delete their recording files.",
+                    symbol: "waveform.badge.minus"
+                ) {
+                    SettingsActionButton(title: "Delete…", tint: .red) {
+                        historyAlert = .deleteMedia
+                    }
                 }
-                .buttonStyle(.bordered)
-                .padding(14)
+
+                SettingsCardDivider()
+
+                SettingsControlRow(
+                    title: "Reset History",
+                    description: "Permanently delete transcripts and saved audio.",
+                    symbol: "trash"
+                ) {
+                    SettingsActionButton(title: "Delete All…", tint: .red) {
+                        historyAlert = .deleteAll
+                    }
+                }
             }
 
-            SettingsPanel {
+            SettingsPanelSection(title: "Diagnostics") {
                 SettingsToggleRow(
-                    title: "Enable Logs",
+                    title: "Diagnostic Logs",
+                    description: "Record local details that help troubleshoot Petal.",
+                    symbol: "doc.text.magnifyingglass",
                     isOn: viewModel.logsEnabled
                 ) { value in viewModel.$logsEnabled.withLock { $0 = value } }
                 SettingsCardDivider()
@@ -533,8 +559,10 @@ struct AdvancedPane: View {
                     description: "Save a copy to share while troubleshooting.",
                     symbol: "square.and.arrow.up"
                 ) {
-                    Button("Export…") { viewModel.exportLogs() }
-                        .disabled(!viewModel.canExportLogs)
+                    SettingsActionButton(title: "Export…") {
+                        viewModel.exportLogs()
+                    }
+                    .disabled(!viewModel.canExportLogs)
                 }
             }
         }

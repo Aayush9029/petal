@@ -8,6 +8,7 @@ struct RecordingCapsuleButton: View {
 
     @State private var interaction = Interaction.idle
     @State private var isHovering = false
+    @State private var isTranscribeHovering = false
 
     var body: some View {
         ZStack {
@@ -38,11 +39,13 @@ struct RecordingCapsuleButton: View {
                     .controlSize(.small)
             }
         }
-        .frame(width: 174, height: 24)
+        .frame(width: 174, height: 28)
         .floatingCapsuleChrome(
             blur: blur,
             contentWidth: 174,
-            horizontalPadding: 4
+            contentHeight: 28,
+            horizontalPadding: 4,
+            verticalPadding: 7
         )
         .contentShape(Capsule())
         .animation(.smooth(duration: 0.18), value: interaction)
@@ -65,18 +68,22 @@ struct RecordingCapsuleButton: View {
             Button(action: transcribeButtonTapped) {
                 Text("Transcribe")
                     .font(.callout.weight(.semibold))
+                    .padding(.horizontal, 12)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .background(Color.primary.opacity(0.1), in: .capsule)
+                    .background(Color.primary.opacity(isTranscribeHovering ? 0.18 : 0.1), in: .capsule)
                     .contentShape(.capsule)
             }
             .buttonStyle(.plain)
+            .onHover { isTranscribeHovering = $0 }
+            .animation(.easeOut(duration: 0.12), value: isTranscribeHovering)
             .help("Stop recording and transcribe")
             .accessibilityHint("Stops recording and starts transcription")
 
             Button(action: requestCancel) {
                 Image(systemName: "stop.fill")
                     .font(.caption.weight(.bold))
-                    .frame(width: 30, height: 24)
+                    .padding(.horizontal, 8)
+                    .frame(height: 26)
                     .background(Color.red.opacity(0.16), in: .capsule)
                     .contentShape(.capsule)
             }
@@ -84,19 +91,21 @@ struct RecordingCapsuleButton: View {
             .foregroundStyle(.red)
             .help("Cancel recording")
         }
+        .padding(.horizontal, 4)
     }
 
     private var confirmationRow: some View {
         HStack(spacing: 6) {
             Text("Are you sure?")
                 .font(.callout.weight(.semibold))
+                .padding(.horizontal, 10)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background(Color.red.opacity(0.1), in: .capsule)
 
             Button(action: confirmCancel) {
                 Image(systemName: "trash.fill")
                     .font(.caption.weight(.bold))
-                    .frame(width: 30, height: 24)
+                    .padding(.horizontal, 8)
+                    .frame(height: 26)
                     .background(Color.red.opacity(0.2), in: .capsule)
                     .contentShape(.capsule)
             }
@@ -105,6 +114,7 @@ struct RecordingCapsuleButton: View {
             .help("Delete recording")
             .accessibilityLabel("Confirm delete recording")
         }
+        .padding(.horizontal, 4)
     }
 
     private func transcribeButtonTapped() {

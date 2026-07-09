@@ -66,6 +66,13 @@ final class SettingsViewModel {
         historyClient.historyDirectoryPath()
     }
 
+    var historyDirectoryDisplayPath: String {
+        historyDirectoryPath.replacingOccurrences(
+            of: FileManager.default.homeDirectoryForCurrentUser.path,
+            with: "~"
+        )
+    }
+
     var historyDays: [TranscriptHistoryDay] {
         transcriptHistoryDays.sorted { $0.day > $1.day }
     }

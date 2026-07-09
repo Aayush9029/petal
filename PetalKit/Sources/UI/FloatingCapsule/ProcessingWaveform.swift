@@ -52,13 +52,46 @@ public struct ProcessingWaveform: View {
     }
 }
 
-#if DEBUG
-#Preview("Processing Waveform") {
-    VStack(spacing: 16) {
-        ProcessingWaveform()
-        ProcessingWaveform(bars: 46, maxHalf: 5, tint: .accentColor)
+/// The Apple Intelligence refinement state uses the same moving helix as
+/// transcription, but the helix itself masks the intelligence color field.
+struct IntelligenceProcessingWaveform: View {
+    let bars: Int
+    let rows: Int
+    let metrics: WaveformMetrics
+
+    var body: some View {
+        ZStack {
+            IntelligenceGradient()
+
+            RadialGradient(
+                colors: [.white.opacity(0.42), .clear],
+                center: .center,
+                startRadius: 0,
+                endRadius: metrics.width(bars: bars) * 0.58
+            )
+        }
+        .mask {
+            ProcessingWaveform(
+                bars: bars,
+                rows: rows,
+                tint: .white,
+                metrics: metrics
+            )
+        }
+        .frame(width: metrics.width(bars: bars), height: metrics.height(rows: rows))
+        .compositingGroup()
+        .accessibilityLabel("Enhancing with Apple Intelligence")
     }
-    .padding()
-    .background(.black)
 }
+
+#if DEBUG
+    #Preview("Processing Waveform") {
+        VStack(spacing: 16) {
+            ProcessingWaveform()
+            ProcessingWaveform(bars: 46, maxHalf: 5, tint: .accentColor)
+            IntelligenceProcessingWaveform(bars: 46, rows: 7, metrics: .standard)
+        }
+        .padding()
+        .background(.black)
+    }
 #endif
