@@ -451,6 +451,10 @@ final class AppModel {
 
             let audioDuration = transcriptionClient.audioDurationSeconds(normalizedAudioURL)
             let audioSizeBytes = appAudioFileSizeBytes(audioURL) ?? 0
+            let mode = droppedFileTranscriptionMode(
+                transcriptionMode,
+                model: selectedModelOption
+            )
 
             logClient.dumpDebug(
                 "AppModel",
@@ -460,6 +464,8 @@ final class AppModel {
                         "sessionID": historySessionID.uuidString,
                         "model": selectedModelOption.rawValue,
                         "modeRequested": transcriptionMode.rawValue,
+                        "modeResolved": mode.rawValue,
+                        "appleIntelligenceRefinement": "skippedForDroppedFile",
                         "audioFile": audioURL.lastPathComponent,
                         "audioDuration": formatElapsedSeconds(audioDuration),
                         "audioSizeBytes": "\(audioSizeBytes)"
@@ -478,42 +484,15 @@ final class AppModel {
             await soundClient.playTranscriptionStarted()
             startTranscriptionProgressTracking(audioDuration: audioDuration)
 
-            let mode = normalizedTranscriptionMode(transcriptionMode)
-            if transcriptionMode != mode {
-                $transcriptionMode.withLock { $0 = mode }
-            }
-
-            var transcript = try await transcriptionClient.transcribe(
+            let transcript = try await transcriptionClient.transcribe(
                 normalizedAudioURL,
                 selectedModelOption,
                 mode,
                 mode == .smart ? smartPrompt : nil
             )
-            let originalTranscript = transcript
-            var shouldPersistOriginalVariant = false
             let transcriptionElapsed = now.timeIntervalSince(transcriptionStart)
             updateTranscriptionSpeedEstimate(audioDuration: audioDuration, elapsed: transcriptionElapsed)
             stopTranscriptionProgressTracking(finalProgress: 1)
-
-            let needsAIRefine = mode == .smart
-                && !selectedModelOption.supportsSmartTranscription
-                && appleIntelligenceEnabled
-                && foundationModelClient.isAvailable()
-                && !transcript.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-
-            if needsAIRefine {
-                pipelineStage = "refining"
-                sessionState = .processing(.refining)
-                await soundClient.playRefineStarted()
-                await floatingCapsuleClient.showRefining()
-
-                if let refined = try? await foundationModelClient.refine(transcript, smartPrompt),
-                   !refined.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                {
-                    shouldPersistOriginalVariant = refined != transcript
-                    transcript = refined
-                }
-            }
 
             let isEmptyTranscript = transcript.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             let persistedPaths = await persistHistoryArtifacts(
@@ -562,29 +541,6 @@ final class AppModel {
                     sessionID: historySessionID,
                     timestamp: historyTimestamp
                 )
-
-                if shouldPersistOriginalVariant {
-                    let originalPaths = await persistHistoryArtifacts(
-                        audioURL: audioURL,
-                        transcript: originalTranscript,
-                        timestamp: historyTimestamp,
-                        mode: "original",
-                        modelID: selectedModelOption.rawValue,
-                        persistAudio: false
-                    )
-                    appendTranscriptHistory(
-                        transcript: originalTranscript,
-                        modelID: selectedModelOption.rawValue,
-                        mode: "original",
-                        audioDuration: audioDuration,
-                        transcriptionElapsed: transcriptionElapsed,
-                        pasteResult: .skipped,
-                        audioRelativePath: originalPaths?.audioRelativePath,
-                        transcriptRelativePath: originalPaths?.transcriptRelativePath,
-                        sessionID: historySessionID,
-                        timestamp: historyTimestamp
-                    )
-                }
             }
 
             lastError = nil
@@ -1932,6 +1888,13 @@ final class AppModel {
         // Allow smart mode when Apple Intelligence can post-process
         if mode == .smart, appleIntelligenceEnabled, foundationModelClient.isAvailable() { return mode }
         return .verbatim
+    }
+
+    private func droppedFileTranscriptionMode(
+        _ requestedMode: TranscriptionMode,
+        model: ModelOption
+    ) -> TranscriptionMode {
+        model.supportsTranscriptionMode(requestedMode) ? requestedMode : .verbatim
     }
 
     private func autoSpeedRate(for audioDuration: Double) -> Double? {

@@ -10,6 +10,7 @@ struct MenuBarPopover: View {
     var dismiss: () -> Void
 
     @State private var transcriptPendingDeletion: MenuBarContentViewModel.HistoryMenuItem?
+    @State private var isAudioDropTargeted = false
 
     private var isRecording: Bool { viewModel.isRecording }
 
@@ -33,6 +34,19 @@ struct MenuBarPopover: View {
         }
         .padding(12)
         .frame(width: 312)
+        .overlay {
+            if isAudioDropTargeted {
+                audioDropOverlay
+                    .transition(.opacity.combined(with: .scale(scale: 0.98)))
+            }
+        }
+        .dropDestination(for: URL.self) { urls, _ in
+            Task { await viewModel.audioFilesDropped(urls) }
+            return !urls.isEmpty
+        } isTargeted: {
+            isAudioDropTargeted = $0
+        }
+        .animation(.easeOut(duration: 0.16), value: isAudioDropTargeted)
         .alert("Delete transcript?", isPresented: deleteConfirmationIsPresented) {
             Button("Delete", role: .destructive) {
                 if let entry = transcriptPendingDeletion {
@@ -46,6 +60,33 @@ struct MenuBarPopover: View {
         } message: {
             Text("This removes the transcript from recent history.")
         }
+    }
+
+    private var audioDropOverlay: some View {
+        VStack(spacing: 8) {
+            Image(systemName: "plus.circle.fill")
+                .font(.system(size: 30, weight: .semibold))
+                .foregroundStyle(.tint)
+
+            Text("Drop to Transcribe")
+                .font(.headline)
+
+            Text("Uses your selected model and copies the result.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+        .multilineTextAlignment(.center)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(.regularMaterial)
+        .clipShape(.rect(cornerRadius: 12))
+        .overlay {
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .strokeBorder(.tint, style: StrokeStyle(lineWidth: 2, dash: [6, 5]))
+        }
+        .padding(4)
+        .allowsHitTesting(false)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Drop audio file to transcribe with the selected model")
     }
 
     private var deleteConfirmationIsPresented: Binding<Bool> {

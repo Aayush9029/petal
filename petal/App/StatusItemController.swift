@@ -18,6 +18,7 @@ final class StatusItemController: NSObject, NSPopoverDelegate {
     private var animationTimer: Timer?
     private var animationTick = 0
     private var smoothedLevel: Double = 0
+    private var isDropTargeted = false
 
     init(viewModel: MenuBarContentViewModel) {
         self.viewModel = viewModel
@@ -31,6 +32,9 @@ final class StatusItemController: NSObject, NSPopoverDelegate {
             dropOverlay.frame = button.bounds
             dropOverlay.autoresizingMask = [.width, .height]
             dropOverlay.onDropURLs = { [weak self] urls in self?.handleDroppedURLs(urls) }
+            dropOverlay.onDropTargetedChanged = { [weak self] isTargeted in
+                self?.dropTargetedChanged(isTargeted)
+            }
             dropOverlay.onClick = { [weak self] in self?.togglePopover() }
             button.addSubview(dropOverlay)
         }
@@ -84,6 +88,13 @@ final class StatusItemController: NSObject, NSPopoverDelegate {
 
     private func applyStatus() {
         guard let button = statusItem.button else { return }
+        if isDropTargeted {
+            stopAnimating()
+            button.toolTip = "Drop audio file to transcribe"
+            button.image = MenuBarIconRenderer.dropTarget
+            return
+        }
+
         // Reading these inside observation tracking re-runs applyStatus when the
         // session state changes. Audio level is deliberately not read here — it
         // is sampled per frame in renderAnimationFrame so level updates don't
@@ -150,18 +161,20 @@ final class StatusItemController: NSObject, NSPopoverDelegate {
     }
 
     private func handleDroppedURLs(_ urls: [URL]) {
-        switch AudioFileDropValidator.validate(urls) {
-        case let .accepted(url):
-            Task { await viewModel.transcribeDroppedAudioFile(url) }
-        case let .rejected(error):
-            viewModel.droppedAudioFileRejected(error)
-        }
+        Task { await viewModel.audioFilesDropped(urls) }
+    }
+
+    private func dropTargetedChanged(_ isTargeted: Bool) {
+        guard isDropTargeted != isTargeted else { return }
+        isDropTargeted = isTargeted
+        applyStatus()
     }
 }
 
 @MainActor
 private final class DropOverlayView: NSView {
     var onDropURLs: (([URL]) -> Void)?
+    var onDropTargetedChanged: ((Bool) -> Void)?
     var onClick: (() -> Void)?
 
     override init(frame frameRect: NSRect) {
@@ -179,11 +192,16 @@ private final class DropOverlayView: NSView {
     }
 
     override func draggingEntered(_ sender: NSDraggingInfo) -> NSDragOperation {
-        .copy
+        onDropTargetedChanged?(true)
+        return .copy
     }
 
     override func draggingUpdated(_ sender: NSDraggingInfo) -> NSDragOperation {
         .copy
+    }
+
+    override func draggingExited(_ sender: NSDraggingInfo?) {
+        onDropTargetedChanged?(false)
     }
 
     override func performDragOperation(_ sender: NSDraggingInfo) -> Bool {
@@ -195,6 +213,7 @@ private final class DropOverlayView: NSView {
             if let url = object as? URL { return url }
             return (object as? NSURL).map { $0 as URL }
         } ?? []
+        onDropTargetedChanged?(false)
         onDropURLs?(urls)
         return !urls.isEmpty
     }

@@ -340,6 +340,11 @@ final class SettingsViewModel {
             ?? ""
     }
 
+    func deleteHistoryEntry(_ entry: TranscriptHistoryEntry) {
+        appModel.deleteTranscriptHistoryButtonTapped(entry.id)
+        historyTranscriptCache[entry.id] = nil
+    }
+
     func deleteAllHistory() {
         let cleared = historyClient.applyRetention(.none, transcriptHistoryDays)
         $transcriptHistoryDays.withLock { $0 = cleared }

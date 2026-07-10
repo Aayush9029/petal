@@ -39,6 +39,19 @@ enum MenuBarIconRenderer {
         return image
     }()
 
+    /// Static pixel plus shown while an audio file is hovering over the status item.
+    static let dropTarget = image(cells: [
+        Cell(col: 4, row: 2),
+        Cell(col: 4, row: 3),
+        Cell(col: 2, row: 4),
+        Cell(col: 3, row: 4),
+        Cell(col: 4, row: 4),
+        Cell(col: 5, row: 4),
+        Cell(col: 6, row: 4),
+        Cell(col: 4, row: 5),
+        Cell(col: 4, row: 6),
+    ])
+
     // MARK: - Public frames
 
     /// A tiny audio-reactive pixel equalizer. The bars share the smoothed input

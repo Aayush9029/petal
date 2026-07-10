@@ -410,6 +410,10 @@ struct HistoryPane: View {
                                             onCopy: { viewModel.copyHistoryEntry(entry) },
                                             onReprocess: {
                                                 Task { await viewModel.reprocessHistoryEntry(entry) }
+                                            },
+                                            onDelete: {
+                                                playback.historyEntryDeleted(entry.id)
+                                                viewModel.deleteHistoryEntry(entry)
                                             }
                                         )
                                     }

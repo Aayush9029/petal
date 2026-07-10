@@ -6,56 +6,63 @@ struct CancelConfirmationCapsule: View {
     var isActive: Bool
 
     @State private var progress: CGFloat = 1
-    @Environment(\.colorScheme) private var colorScheme
-
-    private var borderColor: Color {
-        colorScheme == .dark ? .white : .black
-    }
 
     var body: some View {
-        Color.clear
-            .floatingCapsuleChrome(blur: 0)
-            .overlay {
-                HStack(spacing: 6) {
-                    Image(systemName: "escape")
-                        .font(.caption2.weight(.semibold))
-                        .foregroundStyle(.secondary)
+        HStack(spacing: 6) {
+            Image(systemName: "escape")
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(.secondary)
+                .accessibilityHidden(true)
 
-                    (
-                        Text("Cancel recording?  ")
-                            + Text("Y").foregroundColor(.red)
-                    )
-                    .font(.footnote.weight(.semibold))
-                    .foregroundStyle(.primary)
-                    .lineLimit(1)
-                }
-                .shadow(color: .black.opacity(0.18), radius: 1, y: 1)
-            }
-            .overlay {
-                Capsule()
+            Text("Cancel recording?")
+                .font(.footnote.weight(.semibold))
+                .foregroundStyle(.primary)
+                .lineLimit(1)
+
+            ZStack {
+                Circle()
+                    .fill(.red)
+
+                Circle()
                     .trim(from: 0, to: progress)
-                    .stroke(borderColor.opacity(0.6), lineWidth: 2)
-                    .padding(2)
+                    .stroke(.white, style: StrokeStyle(lineWidth: 2, lineCap: .round))
+                    .rotationEffect(.degrees(-90))
+
+                Text("Y")
+                    .font(.caption2.monospaced().weight(.bold))
+                    .foregroundStyle(.white)
             }
-            .onChange(of: isActive) { _, active in
-                if active {
-                    progress = 1
-                    withAnimation(.linear(duration: countdownDuration)) {
-                        progress = 0
-                    }
-                } else {
-                    withAnimation(.easeOut(duration: 0.15)) {
-                        progress = 0
-                    }
+            .frame(width: 26, height: 26)
+            .accessibilityHidden(true)
+        }
+        .floatingCapsuleChrome(
+            blur: 0,
+            contentWidth: 174,
+            contentHeight: 28,
+            horizontalPadding: 4,
+            verticalPadding: 7
+        )
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Cancel recording? Press Y to confirm")
+        .onChange(of: isActive) { _, active in
+            if active {
+                progress = 1
+                withAnimation(.linear(duration: countdownDuration)) {
+                    progress = 0
+                }
+            } else {
+                withAnimation(.easeOut(duration: 0.15)) {
+                    progress = 0
                 }
             }
-            .onAppear {
-                if isActive {
-                    progress = 1
-                    withAnimation(.linear(duration: countdownDuration)) {
-                        progress = 0
-                    }
+        }
+        .onAppear {
+            if isActive {
+                progress = 1
+                withAnimation(.linear(duration: countdownDuration)) {
+                    progress = 0
                 }
             }
+        }
     }
 }

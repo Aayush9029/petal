@@ -122,12 +122,13 @@ final class MenuBarContentViewModel {
         appModel.deleteTranscriptHistoryButtonTapped(entryID)
     }
 
-    func droppedAudioFileRejected(_ error: AudioFileDropValidationError) {
-        appModel.droppedAudioFileRejected(error)
-    }
-
-    func transcribeDroppedAudioFile(_ url: URL) async {
-        await appModel.transcribeDroppedAudioFile(url)
+    func audioFilesDropped(_ urls: [URL]) async {
+        switch AudioFileDropValidator.validate(urls) {
+        case let .accepted(url):
+            await appModel.transcribeDroppedAudioFile(url)
+        case let .rejected(error):
+            appModel.droppedAudioFileRejected(error)
+        }
     }
 
     func startRecording() {

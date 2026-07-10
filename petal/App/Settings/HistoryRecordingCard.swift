@@ -11,6 +11,7 @@ struct HistoryRecordingCard: View {
     let playback: HistoryPlaybackModel
     let onCopy: () -> Void
     let onReprocess: () -> Void
+    let onDelete: () -> Void
     @State private var isShowingCopyConfirmation = false
 
     var body: some View {
@@ -90,6 +91,10 @@ struct HistoryRecordingCard: View {
                         : Color(nsColor: .separatorColor).opacity(0.7),
                     lineWidth: playback.activeEntryID == entry.id ? 1.5 : 1
                 )
+        }
+        .contentShape(.rect(cornerRadius: 14))
+        .contextMenu {
+            Button("Delete from History", systemImage: "trash", role: .destructive, action: onDelete)
         }
         .task {
             if let audioURL {

@@ -58,6 +58,20 @@ final class HistoryPlaybackModel {
         activeEntryID == entryID && isPlaying
     }
 
+    func historyEntryDeleted(_ entryID: UUID) {
+        waveforms[entryID] = nil
+        loadingWaveforms.remove(entryID)
+        guard activeEntryID == entryID else { return }
+
+        progressTask?.cancel()
+        progressTask = nil
+        player?.stop()
+        player = nil
+        activeEntryID = nil
+        isPlaying = false
+        progress = 0
+    }
+
     private func startPlayback(entryID: UUID, audioURL: URL) {
         progressTask?.cancel()
         do {
