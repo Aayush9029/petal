@@ -21,6 +21,7 @@ private struct FloatingCapsuleChrome: ViewModifier {
     var contentWidth: CGFloat
     var contentHeight: CGFloat
     var horizontalPadding: CGFloat
+    var trailingPadding: CGFloat?
     var verticalPadding: CGFloat
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.glassCapsuleNamespace) private var glassNamespace
@@ -42,7 +43,8 @@ private struct FloatingCapsuleChrome: ViewModifier {
         let padded = content
             .blur(radius: blur)
             .frame(width: contentWidth, height: contentHeight, alignment: .center)
-            .padding(.horizontal, horizontalPadding)
+            .padding(.leading, horizontalPadding)
+            .padding(.trailing, trailingPadding ?? horizontalPadding)
             .padding(.vertical, verticalPadding)
         background(
             padded.background {
@@ -100,6 +102,7 @@ extension View {
         contentWidth: CGFloat = 150,
         contentHeight: CGFloat = 20,
         horizontalPadding: CGFloat = 16,
+        trailingPadding: CGFloat? = nil,
         verticalPadding: CGFloat = 11
     ) -> some View {
         modifier(FloatingCapsuleChrome(
@@ -108,6 +111,7 @@ extension View {
             contentWidth: contentWidth,
             contentHeight: contentHeight,
             horizontalPadding: horizontalPadding,
+            trailingPadding: trailingPadding,
             verticalPadding: verticalPadding
         ))
     }

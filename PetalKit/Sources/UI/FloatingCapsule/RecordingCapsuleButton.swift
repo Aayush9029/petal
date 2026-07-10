@@ -17,7 +17,7 @@ struct RecordingCapsuleButton: View {
                 bars: 37,
                 rows: 7,
                 tint: .red,
-                metrics: .floating,
+                metrics: .floatingRecording,
                 gain: 0.82,
                 responseExponent: 1.35,
                 sampleInterval: .milliseconds(36)

@@ -25,6 +25,16 @@ struct WaveformMetrics {
         inactiveCellOpacity: 0
     )
 
+    /// The recording waveform only draws cells activated by the microphone
+    /// level, avoiding a persistent tinted grid behind quiet input.
+    static let floatingRecording = WaveformMetrics(
+        cell: 2,
+        gapX: 2,
+        pitchY: 3,
+        corner: 1,
+        inactiveCellOpacity: 0
+    )
+
     /// The floating capsule keeps all seven rows faintly visible so the grid's
     /// full height is unambiguous even when the microphone input is quiet.
     static let floating = WaveformMetrics(

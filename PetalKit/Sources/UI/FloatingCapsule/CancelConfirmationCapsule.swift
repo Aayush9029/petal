@@ -3,9 +3,15 @@ import SwiftUI
 private let countdownDuration: TimeInterval = 4
 
 struct CancelConfirmationCapsule: View {
+    @Environment(\.colorScheme) private var colorScheme
+
     var isActive: Bool
 
     @State private var progress: CGFloat = 1
+
+    private var countdownStrokeColor: Color {
+        colorScheme == .dark ? .white : .black
+    }
 
     var body: some View {
         HStack(spacing: 6) {
@@ -18,6 +24,7 @@ struct CancelConfirmationCapsule: View {
                 .font(.footnote.weight(.semibold))
                 .foregroundStyle(.primary)
                 .lineLimit(1)
+                .padding(.trailing, 4)
 
             ZStack {
                 Circle()
@@ -25,7 +32,7 @@ struct CancelConfirmationCapsule: View {
 
                 Circle()
                     .trim(from: 0, to: progress)
-                    .stroke(.white, style: StrokeStyle(lineWidth: 2, lineCap: .round))
+                    .stroke(countdownStrokeColor, style: StrokeStyle(lineWidth: 2, lineCap: .round))
                     .rotationEffect(.degrees(-90))
 
                 Text("Y")
@@ -37,9 +44,10 @@ struct CancelConfirmationCapsule: View {
         }
         .floatingCapsuleChrome(
             blur: 0,
-            contentWidth: 174,
+            contentWidth: 178,
             contentHeight: 28,
             horizontalPadding: 4,
+            trailingPadding: 2,
             verticalPadding: 7
         )
         .accessibilityElement(children: .ignore)
