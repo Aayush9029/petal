@@ -77,18 +77,12 @@ struct ModelSelectorCard: View {
         }
     }
 
-    @ViewBuilder
     private var iconView: some View {
-        let image = icon
+        icon
             .resizable()
             .aspectRatio(contentMode: .fit)
             .frame(width: 24, height: 24)
-
-        if option.provider == .nvidia {
-            image
-        } else {
-            image.clipShape(.rect(cornerRadius: 6))
-        }
+            .clipShape(.rect(cornerRadius: 6))
     }
 
     @ViewBuilder
