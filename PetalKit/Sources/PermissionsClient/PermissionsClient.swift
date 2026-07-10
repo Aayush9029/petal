@@ -19,6 +19,7 @@ public struct PermissionsClient: Sendable {
     public var promptForAccessibilityPermission: @Sendable () async -> Void = {}
     public var openMicrophonePrivacySettings: @Sendable () async -> Void = {}
     public var openAccessibilityPrivacySettings: @Sendable () async -> Void = {}
+    public var openGuidedAccessibilityPrivacySettings: @Sendable () async -> Void = {}
 }
 
 extension PermissionsClient: DependencyKey {
@@ -41,6 +42,9 @@ extension PermissionsClient: DependencyKey {
             },
             openAccessibilityPrivacySettings: {
                 await MainActor.run { openAccessibilityPrivacySettingsLive() }
+            },
+            openGuidedAccessibilityPrivacySettings: {
+                await MainActor.run { AccessibilitySettingsGuide.shared.present() }
             }
         )
     }
@@ -54,7 +58,8 @@ extension PermissionsClient: TestDependencyKey {
             hasAccessibilityPermission: { true },
             promptForAccessibilityPermission: {},
             openMicrophonePrivacySettings: {},
-            openAccessibilityPrivacySettings: {}
+            openAccessibilityPrivacySettings: {},
+            openGuidedAccessibilityPrivacySettings: {}
         )
     }
 }

@@ -378,7 +378,7 @@ public final class OnboardingModel {
             return
         }
 
-        await permissionsClient.openAccessibilityPrivacySettings()
+        await permissionsClient.openGuidedAccessibilityPrivacySettings()
         lastError = "Accessibility access is required to continue."
         transientMessage = "Turn on Accessibility in System Settings, then return to Petal."
     }
