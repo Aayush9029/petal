@@ -62,7 +62,7 @@ public enum ModelOption: String, CaseIterable, Identifiable, Sendable {
     case whisperLargeV3Turbo = "whisper-large-v3-turbo"
     case whisperTiny = "whisper-tiny"
     case mini3b = "mini-3b"
-    case mini3b8bit = "mini-3b-8bit"
+    case mini3b8bit = "voxtral-realtime-4b-2602-4bit"
 
     public static var allCases: [ModelOption] {
         var options: [ModelOption] = [
@@ -114,11 +114,11 @@ public enum ModelOption: String, CaseIterable, Identifiable, Sendable {
         case .qwen3ASR06B4bit:
             return ModelDescriptor(
                 id: rawValue,
-                repoID: "FluidInference/qwen3-asr-0.6b-coreml/f32",
-                name: "Qwen3 ASR 0.6B",
-                summary: "Fast multilingual transcription supporting 30+ languages including Chinese dialects.",
-                size: "~2.5 GB",
-                quantization: "FP32 CoreML",
+                repoID: "FluidInference/qwen3-asr-0.6b-coreml/int8",
+                name: "Qwen3 ASR 0.6B INT8",
+                summary: "Memory-efficient multilingual transcription across 30 languages with automatic language detection.",
+                size: "~1.3 GB",
+                quantization: "INT8 CoreML",
                 parameters: "0.6B",
                 provider: .fluidAudio,
                 recommended: true,
@@ -173,7 +173,7 @@ public enum ModelOption: String, CaseIterable, Identifiable, Sendable {
                 repoID: "argmaxinc/whisperkit-coreml",
                 name: "Whisper Large V3 Turbo",
                 summary: "OpenAI's speed-optimized Whisper with near-large accuracy across 99 languages.",
-                size: "~1.6 GB",
+                size: "~1.1 GB",
                 quantization: "CoreML",
                 parameters: "809M",
                 provider: .whisperKit,
@@ -185,15 +185,15 @@ public enum ModelOption: String, CaseIterable, Identifiable, Sendable {
             return ModelDescriptor(
                 id: rawValue,
                 repoID: "argmaxinc/whisperkit-coreml",
-                name: "Whisper Tiny",
-                summary: "Smallest and fastest Whisper model, ideal when speed matters more than peak accuracy.",
-                size: "~150 MB",
+                name: "Whisper Small",
+                summary: "Compact multilingual Whisper with a stronger accuracy-to-size balance than Tiny.",
+                size: "~217 MB",
                 quantization: "CoreML",
-                parameters: "39M",
+                parameters: "244M",
                 provider: .whisperKit,
                 recommended: false,
-                speedScore: 4,
-                smartScore: 2
+                speedScore: 3,
+                smartScore: 3
             )
         case .mini3b:
             return ModelDescriptor(
@@ -212,16 +212,16 @@ public enum ModelOption: String, CaseIterable, Identifiable, Sendable {
         case .mini3b8bit:
             return ModelDescriptor(
                 id: rawValue,
-                repoID: "mzbac/voxtral-mini-3b-8bit",
-                name: "Voxtral Mini 3B 8-bit",
-                summary: "Quantized Voxtral for lower memory with transcription, Q&A, and summarization.",
-                size: "~4.6 GB",
-                quantization: "8-bit",
-                parameters: "3B",
+                repoID: "mlx-community/Voxtral-Mini-4B-Realtime-2602-4bit",
+                name: "Voxtral Realtime 4B",
+                summary: "Mistral's latest streaming transcription model with 13-language support and sub-second delay.",
+                size: "~3.2 GB",
+                quantization: "4-bit MLX",
+                parameters: "4B",
                 provider: .voxtralCore,
                 recommended: false,
-                speedScore: 3,
-                smartScore: 4
+                speedScore: 4,
+                smartScore: 5
             )
         }
     }
@@ -263,9 +263,9 @@ public enum ModelOption: String, CaseIterable, Identifiable, Sendable {
     public var supportedTranscriptionModes: [TranscriptionMode] {
         switch self {
         case .appleSpeech, .qwen3ASR06B4bit, .parakeetTDT06BV3, .parakeetTDT06BV2,
-             .parakeetTDTCTC110M, .whisperLargeV3Turbo, .whisperTiny:
+             .parakeetTDTCTC110M, .whisperLargeV3Turbo, .whisperTiny, .mini3b8bit:
             return [.verbatim]
-        case .mini3b, .mini3b8bit:
+        case .mini3b:
             return TranscriptionMode.allCases
         }
     }
@@ -322,6 +322,8 @@ public enum ModelOption: String, CaseIterable, Identifiable, Sendable {
              "mlx-community/whisper-large-v3-turbo-asr-fp16":
             return .whisperLargeV3Turbo
         case Self.whisperTiny.rawValue,
+             "whisper-small",
+             "openai_whisper-small_216mb",
              "whisper-tiny-mlx",
              "mlx-community/whisper-tiny-mlx":
             return .whisperTiny
@@ -329,9 +331,7 @@ public enum ModelOption: String, CaseIterable, Identifiable, Sendable {
              "mlx-community/voxtral-mini-3b-2507-bf16":
             return .mini3b
         case Self.mini3b8bit.rawValue,
-             "mzbac/voxtral-mini-3b-8bit":
-            return .mini3b8bit
-        case "mini-3b-4bit", "mzbac/voxtral-mini-3b-4bit-mixed":
+             "mlx-community/voxtral-mini-4b-realtime-2602-4bit":
             return .mini3b8bit
         default:
             return .defaultOption

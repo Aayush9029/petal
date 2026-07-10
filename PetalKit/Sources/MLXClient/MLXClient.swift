@@ -4,6 +4,8 @@ import DependenciesMacros
 import FluidAudio
 import Foundation
 import LogClient
+import MLXAudioCore
+import MLXAudioSTT
 import VoxtralCore
 import WhisperKit
 
@@ -244,6 +246,7 @@ private actor LiveMLXRuntime {
 
     private var loadedModel: MLXPipelineModel?
     private var voxtralPipeline: VoxtralPipeline?
+    private var voxtralRealtimeModel: VoxtralRealtimeModel?
     private var qwen3AsrManager: Qwen3AsrManager?
     private var parakeetAsrManager: AsrManager?
     private var whisperKitInstance: WhisperKit?
@@ -266,7 +269,19 @@ private actor LiveMLXRuntime {
         log("prepare.unload.completed elapsed=\(formatElapsedSeconds(unloadElapsed))")
 
         switch model {
-        case .mini3b, .mini3b8bit:
+        case .mini3b8bit:
+            guard let info = model.voxtralRealtimeModelInfo,
+                  let modelDirectory = ModelDownloader.findModelPath(for: info)
+            else {
+                throw MLXError.invalidModelIdentifier(model.rawValue)
+            }
+            log("prepare.voxtral-realtime.begin model=\(model.rawValue)")
+            let loadStart = ProcessInfo.processInfo.systemUptime
+            voxtralRealtimeModel = try VoxtralRealtimeModel.fromDirectory(modelDirectory)
+            let loadElapsed = ProcessInfo.processInfo.systemUptime - loadStart
+            log("prepare.voxtral-realtime.loaded elapsed=\(formatElapsedSeconds(loadElapsed))")
+
+        case .mini3b:
             log("prepare.voxtral.begin model=\(model.rawValue)")
             var config = VoxtralPipeline.Configuration.default
             config.maxTokens = 1024
@@ -365,7 +380,33 @@ private actor LiveMLXRuntime {
             let transcript: String
 
             switch loadedModel {
-            case .mini3b, .mini3b8bit:
+            case .mini3b8bit:
+                guard let voxtralRealtimeModel else {
+                    throw MLXError.pipelineUnavailable
+                }
+                guard case .verbatim = mode else {
+                    throw MLXError.invalidModelIdentifier("Voxtral Realtime supports verbatim transcription only.")
+                }
+
+                let loadAudioStart = ProcessInfo.processInfo.systemUptime
+                let (_, audio) = try loadAudioArray(from: audioURL, sampleRate: 16_000)
+                let loadAudioElapsed = ProcessInfo.processInfo.systemUptime - loadAudioStart
+                log("transcribe.voxtral-realtime.audio-loaded elapsed=\(formatElapsedSeconds(loadAudioElapsed))")
+
+                let inferenceStart = ProcessInfo.processInfo.systemUptime
+                let output = voxtralRealtimeModel.generate(audio: audio)
+                let inferenceElapsed = ProcessInfo.processInfo.systemUptime - inferenceStart
+                log(
+                    "transcribe.voxtral-realtime.inference completed elapsed=\(formatElapsedSeconds(inferenceElapsed)), rawChars=\(output.text.count)"
+                )
+                let text = output.text.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !text.isEmpty else {
+                    log("transcribe.voxtral-realtime.empty-output")
+                    throw MLXError.pipelineUnavailable
+                }
+                transcript = text
+
+            case .mini3b:
                 guard let voxtralPipeline else {
                     throw MLXError.pipelineUnavailable
                 }
@@ -468,6 +509,7 @@ private actor LiveMLXRuntime {
     func unloadModel() {
         voxtralPipeline?.unload()
         voxtralPipeline = nil
+        voxtralRealtimeModel = nil
         qwen3AsrManager = nil
         parakeetAsrManager = nil
         whisperKitInstance = nil
@@ -584,7 +626,7 @@ private enum FluidAudioModel: Sendable, Equatable {
     var directoryURL: URL {
         switch self {
         case .qwen3Asr:
-            return Qwen3AsrModels.defaultCacheDirectory()
+            return Qwen3AsrModels.defaultCacheDirectory(variant: .int8)
         case .parakeetTdtV3, .parakeetTdtV2, .parakeetTdtCtc110m:
             return AsrModels.defaultCacheDirectory(for: parakeetVersion ?? .v3)
         }
@@ -593,14 +635,17 @@ private enum FluidAudioModel: Sendable, Equatable {
     var candidateDirectoryURLs: [URL] {
         switch self {
         case .qwen3Asr:
-            let defaultDirectory = Qwen3AsrModels.defaultCacheDirectory()
+            let defaultDirectory = Qwen3AsrModels.defaultCacheDirectory(variant: .int8)
             let repoDirectory = defaultDirectory.deletingLastPathComponent()
             let modelsRoot = repoDirectory.deletingLastPathComponent()
 
             return [
                 defaultDirectory,
+                Qwen3AsrModels.defaultCacheDirectory(variant: .f32),
                 repoDirectory,
+                repoDirectory.appendingPathComponent("qwen3-asr-0.6b-coreml-int8", isDirectory: true),
                 repoDirectory.appendingPathComponent("qwen3-asr-0.6b-coreml-f32", isDirectory: true),
+                modelsRoot.appendingPathComponent("qwen3-asr-0.6b-coreml-int8", isDirectory: true),
                 modelsRoot.appendingPathComponent("qwen3-asr-0.6b-coreml-f32", isDirectory: true),
             ]
         case .parakeetTdtV3, .parakeetTdtV2, .parakeetTdtCtc110m:
@@ -695,9 +740,14 @@ private enum FluidAudioCache {
         case .qwen3Asr:
             try await ModelDownloader.downloadFromHuggingFace(
                 repoId: "FluidInference/qwen3-asr-0.6b-coreml",
-                subfolder: "f32",
-                destination: Qwen3AsrModels.defaultCacheDirectory(),
-                fileFilter: nil,
+                subfolder: "int8",
+                destination: Qwen3AsrModels.defaultCacheDirectory(variant: .int8),
+                fileFilter: { path in
+                    path == "qwen3_asr_embeddings.bin"
+                        || path == "vocab.json"
+                        || path.hasPrefix("qwen3_asr_audio_encoder_v2.mlmodelc/")
+                        || path.hasPrefix("qwen3_asr_decoder_stateful.mlmodelc/")
+                },
                 progress: progress
             )
         case .parakeetTdtV3, .parakeetTdtV2, .parakeetTdtCtc110m:
@@ -760,9 +810,9 @@ private extension MLXPipelineModel {
     var whisperKitVariant: String? {
         switch self {
         case .whisperLargeV3Turbo:
-            return "openai_whisper-large-v3_turbo"
+            return "openai_whisper-large-v3_turbo_954MB"
         case .whisperTiny:
-            return "openai_whisper-tiny"
+            return "openai_whisper-small_216MB"
         case .mini3b, .mini3b8bit, .qwen3ASR06B4bit,
              .parakeetTDT06BV3, .parakeetTDT06BV2, .parakeetTDTCTC110M:
             return nil
@@ -823,26 +873,40 @@ private enum WhisperKitCache {
     }
 
     static func modelDirectoryURL(variant: String) -> URL? {
-        let baseDir = petalDirectory
+        let baseDirectory = petalDirectory
             .appendingPathComponent("models")
             .appendingPathComponent("argmaxinc")
             .appendingPathComponent("whisperkit-coreml")
 
-        let modelName = whisperKitModelName(for: variant)
-        let modelDir = baseDir.appendingPathComponent(modelName)
-        guard FileManager.default.fileExists(atPath: modelDir.path) else { return nil }
-        return modelDir
+        let modelDirectory = baseDirectory.appendingPathComponent(whisperKitModelName(for: variant))
+        guard FileManager.default.fileExists(atPath: modelDirectory.path) else { return nil }
+        return modelDirectory
     }
 
     private static func whisperKitModelName(for variant: String) -> String {
         switch variant {
         case "whisper-large-v3-turbo":
-            return "openai_whisper-large-v3_turbo"
+            return "openai_whisper-large-v3_turbo_954MB"
         case "whisper-tiny":
-            return "openai_whisper-tiny"
+            return "openai_whisper-small_216MB"
         default:
             return variant
         }
+    }
+}
+
+private extension MLXPipelineModel {
+    var voxtralRealtimeModelInfo: VoxtralModelInfo? {
+        guard case .mini3b8bit = self else { return nil }
+        return VoxtralModelInfo(
+            id: "voxtral-realtime-4b-2602-4bit",
+            repoId: "mlx-community/Voxtral-Mini-4B-Realtime-2602-4bit",
+            name: "Voxtral Realtime 4B",
+            description: "Mistral's streaming transcription model for 13 languages.",
+            size: "~3.2 GB",
+            quantization: "4-bit MLX",
+            parameters: "4B"
+        )
     }
 }
 

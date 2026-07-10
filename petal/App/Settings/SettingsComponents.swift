@@ -1,6 +1,5 @@
 import Shared
 import SwiftUI
-import UI
 
 struct SettingsPaneLayout<Content: View>: View {
     let tab: SettingsTab
@@ -24,7 +23,7 @@ struct SettingsPaneLayout<Content: View>: View {
 struct RecordingOptionTile: View {
     let title: String
     let description: String
-    let symbol: DottedStatusGlyph.Kind
+    let symbol: String
     let isOn: Bool
     let action: () -> Void
     @State private var isHovering = false
@@ -32,12 +31,11 @@ struct RecordingOptionTile: View {
     var body: some View {
         Button(action: action) {
             HStack(spacing: 10) {
-                DottedStatusGlyph(
-                    kind: symbol,
-                    tint: isOn ? Color.accentColor : .secondary
-                )
-                .frame(width: 30, height: 30)
-                .background(Color.primary.opacity(isOn ? 0.12 : 0.06), in: .rect(cornerRadius: 8))
+                Image(systemName: symbol)
+                    .font(.body.weight(.semibold))
+                    .foregroundStyle(isOn ? Color.accentColor : .secondary)
+                    .frame(width: 30, height: 30)
+                    .background(Color.primary.opacity(isOn ? 0.12 : 0.06), in: .rect(cornerRadius: 8))
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text(title)
@@ -56,9 +54,11 @@ struct RecordingOptionTile: View {
             }
             .padding(.horizontal, 14)
             .frame(maxWidth: .infinity, minHeight: 58)
-            .background(
-                Color.primary.opacity(isHovering ? 0.055 : (isOn ? 0.025 : 0))
-            )
+            .background {
+                Rectangle()
+                    .fill(Color.primary.opacity(isHovering ? 0.055 : 0))
+                    .padding(.vertical, 2)
+            }
             .contentShape(.rect)
         }
         .buttonStyle(.plain)

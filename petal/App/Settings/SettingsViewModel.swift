@@ -142,19 +142,8 @@ final class SettingsViewModel {
             || appleIntelligenceEnabled
     }
 
-    var pinnedDownloadOption: ModelOption? {
-        guard let option = downloadModel.downloadingModelOption else { return nil }
-
-        switch downloadModel.state {
-        case .preparing, .downloading, .paused, .failed:
-            return option
-        case .notDownloaded, .downloaded:
-            return nil
-        }
-    }
-
     var modelProviderGroups: IdentifiedArrayOf<ModelOptionProviderGroup> {
-        ModelOption.providerGroups(excluding: pinnedDownloadOption)
+        ModelOption.providerGroups()
     }
 
     let downloadModel: ModelDownloadModel

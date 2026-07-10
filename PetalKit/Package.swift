@@ -32,7 +32,9 @@ extension Target.Dependency {
     static let sauce: Self = .product(name: "Sauce", package: "Sauce")
     static let fluidAudio: Self = .product(name: "FluidAudio", package: "FluidAudio")
     static let voxtralCore: Self = .product(name: "VoxtralCore", package: "MLXVoxtralSwift")
-    static let whisperKit: Self = .product(name: "WhisperKit", package: "WhisperKit")
+    static let mlxAudioCore: Self = .product(name: "MLXAudioCore", package: "mlx-audio-swift")
+    static let mlxAudioSTT: Self = .product(name: "MLXAudioSTT", package: "mlx-audio-swift")
+    static let whisperKit: Self = .product(name: "WhisperKit", package: "argmax-oss-swift")
     static let onnxRuntime: Self = .product(name: "onnxruntime", package: "onnxruntime-swift-package-manager")
 }
 
@@ -72,13 +74,14 @@ let package = Package(
         .package(url: "https://github.com/altic-dev/FluidAudio.git", revision: "72625bbccf9f6c797a540a1f1cb66a4cb60753eb"),
         .package(name: "MLXVoxtralSwift", path: "../mlx-voxtral-swift"),
         .package(url: "https://github.com/pointfreeco/swift-dependencies", from: "1.14.1"),
-        .package(url: "https://github.com/pointfreeco/swift-custom-dump", from: "1.6.0"),
-        .package(url: "https://github.com/pointfreeco/swift-sharing", from: "2.9.0"),
+        .package(url: "https://github.com/pointfreeco/swift-custom-dump", from: "1.6.1"),
+        .package(url: "https://github.com/pointfreeco/swift-sharing", from: "2.9.1"),
         .package(url: "https://github.com/pointfreeco/swift-identified-collections", from: "1.1.1"),
         .package(url: "https://github.com/pointfreeco/swift-case-paths", from: "1.8.0"),
         .package(name: "KeyboardShortcuts", path: "KeyboardShortcuts"),
-        .package(url: "https://github.com/Clipy/Sauce.git", from: "2.5.0"),
-        .package(url: "https://github.com/argmaxinc/WhisperKit", from: "1.0.0"),
+        .package(url: "https://github.com/Clipy/Sauce.git", from: "2.5.1"),
+        .package(url: "https://github.com/Blaizzy/mlx-audio-swift.git", from: "0.1.3"),
+        .package(url: "https://github.com/argmaxinc/argmax-oss-swift", from: "1.0.0"),
         .package(url: "https://github.com/microsoft/onnxruntime-swift-package-manager", from: "1.24.2"),
     ],
     targets: [
@@ -174,6 +177,8 @@ let package = Package(
                 .shared,
                 .logClient,
                 .voxtralCore,
+                .mlxAudioCore,
+                .mlxAudioSTT,
                 .fluidAudio,
                 .whisperKit,
                 .onnxRuntime,

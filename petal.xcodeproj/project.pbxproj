@@ -518,7 +518,7 @@
 			repositoryURL = "https://github.com/pointfreeco/swift-dependencies";
 			requirement = {
 				kind = upToNextMajorVersion;
-				minimumVersion = 1.0.0;
+				minimumVersion = 1.14.1;
 			};
 		};
 		A10000030000000000000004 /* XCRemoteSwiftPackageReference "swift-sharing" */ = {
@@ -526,7 +526,7 @@
 			repositoryURL = "https://github.com/pointfreeco/swift-sharing";
 			requirement = {
 				kind = upToNextMajorVersion;
-				minimumVersion = 2.0.0;
+				minimumVersion = 2.9.1;
 			};
 		};
 		A10000030000000000000005 /* XCRemoteSwiftPackageReference "xctest-dynamic-overlay" */ = {
@@ -534,7 +534,7 @@
 			repositoryURL = "https://github.com/pointfreeco/xctest-dynamic-overlay";
 			requirement = {
 				kind = upToNextMajorVersion;
-				minimumVersion = 1.0.0;
+				minimumVersion = 1.11.0;
 			};
 		};
 		A10000030000000000000006 /* XCRemoteSwiftPackageReference "Sparkle" */ = {
@@ -542,7 +542,7 @@
 			repositoryURL = "https://github.com/sparkle-project/Sparkle";
 			requirement = {
 				kind = upToNextMajorVersion;
-				minimumVersion = 2.8.1;
+				minimumVersion = 2.9.4;
 			};
 		};
 		A10000030000000000000007 /* XCRemoteSwiftPackageReference "MacControlCenterUI" */ = {
@@ -550,7 +550,7 @@
 			repositoryURL = "https://github.com/orchetect/MacControlCenterUI";
 			requirement = {
 				kind = upToNextMajorVersion;
-				minimumVersion = 2.7.0;
+				minimumVersion = 2.7.3;
 			};
 		};
 /* End XCRemoteSwiftPackageReference section */

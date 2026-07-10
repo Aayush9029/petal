@@ -8,9 +8,9 @@ func modelOptionFallbackUsesDefault() {
 }
 
 @Test
-func legacyModelIDsMapToValidatedModel() {
-    #expect(ModelOption.from(modelID: "mini-3b-8bit") == .mini3b8bit)
-    #expect(ModelOption.from(modelID: "mini-3b-4bit") == .mini3b8bit)
+func removedVoxtralModelIDsFallBackToDefault() {
+    #expect(ModelOption.from(modelID: "mini-3b-8bit") == .defaultOption)
+    #expect(ModelOption.from(modelID: "mini-3b-4bit") == .defaultOption)
 }
 
 @Test
@@ -18,6 +18,7 @@ func qwenModelIDsMapToQwenOption() {
     #expect(ModelOption.from(modelID: "qwen3-asr-0.6b") == .qwen3ASR06B4bit)
     #expect(ModelOption.from(modelID: "mlx-community/Qwen3-ASR-0.6B-4bit") == .qwen3ASR06B4bit)
     #expect(ModelOption.from(modelID: "FluidInference/qwen3-asr-0.6b-coreml/f32") == .qwen3ASR06B4bit)
+    #expect(ModelOption.from(modelID: "FluidInference/qwen3-asr-0.6b-coreml/int8") == .qwen3ASR06B4bit)
     #expect(ModelOption.from(modelID: "qwen3-asr-1.7b") == .defaultOption)
     #expect(ModelOption.from(modelID: "Qwen/Qwen3-ASR-1.7B") == .defaultOption)
     #expect(ModelOption.from(modelID: "weiren119/Qwen3-ASR-1.7B-CoreML") == .defaultOption)
@@ -37,6 +38,13 @@ func whisperModelIDsMapToWhisperOptions() {
     #expect(ModelOption.from(modelID: "whisper-large-v3") == .whisperLargeV3Turbo)
     #expect(ModelOption.from(modelID: "whisper-tiny") == .whisperTiny)
     #expect(ModelOption.from(modelID: "whisper-tiny-mlx") == .whisperTiny)
+    #expect(ModelOption.from(modelID: "whisper-small") == .whisperTiny)
+    #expect(ModelOption.from(modelID: "openai_whisper-small_216MB") == .whisperTiny)
+}
+
+@Test
+func voxtralRealtimeModelIDsMapToRealtimeOption() {
+    #expect(ModelOption.from(modelID: "mlx-community/Voxtral-Mini-4B-Realtime-2602-4bit") == .mini3b8bit)
 }
 
 @Test
@@ -62,14 +70,14 @@ func modelOptionDisplayNamesUseCleanProductNames() {
         ],
         [
             "Apple Speech",
-            "Qwen3 ASR 0.6B",
+            "Qwen3 ASR 0.6B INT8",
             "Parakeet 0.6B V3",
             "Parakeet 0.6B V2",
             "Parakeet 110M",
-            "Whisper Tiny",
+            "Whisper Small",
             "Whisper Large V3 Turbo",
             "Voxtral Mini 3B BF16",
-            "Voxtral Mini 3B 8-bit",
+            "Voxtral Realtime 4B",
         ]
     )
 }
@@ -139,6 +147,12 @@ func voxtralSupportsSmartAndVerbatim() {
     #expect(ModelOption.mini3b.supportedTranscriptionModes.contains(.verbatim))
     #expect(ModelOption.mini3b.supportedTranscriptionModes.contains(.smart))
     #expect(ModelOption.mini3b.supportsSmartTranscription)
+}
+
+@Test
+func voxtralRealtimeSupportsVerbatimOnly() {
+    #expect(ModelOption.mini3b8bit.supportedTranscriptionModes == [.verbatim])
+    #expect(!ModelOption.mini3b8bit.supportsSmartTranscription)
 }
 
 @Test

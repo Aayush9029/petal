@@ -189,7 +189,7 @@ struct RecordingPane: View {
                     RecordingOptionTile(
                         title: "Trim Silence",
                         description: "Remove quiet gaps from recordings.",
-                        symbol: .scissors,
+                        symbol: "scissors",
                         isOn: viewModel.trimSilenceEnabled
                     ) { viewModel.$trimSilenceEnabled.withLock { $0.toggle() } }
 
@@ -198,7 +198,7 @@ struct RecordingPane: View {
                     RecordingOptionTile(
                         title: "Auto Speed-up",
                         description: "Accelerate long recordings automatically.",
-                        symbol: .rabbit,
+                        symbol: "hare.fill",
                         isOn: viewModel.autoSpeedEnabled
                     ) { viewModel.$autoSpeedEnabled.withLock { $0.toggle() } }
 
@@ -207,7 +207,7 @@ struct RecordingPane: View {
                     RecordingOptionTile(
                         title: "Restore Clipboard",
                         description: "Put previous clipboard content back.",
-                        symbol: .clipboard,
+                        symbol: "clipboard",
                         isOn: viewModel.restoreClipboardAfterPaste
                     ) { viewModel.$restoreClipboardAfterPaste.withLock { $0.toggle() } }
 
@@ -216,7 +216,7 @@ struct RecordingPane: View {
                     RecordingOptionTile(
                         title: "Lower System Audio",
                         description: "Quiet other audio while recording.",
-                        symbol: .speaker,
+                        symbol: "speaker.wave.1",
                         isOn: viewModel.duckSystemAudioDuringRecording
                     ) { viewModel.$duckSystemAudioDuringRecording.withLock { $0.toggle() } }
                 }
@@ -240,7 +240,7 @@ struct TranscriptionPane: View {
 
     var body: some View {
         SettingsPaneLayout(tab: .transcription) {
-            SettingsPanel {
+            SettingsPanelSection(title: "Speech Model") {
                 ForEach(Array(visibleModelOptions.enumerated()), id: \.element) { index, option in
                     modelCard(for: option)
                     if index < visibleModelOptions.count - 1 {
@@ -250,13 +250,25 @@ struct TranscriptionPane: View {
             }
 
             if viewModel.appleIntelligenceAvailable || viewModel.smartModeAvailable {
-                SettingsPanel {
+                SettingsPanelSection(title: "Enhancement") {
                     if viewModel.appleIntelligenceAvailable {
-                        SettingsToggleRow(
+                        SettingsControlRow(
                             title: "Enhance with Apple Intelligence",
-                            symbol: "apple.intelligence",
-                            isOn: viewModel.appleIntelligenceEnabled
-                        ) { value in viewModel.$appleIntelligenceEnabled.withLock { $0 = value } }
+                            description: "Refine transcripts on-device after speech recognition."
+                        ) {
+                            HStack(spacing: 10) {
+                                IntelligenceProcessingWaveform(
+                                    bars: 11,
+                                    rows: 5,
+                                    isAnimated: viewModel.appleIntelligenceEnabled
+                                )
+                                SettingsSwitch(
+                                    isOn: viewModel.appleIntelligenceEnabled
+                                ) { value in
+                                    viewModel.$appleIntelligenceEnabled.withLock { $0 = value }
+                                }
+                            }
+                        }
                     }
 
                     if viewModel.appleIntelligenceAvailable && viewModel.smartModeAvailable {
@@ -327,8 +339,7 @@ struct TranscriptionPane: View {
 
     private var visibleModelOptions: [ModelOption] {
         var seen = Set<ModelOption>()
-        let options = [viewModel.pinnedDownloadOption].compactMap { $0 }
-            + viewModel.modelProviderGroups.flatMap(\.options)
+        let options = viewModel.modelProviderGroups.flatMap(\.options)
         return options.filter { seen.insert($0).inserted }
     }
 

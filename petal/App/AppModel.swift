@@ -2078,7 +2078,7 @@ final class AppModel {
         case .mini3b:
             return 0.8
         case .mini3b8bit:
-            return 1.1
+            return 1.5
         case .appleSpeech:
             return 2.6
         }

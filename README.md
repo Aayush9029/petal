@@ -54,7 +54,7 @@
     </tr>
     <tr>
       <td valign="middle"><img src="assets/readme/models/qwen.png" alt="Qwen" width="28" height="28"> Qwen</td>
-      <td>Qwen3 ASR</td>
+      <td>Qwen3 ASR 0.6B INT8</td>
       <td>Default balanced on-device model.</td>
     </tr>
     <tr>
@@ -64,7 +64,7 @@
     </tr>
     <tr>
       <td valign="middle"><img src="assets/readme/models/openai.png" alt="Whisper" width="28" height="28"> Whisper</td>
-      <td>Whisper Large V3, Whisper Tiny</td>
+      <td>Whisper Large V3 Turbo, Whisper Small</td>
       <td>High-accuracy and lightweight Whisper options via WhisperKit.</td>
     </tr>
     <tr>
@@ -74,7 +74,7 @@
     </tr>
     <tr>
       <td valign="middle"><img src="assets/readme/models/mistral.png" alt="Voxtral" width="28" height="28"> Voxtral</td>
-      <td>Voxtral BF16, Voxtral 8-bit</td>
+      <td>Voxtral Realtime 4B, Voxtral 3B BF16</td>
       <td>Fast local transcription with higher-end on-device quality.</td>
     </tr>
   </tbody>
@@ -94,5 +94,3 @@
 ## Privacy
 
 Petal is designed for local transcription workflows and keeps the experience on-device where possible.
-
-
