@@ -66,10 +66,10 @@ public enum ModelOption: String, CaseIterable, Identifiable, Sendable {
 
     public static var allCases: [ModelOption] {
         var options: [ModelOption] = [
+            .parakeetTDTCTC110M,
             .qwen3ASR06B4bit,
             .parakeetTDT06BV3,
             .parakeetTDT06BV2,
-            .parakeetTDTCTC110M,
             .whisperLargeV3Turbo,
             .whisperTiny,
             .mini3b,
@@ -81,7 +81,7 @@ public enum ModelOption: String, CaseIterable, Identifiable, Sendable {
         return options
     }
 
-    public static let defaultOption: Self = .qwen3ASR06B4bit
+    public static let defaultOption: Self = .parakeetTDTCTC110M
 
     public static var isAppleSpeechSupportedOnCurrentDevice: Bool {
         #if canImport(Speech)
@@ -121,7 +121,7 @@ public enum ModelOption: String, CaseIterable, Identifiable, Sendable {
                 quantization: "INT8 CoreML",
                 parameters: "0.6B",
                 provider: .fluidAudio,
-                recommended: true,
+                recommended: false,
                 speedScore: 4,
                 smartScore: 4
             )
@@ -163,7 +163,7 @@ public enum ModelOption: String, CaseIterable, Identifiable, Sendable {
                 quantization: "CoreML",
                 parameters: "110M",
                 provider: .nvidia,
-                recommended: false,
+                recommended: true,
                 speedScore: 5,
                 smartScore: 2
             )

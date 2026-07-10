@@ -92,8 +92,11 @@ func modelCatalogIncludesBothBackends() {
 }
 
 @Test
-func defaultModelRemainsRecommended() {
+func parakeet110MIsTheOnlyRecommendedDefaultModel() {
+    #expect(ModelOption.defaultOption == .parakeetTDTCTC110M)
     #expect(ModelOption.defaultOption.isRecommended)
+    #expect(ModelOption.allCases.filter(\.isRecommended) == [.parakeetTDTCTC110M])
+    #expect(ModelOption.allCases.first(where: \.requiresDownload) == .parakeetTDTCTC110M)
 }
 
 @Test

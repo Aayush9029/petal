@@ -55,12 +55,12 @@
     <tr>
       <td valign="middle"><img src="assets/readme/models/qwen.png" alt="Qwen" width="28" height="28"> Qwen</td>
       <td>Qwen3 ASR 0.6B INT8</td>
-      <td>Default balanced on-device model.</td>
+      <td>Memory-efficient multilingual transcription.</td>
     </tr>
     <tr>
       <td valign="middle"><img src="assets/readme/models/nvidia.png" alt="FluidAudio" width="28" height="28"> FluidAudio</td>
-      <td>Parakeet TDT 0.6B (v3)</td>
-      <td>Fast local Parakeet transcription via FluidAudio.</td>
+      <td>Parakeet 110M, Parakeet TDT 0.6B (v3 and v2)</td>
+      <td>Parakeet 110M is the recommended default for fast local transcription.</td>
     </tr>
     <tr>
       <td valign="middle"><img src="assets/readme/models/openai.png" alt="Whisper" width="28" height="28"> Whisper</td>

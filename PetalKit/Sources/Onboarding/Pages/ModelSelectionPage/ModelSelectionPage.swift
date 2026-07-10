@@ -12,7 +12,7 @@ struct ModelSelectionPage: View {
                 OnboardingHeader(
                     symbol: "externaldrive.fill",
                     title: "Choose a Model",
-                    description: "Transcription runs entirely on-device. Choose between Apple Speech, Qwen, Whisper, and Voxtral model families.",
+                    description: "Transcription runs entirely on-device. Choose between NVIDIA Parakeet, Apple Speech, Qwen, Whisper, and Voxtral model families.",
                     layout: .vertical
                 )
                 .slideIn(active: isAnimating, delay: 0.25)
