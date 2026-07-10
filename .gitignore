@@ -1,4 +1,5 @@
 .derived/
+.codex-derived-data/
 .DS_Store
 PetalKit/.build/
 

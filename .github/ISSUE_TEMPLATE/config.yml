@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Report a security vulnerability
+    url: https://github.com/Aayush9029/petal/security/advisories/new
+    about: Report security issues privately to the maintainers.

@@ -1,0 +1,44 @@
+name: Feature request
+description: Suggest an improvement to Petal
+title: "[Feature]: "
+body:
+  - type: markdown
+    attributes:
+      value: Thanks for taking the time to suggest an improvement. Please describe the problem before proposing a particular implementation.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What limitation or workflow problem would this feature address?
+      placeholder: I often need to ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: What would you like Petal to do?
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Describe any workarounds or alternative approaches you have tried.
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: Add mockups, examples, or other details that would help explain the request.
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checklist
+      options:
+        - label: I searched existing issues for a similar request.
+          required: true
