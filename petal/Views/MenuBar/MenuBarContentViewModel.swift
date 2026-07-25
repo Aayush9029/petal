@@ -23,10 +23,8 @@ final class MenuBarContentViewModel {
     }
 
     var statusTitle: String { appModel.statusTitle }
-    var statusSymbolName: String { appModel.menuBarSymbolName }
     var iconState: MenuBarIconState { appModel.menuBarIconState }
-    /// Smoothed input level for the recording pulse. Read per animation frame,
-    /// intentionally outside observation so level changes don't re-run status.
+    /// Read per animation frame, deliberately outside observation so level changes don't re-run the status pass.
     var audioLevel: Double { appModel.currentLevel }
     var isRecording: Bool {
         if case .recording = appModel.sessionState {
@@ -34,25 +32,20 @@ final class MenuBarContentViewModel {
         }
         return false
     }
-    var statusColor: Color {
-        switch appModel.sessionState {
-        case .recording:
-            return .red
-        case .processing(.trimming):
-            return .orange
-        case .processing(.speeding):
-            return .teal
-        case .processing(.transcribing), .processing(.refining), .idle, .error:
-            return .primary
-        }
+
+    /// Leads with the current state, so the popup's status line never goes blank and never changes the panel's height.
+    var statusHeadline: String {
+        if let statusErrorMessage { return statusErrorMessage }
+        if isRecording { return "Recording" }
+        return transientMessage ?? appModel.statusTitle
     }
 
-    var statusErrorMessage: String? {
+    private var statusErrorMessage: String? {
         guard case let .error(message) = appModel.sessionState else { return nil }
         return message
     }
 
-    var transientMessage: String? {
+    private var transientMessage: String? {
         guard let message = appModel.transientMessage else { return nil }
         let lower = message.lowercased()
         let allowedKeywords = [

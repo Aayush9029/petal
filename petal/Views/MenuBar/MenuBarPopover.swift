@@ -1,10 +1,10 @@
 import SwiftUI
 import UI
 
-/// The custom menu-bar popover — a compact panel with the pixel waveform on top
-/// (idle / recording / processing animation), recent transcripts, and actions.
 struct MenuBarPopover: View {
-    private static let recentTranscriptsMaxHeight: CGFloat = 188
+    private static let waveformHeight: CGFloat = 68
+    private static let transcriptListHeight: CGFloat = 152
+    private static let cornerRadius: CGFloat = 14
 
     let viewModel: MenuBarContentViewModel
     var dismiss: () -> Void
@@ -12,28 +12,28 @@ struct MenuBarPopover: View {
     @State private var transcriptPendingDeletion: MenuBarContentViewModel.HistoryMenuItem?
     @State private var isAudioDropTargeted = false
 
-    private var isRecording: Bool { viewModel.isRecording }
-
-    private var waveformTint: Color {
-        isRecording ? .red : .accentColor
-    }
-
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            waveformCard
+        VStack(alignment: .leading, spacing: 8) {
+            statusCard
             permissionSection
-            messageBanner
-
-            Divider().padding(.vertical, 6)
 
             transcriptsSection
 
-            Divider().padding(.vertical, 6)
+            Divider().padding(.horizontal, 4)
 
             actions
         }
-        .padding(12)
-        .frame(width: 312)
+        .padding(8)
+        .frame(width: PopupPanelController.contentWidth)
+        .background {
+            VisualEffectBackground()
+                .clipShape(.rect(cornerRadius: Self.cornerRadius, style: .continuous))
+        }
+        .overlay {
+            RoundedRectangle(cornerRadius: Self.cornerRadius, style: .continuous)
+                .strokeBorder(.white.opacity(0.12), lineWidth: 0.5)
+        }
+        .clipShape(.rect(cornerRadius: Self.cornerRadius, style: .continuous))
         .overlay {
             if isAudioDropTargeted {
                 audioDropOverlay
@@ -47,20 +47,178 @@ struct MenuBarPopover: View {
             isAudioDropTargeted = $0
         }
         .animation(.easeOut(duration: 0.16), value: isAudioDropTargeted)
-        .alert("Delete transcript?", isPresented: deleteConfirmationIsPresented) {
+        .alert("Delete Transcript?", isPresented: isShowingDeleteConfirmation) {
             Button("Delete", role: .destructive) {
-                if let entry = transcriptPendingDeletion {
-                    viewModel.deleteHistoryEntry(entry.id)
+                if let transcriptPendingDeletion {
+                    viewModel.deleteHistoryEntry(transcriptPendingDeletion.id)
                 }
                 transcriptPendingDeletion = nil
             }
-            Button("Cancel", role: .cancel) {
-                transcriptPendingDeletion = nil
-            }
+            Button("Cancel", role: .cancel) { transcriptPendingDeletion = nil }
         } message: {
-            Text("This removes the transcript from recent history.")
+            Text("This permanently removes it from your history.")
         }
     }
+
+    // MARK: - Status
+
+    private var statusCard: some View {
+        VStack(spacing: 8) {
+            // The recording and processing waveforms have a fixed intrinsic
+            // width from their bar count; as an overlay they cannot widen the
+            // card the way the idle view, which just fills, does not.
+            Color.clear
+                .frame(maxWidth: .infinity)
+                .frame(height: Self.waveformHeight)
+                .overlay { waveform }
+                .clipped()
+
+            HStack(spacing: 6) {
+                Circle()
+                    .fill(statusTint)
+                    .frame(width: 6, height: 6)
+                Text(viewModel.statusHeadline)
+                    .lineLimit(1)
+                Spacer(minLength: 0)
+            }
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+            .help(viewModel.statusHeadline)
+        }
+        .padding(10)
+        .petalGlass(cornerRadius: Self.cornerRadius)
+    }
+
+    private var statusTint: Color {
+        switch viewModel.iconState {
+        case .recording: .red
+        case .working: .orange
+        case .error: .red
+        case .idle: .green
+        }
+    }
+
+    /// Idle draws Conway's Game of Life; the active states draw the pixel waveform.
+    @ViewBuilder
+    private var waveform: some View {
+        switch viewModel.iconState {
+        case .idle, .error:
+            GameOfLifeView(tint: .accentColor)
+        case .recording:
+            LiveWaveform(
+                level: viewModel.audioLevel,
+                bars: 72,
+                rows: 17,
+                tint: .red,
+                sampleInterval: .milliseconds(66)
+            )
+        case .working:
+            ProcessingWaveform(bars: 72, rows: 17, tint: .accentColor)
+        }
+    }
+
+    // MARK: - Permissions
+
+    @ViewBuilder
+    private var permissionSection: some View {
+        if viewModel.shouldShowPermissionsSection {
+            VStack(spacing: 6) {
+                if viewModel.needsMicrophonePermission {
+                    PermissionCalloutRow(title: "Allow Microphone Access", systemImage: "mic.fill") {
+                        viewModel.requestMicrophonePermission()
+                        dismiss()
+                    }
+                }
+                if viewModel.needsAccessibilityPermission {
+                    PermissionCalloutRow(title: "Turn On Accessibility", systemImage: "hand.raised.fill") {
+                        viewModel.requestAccessibilityPermission()
+                        dismiss()
+                    }
+                }
+            }
+        }
+    }
+
+    // MARK: - Transcripts
+
+    private var transcriptsSection: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text("Recent Transcripts")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 8)
+
+            transcriptList
+                .frame(height: Self.transcriptListHeight)
+        }
+    }
+
+    @ViewBuilder
+    private var transcriptList: some View {
+        if !viewModel.shouldShowHistoryMenu || viewModel.historyMenuItems.isEmpty {
+            Text(emptyTranscriptsMessage)
+                .font(.system(size: 13))
+                .foregroundStyle(.tertiary)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+        } else {
+            ScrollView {
+                VStack(spacing: 1) {
+                    ForEach(viewModel.historyMenuItems) { entry in
+                        TranscriptRow(
+                            entry: entry,
+                            copy: { viewModel.copyHistoryEntry(entry.id) },
+                            delete: { transcriptPendingDeletion = entry }
+                        )
+                    }
+                }
+            }
+            .scrollIndicators(.never)
+        }
+    }
+
+    private var emptyTranscriptsMessage: String {
+        viewModel.shouldShowHistoryMenu ? "No transcripts yet" : "History is turned off"
+    }
+
+    // MARK: - Actions
+
+    @ViewBuilder
+    private var actions: some View {
+        if viewModel.isRecording {
+            PopupMenuRow(title: "Stop Recording", systemImage: "stop.fill", isDestructive: true) {
+                viewModel.stopRecording()
+                dismiss()
+            }
+        } else {
+            PopupMenuRow(title: "Start Recording", systemImage: "mic.fill") {
+                viewModel.startRecording()
+                dismiss()
+            }
+        }
+
+        PopupMenuRow(title: "Petal Settings…", systemImage: "gearshape", shortcut: "⌘,") {
+            viewModel.openSettings()
+            dismiss()
+        }
+        PopupMenuRow(title: "About Petal", systemImage: "info.circle") {
+            viewModel.showAbout()
+            dismiss()
+        }
+        // Always present, merely disabled: inserting it once Sparkle finishes starting would change the panel's height under the pointer.
+        PopupMenuRow(
+            title: "Check for Updates…",
+            systemImage: "arrow.triangle.2.circlepath",
+            isEnabled: viewModel.canCheckForUpdates
+        ) {
+            viewModel.checkForUpdates()
+            dismiss()
+        }
+        PopupMenuRow(title: "Quit Petal", systemImage: "power", shortcut: "⌘Q") {
+            viewModel.quit()
+        }
+    }
+
+    // MARK: - Drop target
 
     private var audioDropOverlay: some View {
         VStack(spacing: 8) {
@@ -71,14 +229,14 @@ struct MenuBarPopover: View {
             Text("Drop to Transcribe")
                 .font(.headline)
 
-            Text("Uses your selected model and copies the result.")
+            Text("Petal copies the transcript when it's done.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
         .multilineTextAlignment(.center)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(.regularMaterial)
-        .clipShape(.rect(cornerRadius: 12))
+        .clipShape(.rect(cornerRadius: 12, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: 12, style: .continuous)
                 .strokeBorder(.tint, style: StrokeStyle(lineWidth: 2, dash: [6, 5]))
@@ -86,10 +244,10 @@ struct MenuBarPopover: View {
         .padding(4)
         .allowsHitTesting(false)
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("Drop audio file to transcribe with the selected model")
+        .accessibilityLabel("Drop an audio file to transcribe it")
     }
 
-    private var deleteConfirmationIsPresented: Binding<Bool> {
+    private var isShowingDeleteConfirmation: Binding<Bool> {
         Binding(
             get: { transcriptPendingDeletion != nil },
             set: { isPresented in
@@ -98,380 +256,5 @@ struct MenuBarPopover: View {
                 }
             }
         )
-    }
-
-    // MARK: - Waveform
-
-    private var waveformCard: some View {
-        ZStack {
-            Rectangle()
-                .fill(.quaternary.opacity(0.5))
-            // Idle → Conway's Game of Life easter egg; active → the pixel EQ.
-            switch viewModel.iconState {
-            case .idle, .error:
-                GameOfLifeView(tint: .accentColor)
-                    .padding(4)
-            case .recording:
-                LiveWaveform(
-                    level: viewModel.audioLevel,
-                    bars: 72,
-                    rows: 17,
-                    tint: .red,
-                    sampleInterval: .milliseconds(66)
-                )
-            case .working:
-                ProcessingWaveform(bars: 72, rows: 17, tint: waveformTint)
-            }
-        }
-        .frame(height: 68)
-        .clipShape(RoundedRectangle(cornerRadius: 10))
-    }
-
-    // MARK: - Permissions
-
-    @ViewBuilder
-    private var permissionSection: some View {
-        if viewModel.shouldShowPermissionsSection {
-            VStack(spacing: 6) {
-                if viewModel.needsMicrophonePermission {
-                    CalloutButton(icon: "mic.fill", title: "Allow microphone access") {
-                        viewModel.requestMicrophonePermission()
-                        dismiss()
-                    }
-                }
-                if viewModel.needsAccessibilityPermission {
-                    CalloutButton(icon: "hand.raised.fill", title: "Turn on Accessibility") {
-                        viewModel.requestAccessibilityPermission()
-                        dismiss()
-                    }
-                }
-            }
-            .padding(.top, 8)
-        }
-    }
-
-    @ViewBuilder
-    private var messageBanner: some View {
-        if let message = viewModel.statusErrorMessage ?? viewModel.transientMessage {
-            Text(message)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-                .padding(.top, 8)
-        }
-    }
-
-    // MARK: - Transcripts
-
-    @ViewBuilder
-    private var transcriptsSection: some View {
-        Text("Recent Transcripts")
-            .font(.subheadline.weight(.semibold))
-            .foregroundStyle(.secondary)
-            .padding(.horizontal, 6)
-            .padding(.bottom, 4)
-
-        if !viewModel.shouldShowHistoryMenu || viewModel.historyMenuItems.isEmpty {
-            Text("No transcripts yet")
-                .font(.subheadline)
-                .foregroundStyle(.tertiary)
-                .padding(.horizontal, 6)
-                .padding(.vertical, 4)
-        } else {
-            ScrollView {
-                VStack(spacing: 1) {
-                    ForEach(viewModel.historyMenuItems) { entry in
-                        TranscriptRow(
-                            entry: entry,
-                            copy: {
-                                viewModel.copyHistoryEntry(entry.id)
-                            },
-                            delete: {
-                                transcriptPendingDeletion = entry
-                            }
-                        )
-                    }
-                }
-            }
-            .frame(maxHeight: Self.recentTranscriptsMaxHeight)
-        }
-    }
-
-    // MARK: - Actions
-
-    private var actions: some View {
-        VStack(spacing: 1) {
-            if isRecording {
-                PopoverRow(title: "Stop Recording", tint: .red) {
-                    viewModel.stopRecording()
-                    dismiss()
-                }
-            } else {
-                PopoverRow(title: "Start Recording", tint: .accentColor) {
-                    viewModel.startRecording()
-                    dismiss()
-                }
-            }
-            PopoverRow(title: "Settings", shortcut: "⌘,") {
-                viewModel.openSettings()
-                dismiss()
-            }
-            PopoverRow(title: "About Petal") {
-                viewModel.showAbout()
-                dismiss()
-            }
-            if viewModel.showsCheckForUpdates {
-                PopoverRow(title: "Check for Updates…") {
-                    viewModel.checkForUpdates()
-                    dismiss()
-                }
-                .disabled(!viewModel.canCheckForUpdates)
-            }
-            PopoverRow(title: "Quit Petal", shortcut: "⌘Q") {
-                viewModel.quit()
-            }
-        }
-    }
-}
-
-// MARK: - Rows
-
-private struct TranscriptRow: View {
-    private static let actionsWidth: CGFloat = 54
-    private static let actionsScrimWidth: CGFloat = 106
-    private static let iconButtonSize: CGFloat = 26
-
-    var entry: MenuBarContentViewModel.HistoryMenuItem
-    var copy: () -> Void
-    var delete: () -> Void
-
-    @State private var hovering = false
-    @State private var copyIconHovering = false
-    @State private var deleteIconHovering = false
-    @State private var didCopy = false
-    @State private var resetCopyIconTask: Task<Void, Never>?
-
-    var body: some View {
-        ZStack(alignment: .trailing) {
-            Text(entry.title)
-                .font(.subheadline)
-                .foregroundStyle(.primary)
-                .lineLimit(2)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal, 6)
-                .padding(.vertical, 5)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .contentShape(Rectangle())
-                .onTapGesture(perform: copyButtonTapped)
-
-            if actionsAreVisible {
-                actionOverlay
-                    .transition(
-                        .opacity.combined(with: .move(edge: .trailing))
-                    )
-            }
-        }
-        .background(hovering ? Color.primary.opacity(0.08) : .clear, in: RoundedRectangle(cornerRadius: 6))
-        .contentShape(Rectangle())
-        .animation(.snappy(duration: 0.15), value: actionsAreVisible)
-        .onHover { hovering = $0 }
-        .onDisappear {
-            resetCopyIconTask?.cancel()
-            copyIconHovering = false
-            deleteIconHovering = false
-        }
-    }
-
-    private func copyButtonTapped() {
-        copy()
-        didCopy = true
-        resetCopyIconTask?.cancel()
-        resetCopyIconTask = Task { @MainActor in
-            try? await Task.sleep(for: .seconds(1))
-            guard !Task.isCancelled else { return }
-            didCopy = false
-        }
-    }
-
-    private var actionsAreVisible: Bool {
-        hovering || didCopy
-    }
-
-    private var copyIconName: String {
-        copyIconHovering ? "doc.on.doc.fill" : "doc.on.doc"
-    }
-
-    private var copyIconColor: Color {
-        if didCopy {
-            return .green
-        }
-        return copyIconHovering ? .primary : .secondary
-    }
-
-    private var deleteIconName: String {
-        deleteIconHovering ? "trash.fill" : "trash"
-    }
-
-    private var deleteIconColor: Color {
-        deleteIconHovering ? .red : .secondary
-    }
-
-    private var actionOverlay: some View {
-        ZStack(alignment: .trailing) {
-            Rectangle()
-                .fill(.thinMaterial)
-                .overlay {
-                    LinearGradient(
-                        colors: [
-                            .clear,
-                            Color.primary.opacity(0.04),
-                        ],
-                        startPoint: .leading,
-                        endPoint: .trailing
-                    )
-                }
-                .mask {
-                    LinearGradient(
-                        stops: [
-                            .init(color: .clear, location: 0),
-                            .init(color: .white.opacity(0.45), location: 0.35),
-                            .init(color: .white.opacity(0.9), location: 0.68),
-                            .init(color: .white, location: 1),
-                        ],
-                        startPoint: .leading,
-                        endPoint: .trailing
-                    )
-                }
-                .blur(radius: 0.8)
-                .allowsHitTesting(false)
-
-            actionButtons
-                .frame(width: Self.actionsWidth)
-                .padding(.trailing, 6)
-                .allowsHitTesting(actionsAreVisible)
-        }
-        .frame(width: Self.actionsScrimWidth)
-        .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
-    }
-
-    private var actionButtons: some View {
-        HStack(spacing: 2) {
-            Button(action: copyButtonTapped) {
-                ZStack {
-                    if didCopy {
-                        Image(systemName: "checkmark")
-                            .transition(.scale(scale: 0.72).combined(with: .opacity))
-                    } else {
-                        Image(systemName: copyIconName)
-                            .transition(.scale(scale: 0.72).combined(with: .opacity))
-                    }
-                }
-                .font(.callout.weight(.semibold))
-                .frame(width: Self.iconButtonSize, height: Self.iconButtonSize)
-                .contentShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
-                .animation(.snappy(duration: 0.18), value: didCopy)
-                .animation(.snappy(duration: 0.15), value: copyIconHovering)
-            }
-            .buttonStyle(.plain)
-            .foregroundStyle(copyIconColor)
-            .help(didCopy ? "Copied" : "Copy transcript")
-            .onHover { copyIconHovering = $0 }
-
-            Button(action: delete) {
-                Image(systemName: deleteIconName)
-                    .font(.callout.weight(.semibold))
-                    .frame(width: Self.iconButtonSize, height: Self.iconButtonSize)
-                    .contentShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
-                    .animation(.snappy(duration: 0.15), value: deleteIconHovering)
-            }
-            .buttonStyle(.plain)
-            .foregroundStyle(deleteIconColor)
-            .help("Delete transcript")
-            .onHover { deleteIconHovering = $0 }
-        }
-    }
-}
-
-/// A full-width hover-highlighted action row.
-private struct PopoverRow: View {
-    var icon: String? = nil
-    var title: String
-    var subtitle: String? = nil
-    var shortcut: String? = nil
-    var titleFont: Font = .headline.weight(.regular)
-    var tint: Color = .primary
-    var action: () -> Void
-
-    @State private var hovering = false
-
-    var body: some View {
-        Button(action: action) {
-            HStack(spacing: 8) {
-                if let icon {
-                    Image(systemName: icon)
-                        .font(.caption)
-                        .foregroundStyle(tint)
-                        .frame(width: 16)
-                }
-                VStack(alignment: .leading, spacing: 1) {
-                    Text(title)
-                        .font(titleFont)
-                        .foregroundStyle(tint)
-                        .lineLimit(1)
-                    if let subtitle {
-                        Text(subtitle)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .lineLimit(1)
-                    }
-                }
-                Spacer(minLength: 4)
-                if let shortcut {
-                    Text(shortcut)
-                        .font(.caption)
-                        .foregroundStyle(.tertiary)
-                }
-            }
-            .padding(.horizontal, 6)
-            .padding(.vertical, 5)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(hovering ? Color.primary.opacity(0.08) : .clear, in: RoundedRectangle(cornerRadius: 6))
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .onHover { hovering = $0 }
-    }
-}
-
-/// A prominent blue call-to-action (used for permission prompts).
-private struct CalloutButton: View {
-    var icon: String
-    var title: String
-    var action: () -> Void
-
-    @State private var hovering = false
-
-    var body: some View {
-        Button(action: action) {
-            HStack(spacing: 8) {
-                Image(systemName: icon)
-                    .font(.caption)
-                Text(title)
-                    .font(.subheadline.weight(.medium))
-                Spacer()
-            }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 7)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(
-                hovering ? Color.blue : Color.primary.opacity(0.08),
-                in: .rect(cornerRadius: 8)
-            )
-            .foregroundStyle(hovering ? Color.white : Color.primary)
-            .contentShape(.rect(cornerRadius: 8))
-        }
-        .buttonStyle(.plain)
-        .animation(.smooth(duration: 0.18), value: hovering)
-        .onHover { hovering = $0 }
     }
 }

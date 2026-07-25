@@ -89,14 +89,10 @@ struct GeneralPane: View {
                 SettingsControlRow(
                     title: "Hold Duration"
                 ) {
-                    SettingsSegmentedPicker(
-                        values: PushToTalkThreshold.allCases,
-                        selection: viewModel.pushToTalkThreshold,
-                        title: \.displayName
-                    ) { threshold in
+                    HoldDurationPicker(selection: viewModel.pushToTalkThreshold) { threshold in
                         viewModel.$pushToTalkThreshold.withLock { $0 = threshold }
                     }
-                    .frame(width: 205)
+                    .frame(width: 300)
                 }
             }
 
@@ -427,6 +423,9 @@ struct HistoryPane: View {
                         }
                     }
                     .scrollIndicators(.hidden)
+                    // Clears the floating search field so the last card is
+                    // reachable rather than sitting behind it.
+                    .safeAreaPadding(.bottom, 96)
                 }
             }
             .frame(maxWidth: 500, maxHeight: .infinity, alignment: .topLeading)
