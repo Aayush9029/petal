@@ -63,6 +63,10 @@ jobs:
           # Add to search list
           security list-keychains -d user -s "$KEYCHAIN_PATH" "$(security list-keychains -d user | tr -d '"' | tr '\n' ' ')"
 
+          SIGN_IDENTITY="$(security find-identity -v -p codesigning "$KEYCHAIN_PATH" | sed -n 's/.*"\(Developer ID Application: [^"]*\)".*/\1/p' | head -n 1)"
+          [ -n "$SIGN_IDENTITY" ] || { echo "No Developer ID Application identity in certificate" >&2; exit 1; }
+          echo "SIGN_IDENTITY=$SIGN_IDENTITY" >> "$GITHUB_ENV"
+
       - name: Setup App Store Connect API key
         env:
           API_KEY_P8: ${{ secrets.APPLE_API_KEY_P8 }}
@@ -135,13 +139,13 @@ jobs:
         run: |
           scripts/release/sign-aria2c.sh \
             --app "$RUNNER_TEMP/export/${{ env.PRODUCT_NAME }}.app" \
-            --identity "Developer ID Application: Aayush Pokharel (${{ secrets.APPLE_TEAM_ID }})" \
+            --identity "$SIGN_IDENTITY" \
             --skip-gatekeeper
 
       - name: Re-sign app bundle
         run: |
           codesign --force --deep \
-            --sign "Developer ID Application: Aayush Pokharel (${{ secrets.APPLE_TEAM_ID }})" \
+            --sign "$SIGN_IDENTITY" \
             --entitlements petal/petal.entitlements \
             --options runtime \
             --timestamp \
@@ -181,7 +185,7 @@ jobs:
 
       - name: Sign DMG
         run: |
-          codesign --force --sign "Developer ID Application: Aayush Pokharel (${{ secrets.APPLE_TEAM_ID }})" \
+          codesign --force --sign "$SIGN_IDENTITY" \
             --timestamp \
             "$DMG_PATH"
 

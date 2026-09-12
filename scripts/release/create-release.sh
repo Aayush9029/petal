@@ -4,8 +4,8 @@ set -euo pipefail
 # ─── Configuration ───────────────────────────────────────────────────────────
 SCHEME="petal"
 PRODUCT_NAME="petal"
-SIGNING_IDENTITY="Developer ID Application: Aayush Pokharel (4538W4A79B)"
-TEAM_ID="4538W4A79B"
+SIGNING_IDENTITY="Developer ID Application: Optimal Life Technologies, Inc (6Q29HJZ4AG)"
+TEAM_ID="6Q29HJZ4AG"
 API_KEY_ID="KDZQQND374"
 API_ISSUER_ID="32b44455-4bec-4cb8-8fbf-eb06754dda95"
 SPARKLE_VERSION="2.8.1"
