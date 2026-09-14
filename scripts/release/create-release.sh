@@ -8,7 +8,7 @@ SIGNING_IDENTITY="Developer ID Application: Optimal Life Technologies, Inc (6Q29
 TEAM_ID="6Q29HJZ4AG"
 API_KEY_ID="KDZQQND374"
 API_ISSUER_ID="32b44455-4bec-4cb8-8fbf-eb06754dda95"
-SPARKLE_VERSION="2.8.1"
+SPARKLE_VERSION="2.10.0"
 
 # Use absolute path to avoid xcbeautify shell wrappers
 XCODEBUILD=/usr/bin/xcodebuild

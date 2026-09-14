@@ -10,7 +10,7 @@ env:
   BUNDLE_ID: com.optimalapps.petal
   XCODE_VERSION: "26.5"
   DMG_NAME_PREFIX: Petal
-  SPARKLE_VERSION: "2.8.1"
+  SPARKLE_VERSION: "2.10.0"
 
 permissions:
   contents: write
