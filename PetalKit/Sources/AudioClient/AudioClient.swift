@@ -2,7 +2,10 @@
 import Dependencies
 import DependenciesMacros
 import Foundation
+import OSLog
 import Shared
+
+private let logger = Logger(subsystem: "com.optimalapps.petal", category: "AudioClient")
 
 enum AudioClientError: LocalizedError, Sendable {
     case notRecording
@@ -238,12 +241,15 @@ private final class LiveAudioCaptureRuntime: @unchecked Sendable {
         if let standby = standbyRecorder, let url = standbyURL {
             standbyRecorder = nil
             standbyURL = nil
-            guard standby.record() else {
-                throw AudioClientError.failedToStart
+            if standby.record() {
+                self.recorder = standby
+                recordingURL = url
+                startLevelPollingLocked()
+                return
             }
-            self.recorder = standby
-            recordingURL = url
-            startLevelPollingLocked()
+            try? FileManager.default.removeItem(at: url)
+            logger.warning("Standby recorder failed to start on the system default input; falling back to capture session")
+            try startFallbackCaptureRecordingLocked(levelHandler: levelHandler)
             return
         }
 
@@ -251,15 +257,39 @@ private final class LiveAudioCaptureRuntime: @unchecked Sendable {
         let audioURL = FileManager.default.temporaryDirectory
             .appending(path: "petal-\(UUID().uuidString).wav")
 
-        let recorder = try AVAudioRecorder(url: audioURL, settings: Self.recordingSettings)
-        recorder.isMeteringEnabled = true
-        guard recorder.prepareToRecord(), recorder.record() else {
-            throw AudioClientError.failedToStart
+        if let recorder = try? AVAudioRecorder(url: audioURL, settings: Self.recordingSettings) {
+            recorder.isMeteringEnabled = true
+            if recorder.prepareToRecord(), recorder.record() {
+                self.recorder = recorder
+                recordingURL = audioURL
+                startLevelPollingLocked()
+                return
+            }
         }
 
-        self.recorder = recorder
+        try? FileManager.default.removeItem(at: audioURL)
+        logger.warning("AVAudioRecorder failed to start on the system default input; falling back to capture session")
+        try startFallbackCaptureRecordingLocked(levelHandler: levelHandler)
+    }
+
+    /// AVAudioRecorder binds to CoreAudio's default input device, which can be
+    /// stale after a USB or Bluetooth microphone disconnects. AVCaptureDevice
+    /// discovery only reports connected hardware, so route through it instead.
+    private func startFallbackCaptureRecordingLocked(levelHandler: @escaping @Sendable (Double) -> Void) throws {
+        guard let device = Self.fallbackCaptureDevice() else {
+            throw AudioClientError.failedToStart
+        }
+        let audioURL = FileManager.default.temporaryDirectory
+            .appending(path: "petal-\(UUID().uuidString).m4a")
+        let recording = try SelectedInputAudioRecording(
+            device: device,
+            outputURL: audioURL,
+            levelHandler: levelHandler
+        )
+        try recording.start()
+        selectedInputRecording = recording
         recordingURL = audioURL
-        startLevelPollingLocked()
+        logger.info("Recording via capture session fallback on \(device.localizedName, privacy: .public)")
     }
 
     func stopRecording() async throws -> URL {
@@ -495,6 +525,15 @@ private final class LiveAudioCaptureRuntime: @unchecked Sendable {
         guard selectedID != AudioInputDevice.systemDefaultID else { return nil }
         return inputCaptureDevices()
             .first(where: { $0.uniqueID == selectedID })
+    }
+
+    nonisolated private static func fallbackCaptureDevice() -> AVCaptureDevice? {
+        let devices = inputCaptureDevices().filter(\.isConnected)
+        if let systemDefault = AVCaptureDevice.default(for: .audio),
+           let match = devices.first(where: { $0.uniqueID == systemDefault.uniqueID }) {
+            return match
+        }
+        return devices.first
     }
 
     nonisolated private static func inputCaptureDevices() -> [AVCaptureDevice] {
