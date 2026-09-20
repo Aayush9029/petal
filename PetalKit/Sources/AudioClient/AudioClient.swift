@@ -10,11 +10,17 @@ private let logger = Logger(subsystem: "com.optimalapps.petal", category: "Audio
 enum AudioClientError: LocalizedError, Sendable {
     case notRecording
     case failedToStart
+    case invalidStreamFormat
+    case streamOverrun
 
     var errorDescription: String? {
         switch self {
         case .notRecording:
             return "No recording is currently active."
+        case .invalidStreamFormat:
+            return "The microphone did not provide audio in the format needed for live transcription."
+        case .streamOverrun:
+            return "Live transcription could not keep up with the microphone."
         case .failedToStart:
             return "Petal could not start recording audio."
         }
@@ -41,6 +47,8 @@ public struct AudioClient: Sendable {
     public var warmup: @Sendable () -> Void = {}
     public var availableInputDevices: @Sendable () async -> [AudioInputDevice] = { [] }
     public var startRecording: @Sendable (@escaping @Sendable (Double) -> Void) async throws -> Void
+    /// Starts recording a history file and exposes its PCM audio as it arrives.
+    public var startStreamingRecording: @Sendable (@escaping @Sendable (Double) -> Void) async throws -> AudioSampleStream
     public var stopRecording: @Sendable () async throws -> URL
     public var cancelRecording: @Sendable () async -> Void = {}
 }
@@ -59,6 +67,9 @@ extension AudioClient: DependencyKey {
             },
             startRecording: { levelHandler in
                 try await LiveAudioCaptureRuntimeContainer.shared.startRecording(levelHandler: levelHandler)
+            },
+            startStreamingRecording: { levelHandler in
+                try await LiveAudioCaptureRuntimeContainer.shared.startStreamingRecording(levelHandler: levelHandler)
             },
             stopRecording: {
                 try await LiveAudioCaptureRuntimeContainer.shared.stopRecording()
@@ -85,6 +96,7 @@ extension AudioClient: TestDependencyKey {
                 ]
             },
             startRecording: { _ in },
+            startStreamingRecording: { _ in AudioSampleStream { $0.finish() } },
             stopRecording: { URL(fileURLWithPath: "/dev/null") },
             cancelRecording: {}
         )
@@ -149,6 +161,9 @@ private final class LiveAudioCaptureRuntime: @unchecked Sendable {
     private var standbyRecorder: AVAudioRecorder?
     private var standbyURL: URL?
     private var simulatedRecordingSourceURL: URL?
+    private var simulatedSamples: [Float] = []
+    private var simulatedSampleOffset = 0
+    private var simulatedProducer: AudioSampleProducer?
     private var recordingURL: URL?
     private var levelHandler: @Sendable (Double) -> Void = { _ in }
     private var levelTimer: DispatchSourceTimer?
@@ -196,6 +211,20 @@ private final class LiveAudioCaptureRuntime: @unchecked Sendable {
         }
     }
 
+    func startStreamingRecording(levelHandler: @escaping @Sendable (Double) -> Void) async throws -> AudioSampleStream {
+        try await withCheckedThrowingContinuation { continuation in
+            stateQueue.async { [self] in
+                do {
+                    let producer = AudioSampleProducer()
+                    try startRecordingLocked(levelHandler: levelHandler, sampleProducer: producer)
+                    continuation.resume(returning: producer.stream)
+                } catch {
+                    continuation.resume(throwing: error)
+                }
+            }
+        }
+    }
+
     private func warmupStandbyLocked() {
         guard standbyRecorder == nil, recorder == nil else { return }
         guard Self.e2eAudioFixtureURL() == nil else { return }
@@ -212,30 +241,51 @@ private final class LiveAudioCaptureRuntime: @unchecked Sendable {
         } catch {}
     }
 
-    private func startRecordingLocked(levelHandler: @escaping @Sendable (Double) -> Void) throws {
-        guard recorder == nil, selectedInputRecording == nil, simulatedRecordingSourceURL == nil else { return }
+    private func startRecordingLocked(
+        levelHandler: @escaping @Sendable (Double) -> Void,
+        sampleProducer: AudioSampleProducer? = nil
+    ) throws {
+        guard recorder == nil, selectedInputRecording == nil, simulatedRecordingSourceURL == nil else {
+            throw AudioClientError.failedToStart
+        }
         self.levelHandler = levelHandler
 
         if let e2eAudioURL = Self.e2eAudioFixtureURL() {
+            if let sampleProducer {
+                simulatedSamples = try AudioSampleProducer.readFixture(e2eAudioURL)
+                simulatedSampleOffset = 0
+                simulatedProducer = sampleProducer
+            }
             simulatedRecordingSourceURL = e2eAudioURL
             recordingURL = e2eAudioURL
             startSimulatedLevelPollingLocked()
             return
         }
 
-        if let selectedDevice = Self.selectedCaptureDeviceForRecording() {
+        let captureDevice = Self.selectedCaptureDeviceForRecording()
+            ?? (sampleProducer == nil ? nil : Self.fallbackCaptureDevice())
+        if let selectedDevice = captureDevice {
+            if sampleProducer != nil {
+                standbyRecorder?.stop()
+                standbyRecorder = nil
+                if let standbyURL { try? FileManager.default.removeItem(at: standbyURL) }
+                standbyURL = nil
+            }
             let audioURL = FileManager.default.temporaryDirectory
                 .appending(path: "petal-\(UUID().uuidString).m4a")
             let recording = try SelectedInputAudioRecording(
                 device: selectedDevice,
                 outputURL: audioURL,
-                levelHandler: levelHandler
+                levelHandler: levelHandler,
+                sampleProducer: sampleProducer
             )
             try recording.start()
             selectedInputRecording = recording
             recordingURL = audioURL
             return
         }
+
+        guard sampleProducer == nil else { throw AudioClientError.failedToStart }
 
         // Use pre-warmed standby recorder if available
         if let standby = standbyRecorder, let url = standbyURL {
@@ -311,11 +361,12 @@ private final class LiveAudioCaptureRuntime: @unchecked Sendable {
         }
 
         if let selectedInputRecording {
-            let url = try selectedInputRecording.stop()
-            self.selectedInputRecording = nil
-            recordingURL = nil
-            levelHandler(0)
-            return url
+            defer {
+                self.selectedInputRecording = nil
+                recordingURL = nil
+                levelHandler(0)
+            }
+            return try selectedInputRecording.stop()
         }
 
         guard let recorder, let url = recordingURL else {
@@ -354,6 +405,9 @@ private final class LiveAudioCaptureRuntime: @unchecked Sendable {
 
     private func cancelRecordingLocked() {
         if simulatedRecordingSourceURL != nil {
+            simulatedProducer?.finish(throwing: CancellationError())
+            simulatedProducer = nil
+            simulatedSamples.removeAll()
             stopLevelPollingLocked()
             simulatedRecordingSourceURL = nil
             recordingURL = nil
@@ -394,6 +448,11 @@ private final class LiveAudioCaptureRuntime: @unchecked Sendable {
 
     private func stopSimulatedRecordingLocked(sourceURL: URL) throws -> URL {
         stopLevelPollingLocked()
+        // Existing fixture recording semantics retain the complete file on stop.
+        simulatedProducer?.append(Array(simulatedSamples.dropFirst(simulatedSampleOffset)))
+        simulatedProducer?.finish()
+        simulatedProducer = nil
+        simulatedSamples.removeAll()
         simulatedRecordingSourceURL = nil
         recordingURL = nil
         levelHandler(0)
@@ -419,6 +478,11 @@ private final class LiveAudioCaptureRuntime: @unchecked Sendable {
         timer.schedule(deadline: .now(), repeating: .milliseconds(60))
         timer.setEventHandler { [weak self] in
             guard let self else { return }
+            if let producer = self.simulatedProducer, self.simulatedSampleOffset < self.simulatedSamples.count {
+                let end = min(self.simulatedSampleOffset + 960, self.simulatedSamples.count)
+                producer.append(Array(self.simulatedSamples[self.simulatedSampleOffset..<end]))
+                self.simulatedSampleOffset = end
+            }
             let smoothed = self.levelProcessor.process(0.34)
             let handler = self.levelHandler
             DispatchQueue.main.async {
@@ -555,14 +619,17 @@ private final class SelectedInputAudioRecording: NSObject, AVCaptureAudioDataOut
     private let outputURL: URL
     private let levelHandler: @Sendable (Double) -> Void
     private let levelProcessor = LevelProcessor()
+    private let sampleProducer: AudioSampleProducer?
     private var didStartWriting = false
     private var isStopping = false
 
     init(
         device: AVCaptureDevice,
         outputURL: URL,
-        levelHandler: @escaping @Sendable (Double) -> Void
+        levelHandler: @escaping @Sendable (Double) -> Void,
+        sampleProducer: AudioSampleProducer? = nil
     ) throws {
+        self.sampleProducer = sampleProducer
         self.outputURL = outputURL
         self.levelHandler = levelHandler
         writer = try AVAssetWriter(outputURL: outputURL, fileType: .m4a)
@@ -585,6 +652,16 @@ private final class SelectedInputAudioRecording: NSObject, AVCaptureAudioDataOut
 
         session.beginConfiguration()
         session.addInput(input)
+        if sampleProducer != nil {
+            audioOutput.audioSettings = [
+                AVFormatIDKey: kAudioFormatLinearPCM,
+                AVSampleRateKey: 16_000,
+                AVNumberOfChannelsKey: 1,
+                AVLinearPCMBitDepthKey: 32,
+                AVLinearPCMIsFloatKey: true,
+                AVLinearPCMIsNonInterleaved: false,
+            ]
+        }
         audioOutput.setSampleBufferDelegate(self, queue: captureQueue)
         session.addOutput(audioOutput)
         session.commitConfiguration()
@@ -602,6 +679,8 @@ private final class SelectedInputAudioRecording: NSObject, AVCaptureAudioDataOut
         session.stopRunning()
         return try captureQueue.sync {
             isStopping = true
+            // stopRunning followed by this barrier drains every queued capture callback.
+            sampleProducer?.finish()
             guard didStartWriting else {
                 writer.cancelWriting()
                 throw AudioClientError.failedToStart
@@ -634,6 +713,7 @@ private final class SelectedInputAudioRecording: NSObject, AVCaptureAudioDataOut
         session.stopRunning()
         captureQueue.sync {
             isStopping = true
+            sampleProducer?.finish(throwing: CancellationError())
             writer.cancelWriting()
         }
     }
@@ -644,6 +724,7 @@ private final class SelectedInputAudioRecording: NSObject, AVCaptureAudioDataOut
         from connection: AVCaptureConnection
     ) {
         guard !isStopping else { return }
+        sampleProducer?.append(sampleBuffer)
 
         if !didStartWriting {
             guard writer.startWriting() else { return }

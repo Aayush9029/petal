@@ -95,6 +95,7 @@ struct ModelSelectorCard: View {
         switch option {
         case .appleSpeech: "Built-in, private transcription."
         case .qwen3ASR06B4bit: "Fast multilingual transcription."
+        case .parakeetUnified06B: "Live English transcription as you speak."
         case .parakeetTDT06BV3: "Accurate multilingual dictation."
         case .parakeetTDT06BV2: "Fast English-only dictation."
         case .parakeetTDTCTC110M: "Lightweight, instant English dictation."

@@ -18,6 +18,10 @@ public final class FloatingCapsuleState {
     }
 
     public var phase: Phase = .hidden
+    public var liveTranscript = ""
+    public var showsLiveTranscript: Bool {
+        !liveTranscript.isEmpty && (phase == .recording || phase == .confirmCancel || phase == .transcribing)
+    }
     public var level: Double = 0
     public var transcriptionProgress: Double = 0
     public var cancelCountdownActive: Bool = false

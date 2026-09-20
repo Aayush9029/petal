@@ -15,6 +15,7 @@ public struct FloatingCapsuleClient: Sendable {
     public var showTrimming: @Sendable () async -> Void = {}
     public var showSpeeding: @Sendable () async -> Void = {}
     public var updateLevel: @Sendable (Double) async -> Void = { _ in }
+    public var updateLiveTranscript: @Sendable (String) async -> Void = { _ in }
     public var showTranscribing: @Sendable () async -> Void = {}
     public var updateTranscriptionProgress: @Sendable (Double) async -> Void = { _ in }
     public var showRefining: @Sendable () async -> Void = {}
@@ -45,6 +46,9 @@ extension FloatingCapsuleClient: DependencyKey {
             },
             updateLevel: { level in
                 await MainActor.run { LiveFloatingCapsuleRuntimeContainer.shared.updateLevel(level) }
+            },
+            updateLiveTranscript: { text in
+                await MainActor.run { LiveFloatingCapsuleRuntimeContainer.shared.updateLiveTranscript(text) }
             },
             showTranscribing: {
                 await MainActor.run { LiveFloatingCapsuleRuntimeContainer.shared.showTranscribing() }
@@ -84,6 +88,7 @@ extension FloatingCapsuleClient: TestDependencyKey {
             showTrimming: {},
             showSpeeding: {},
             updateLevel: { _ in },
+            updateLiveTranscript: { _ in },
             showTranscribing: {},
             updateTranscriptionProgress: { _ in },
             showRefining: {},
@@ -166,6 +171,12 @@ private final class LiveFloatingCapsuleRuntime: NSObject {
         state.level = level
     }
 
+    func updateLiveTranscript(_ text: String) {
+        guard state.phase == .recording || state.phase == .confirmCancel else { return }
+        state.liveTranscript = text
+        resizePanel()
+    }
+
     func showTranscribing() {
         state.transcriptionProgress = 0
         state.phase = .transcribing
@@ -217,6 +228,7 @@ private final class LiveFloatingCapsuleRuntime: NSObject {
 
     func hide() {
         state.phase = .hidden
+        state.liveTranscript = ""
         state.level = 0
         state.transcriptionProgress = 0
         state.cancelCountdownActive = false
@@ -226,7 +238,15 @@ private final class LiveFloatingCapsuleRuntime: NSObject {
         panel.orderOut(nil)
     }
 
+    private func resizePanel() {
+        let height: CGFloat = state.showsLiveTranscript ? 178 : 52
+        guard panel.frame.height != height else { return }
+        panel.setContentSize(NSSize(width: 400, height: height))
+        positionPanel(on: preferredScreen ?? NSScreen.main)
+    }
+
     private func showWindowIfNeeded() {
+        resizePanel()
         let screen = screenAtMouseLocation() ?? preferredScreen ?? NSScreen.main
         preferredScreen = screen
         positionPanel(on: screen)

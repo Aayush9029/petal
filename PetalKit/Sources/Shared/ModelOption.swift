@@ -56,6 +56,7 @@ public struct ModelDescriptor: Sendable, Equatable {
 public enum ModelOption: String, CaseIterable, Identifiable, Sendable {
     case appleSpeech = "apple-speech"
     case qwen3ASR06B4bit = "qwen3-asr-0.6b-4bit"
+    case parakeetUnified06B = "parakeet-unified-en-0.6b"
     case parakeetTDT06BV3 = "parakeet-tdt-0.6b-v3"
     case parakeetTDT06BV2 = "parakeet-tdt-0.6b-v2"
     case parakeetTDTCTC110M = "parakeet-tdt-ctc-110m"
@@ -68,6 +69,7 @@ public enum ModelOption: String, CaseIterable, Identifiable, Sendable {
         var options: [ModelOption] = [
             .parakeetTDTCTC110M,
             .qwen3ASR06B4bit,
+            .parakeetUnified06B,
             .parakeetTDT06BV3,
             .parakeetTDT06BV2,
             .whisperLargeV3Turbo,
@@ -124,6 +126,20 @@ public enum ModelOption: String, CaseIterable, Identifiable, Sendable {
                 recommended: false,
                 speedScore: 4,
                 smartScore: 4
+            )
+        case .parakeetUnified06B:
+            return ModelDescriptor(
+                id: rawValue,
+                repoID: "FluidInference/parakeet-unified-en-0.6b-coreml",
+                name: "Parakeet Unified 0.6B",
+                summary: "Live English transcription as you speak, running locally on Apple Silicon.",
+                size: "~625 MB",
+                quantization: "INT8 CoreML",
+                parameters: "0.6B",
+                provider: .nvidia,
+                recommended: false,
+                speedScore: 5,
+                smartScore: 3
             )
         case .parakeetTDT06BV3:
             return ModelDescriptor(
@@ -254,7 +270,7 @@ public enum ModelOption: String, CaseIterable, Identifiable, Sendable {
         switch self {
         case .appleSpeech:
             return false
-        case .qwen3ASR06B4bit, .parakeetTDT06BV3, .parakeetTDT06BV2, .parakeetTDTCTC110M,
+        case .parakeetUnified06B, .qwen3ASR06B4bit, .parakeetTDT06BV3, .parakeetTDT06BV2, .parakeetTDTCTC110M,
              .whisperLargeV3Turbo, .whisperTiny, .mini3b, .mini3b8bit:
             return true
         }
@@ -262,13 +278,16 @@ public enum ModelOption: String, CaseIterable, Identifiable, Sendable {
 
     public var supportedTranscriptionModes: [TranscriptionMode] {
         switch self {
-        case .appleSpeech, .qwen3ASR06B4bit, .parakeetTDT06BV3, .parakeetTDT06BV2,
+        case .appleSpeech, .parakeetUnified06B, .qwen3ASR06B4bit, .parakeetTDT06BV3, .parakeetTDT06BV2,
              .parakeetTDTCTC110M, .whisperLargeV3Turbo, .whisperTiny, .mini3b8bit:
             return [.verbatim]
         case .mini3b:
             return TranscriptionMode.allCases
         }
     }
+
+    /// Whether microphone audio can be transcribed before recording stops.
+    public var supportsStreamingTranscription: Bool { self == .parakeetUnified06B }
 
     public var supportsSmartTranscription: Bool {
         supportedTranscriptionModes.contains(.smart)
@@ -294,6 +313,9 @@ public enum ModelOption: String, CaseIterable, Identifiable, Sendable {
              "fluidinference/qwen3-asr-0.6b-coreml/f32",
              "fluidinference/qwen3-asr-0.6b-coreml/int8":
             return .qwen3ASR06B4bit
+        case Self.parakeetUnified06B.rawValue,
+             "fluidinference/parakeet-unified-en-0.6b-coreml":
+            return .parakeetUnified06B
         case Self.parakeetTDT06BV3.rawValue,
              "parakeet",
              "paracrete",

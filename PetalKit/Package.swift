@@ -69,9 +69,9 @@ let package = Package(
         .library(name: "FoundationModelClient", targets: ["FoundationModelClient"]),
     ],
     dependencies: [
-        // altic-dev's FluidAudio fork (pinned to an exact revision) for Granite/Cohere CoreML ASR,
-        // the extra Parakeet variants (TDT v2, TDT-CTC 110M), and RNN-T decoder output caching.
-        .package(url: "https://github.com/altic-dev/FluidAudio.git", revision: "3fd63887eef1dc25edea8263ce4b44aa854d898b"),
+        // Includes the Unified streaming backport while preserving altic-dev's Qwen3 and Parakeet support.
+        // Switch back to altic-dev/FluidAudio after the prerequisite PR is merged.
+        .package(url: "https://github.com/chintan100/FluidAudio.git", revision: "548ebb85e3e3a8f55ce74ed1cd4b0a83652f5d8b"),
         .package(name: "MLXVoxtralSwift", path: "../mlx-voxtral-swift"),
         .package(url: "https://github.com/pointfreeco/swift-dependencies", from: "1.17.1"),
         .package(url: "https://github.com/pointfreeco/swift-custom-dump", from: "1.7.3"),

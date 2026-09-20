@@ -1,5 +1,5 @@
 {
-  "originHash" : "f12b3cb5bd162d3eb40297038524e8910757db1b3a2921a0c3c043b6c68e4a4a",
+  "originHash" : "15972073ab584f89ede40b25349009e3b72a0320bef008967b2480184b68370b",
   "pins" : [
     {
       "identity" : "argmax-oss-swift",
@@ -31,9 +31,9 @@
     {
       "identity" : "fluidaudio",
       "kind" : "remoteSourceControl",
-      "location" : "https://github.com/altic-dev/FluidAudio.git",
+      "location" : "https://github.com/chintan100/FluidAudio.git",
       "state" : {
-        "revision" : "3fd63887eef1dc25edea8263ce4b44aa854d898b"
+        "revision" : "548ebb85e3e3a8f55ce74ed1cd4b0a83652f5d8b"
       }
     },
     {
@@ -181,15 +181,6 @@
       }
     },
     {
-      "identity" : "swift-issue-reporting",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/pointfreeco/swift-issue-reporting",
-      "state" : {
-        "revision" : "71c7c9a761d1ca6ed4ccb6ced040fe1c1a39e8e7",
-        "version" : "2.1.0"
-      }
-    },
-    {
       "identity" : "swift-jinja",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/huggingface/swift-jinja.git",
@@ -241,6 +232,15 @@
       "state" : {
         "revision" : "c21fdcde390313a6d98d8e33a346f2c3486c3ab0",
         "version" : "1.3.4"
+      }
+    },
+    {
+      "identity" : "xctest-dynamic-overlay",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/pointfreeco/xctest-dynamic-overlay",
+      "state" : {
+        "revision" : "d9308ad679143c26a30dec52daefe82f54af2b82",
+        "version" : "1.13.1"
       }
     },
     {

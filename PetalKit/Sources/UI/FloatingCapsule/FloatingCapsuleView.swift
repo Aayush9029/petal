@@ -13,21 +13,45 @@ public struct FloatingCapsuleView: View {
     }
 
     public var body: some View {
-        capsule
-            .fixedSize()
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .animation(.smooth(duration: 0.3), value: state.phase)
-            .onChange(of: state.phase) { _, newPhase in
-                guard newPhase != .hidden else { return }
-                // Native Liquid Glass morphs the capsule between statuses, so
-                // the manual blur pulse is only needed on the pre-26 fallback.
-                if #unavailable(macOS 26.0) {
-                    blurRadius = 12
-                    withAnimation(.easeOut(duration: 0.5)) {
-                        blurRadius = 0
-                    }
+        VStack(spacing: 12) {
+            if state.showsLiveTranscript {
+                liveTranscript
+            }
+            capsule.fixedSize()
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+        .padding(.bottom, 4)
+        .animation(.smooth(duration: 0.3), value: state.phase)
+        .onChange(of: state.phase) { _, newPhase in
+            guard newPhase != .hidden else { return }
+            // Native Liquid Glass morphs the capsule between statuses, so
+            // the manual blur pulse is only needed on the pre-26 fallback.
+            if #unavailable(macOS 26.0) {
+                blurRadius = 12
+                withAnimation(.easeOut(duration: 0.5)) {
+                    blurRadius = 0
                 }
             }
+        }
+    }
+
+    private var liveTranscript: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("Live transcription")
+                .font(.caption.weight(.medium))
+                .foregroundStyle(.secondary)
+            Text(state.liveTranscript)
+                .font(.callout)
+                .lineLimit(3)
+                .truncationMode(.head)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .padding(14)
+        .frame(width: 384, height: 112, alignment: .topLeading)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 18))
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Live transcription")
+        .accessibilityValue(state.liveTranscript)
     }
 
     /// On macOS 26 every status renders into a single `GlassEffectContainer`
