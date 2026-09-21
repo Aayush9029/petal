@@ -1,5 +1,5 @@
 {
-  "originHash" : "3e9449c579cf1600e76a4434968302e4ca9864b78a6a28a0ddd4d55cd399a73a",
+  "originHash" : "9a2d468655c946fa08a4a76b2372ac7d0cc7fe4171a63743135e0b02d28e823d",
   "pins" : [
     {
       "identity" : "argmax-oss-swift",
@@ -31,9 +31,9 @@
     {
       "identity" : "fluidaudio",
       "kind" : "remoteSourceControl",
-      "location" : "https://github.com/altic-dev/FluidAudio.git",
+      "location" : "https://github.com/chintan100/FluidAudio.git",
       "state" : {
-        "revision" : "3fd63887eef1dc25edea8263ce4b44aa854d898b"
+        "revision" : "548ebb85e3e3a8f55ce74ed1cd4b0a83652f5d8b"
       }
     },
     {
@@ -205,15 +205,6 @@
       "state" : {
         "revision" : "322d9ffeeba85c9f7c4984b39422ec7cc3c56597",
         "version" : "1.1.1"
-      }
-    },
-    {
-      "identity" : "swift-issue-reporting",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/pointfreeco/swift-issue-reporting",
-      "state" : {
-        "revision" : "71c7c9a761d1ca6ed4ccb6ced040fe1c1a39e8e7",
-        "version" : "2.1.0"
       }
     },
     {

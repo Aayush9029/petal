@@ -81,6 +81,10 @@ func transcriptionClientUsesTrimAndSpeedDependenciesBeforeMLX() async throws {
                 await recorder.append("mlx")
                 return "ok"
             },
+            transcribeStream: { _, _ in
+                Issue.record("File transcription must not start a microphone stream")
+                return ""
+            },
             unloadModel: {}
         )
         $0.audioTrimClient.trimSilence = { url, _ in

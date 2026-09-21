@@ -15,6 +15,7 @@ import Speech
 public struct TranscriptionClient: Sendable {
     public var prepareModelIfNeeded: @Sendable (ModelOption) async throws -> Void
     public var transcribe: @Sendable (URL, ModelOption, TranscriptionMode, String?) async throws -> String
+    public var transcribeStream: @Sendable (AudioSampleStream, @escaping @Sendable (String) async -> Void) async throws -> String
     public var unloadModel: @Sendable () async -> Void = {}
     public var audioDurationSeconds: @Sendable (URL) -> Double = { _ in 0 }
 }
@@ -185,6 +186,11 @@ extension TranscriptionClient: DependencyKey {
                     throw error
                 }
             },
+            transcribeStream: { audio, partial in
+                @Dependency(\.mlxClient) var mlxClient
+                try await mlxClient.prepareModelIfNeeded(.parakeetUnified06B)
+                return try await mlxClient.transcribeStream(audio, partial)
+            },
             unloadModel: {
                 @Dependency(\.mlxClient) var mlxClient
                 await mlxClient.unloadModel()
@@ -201,6 +207,7 @@ extension TranscriptionClient: TestDependencyKey {
         Self(
             prepareModelIfNeeded: { _ in },
             transcribe: { _, _, _, _ in "Test transcription" },
+            transcribeStream: { _, _ in "Test transcription" },
             unloadModel: {},
             audioDurationSeconds: { _ in 1.0 }
         )
@@ -262,6 +269,8 @@ private extension ModelOption {
             return nil
         case .qwen3ASR06B4bit:
             return .qwen3ASR06B4bit
+        case .parakeetUnified06B:
+            return .parakeetUnified06B
         case .parakeetTDT06BV3:
             return .parakeetTDT06BV3
         case .parakeetTDT06BV2:

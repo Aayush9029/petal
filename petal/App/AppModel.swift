@@ -117,6 +117,8 @@ final class AppModel {
     @ObservationIgnored private var downloadStateObserverTask: Task<Void, Never>?
     @ObservationIgnored private var isShowingMiniDownload = false
     @ObservationIgnored private var activeHistorySessionID: UUID?
+    @ObservationIgnored private var recordingModel: ModelOption?
+    @ObservationIgnored private var streamingTask: Task<String, any Error>?
     @ObservationIgnored private var historyReprocessContext: TranscriptHistoryEntry?
     @ObservationIgnored private var isPlaybackDucked = false
     var menuBarFlashOn = true
@@ -255,7 +257,7 @@ final class AppModel {
         if transcriptionMode != normalizedMode {
             $transcriptionMode.withLock { $0 = normalizedMode }
         }
-        guard hasCompletedSetup, isSelectedModelDownloaded else { return }
+        guard hasCompletedSetup, isSelectedModelDownloaded, !isRecordingLifecycleBusy, sessionState != .recording else { return }
         warmupTask?.cancel()
         isWarmingModel = true
         transientMessage = "Warming up \(selectedModelOption?.displayName ?? "model")…"
@@ -655,16 +657,13 @@ final class AppModel {
         defer { isStartingRecording = false }
 
         do {
-            try await audioClient.startRecording { [weak self] level in
-                guard let self else { return }
-                Task { @MainActor [self, level] in
-                    self.recordingLevelDidUpdate(level)
-                }
-            }
+            guard let model = selectedModelOption else { throw AppTranscriptionError.pipelineUnavailable }
+            recordingModel = model
+            activeHistorySessionID = uuid()
+            try await startAudioCapture(model: model)
 
             isAwaitingCancelRecordingConfirmation = false
             sessionState = .recording
-            activeHistorySessionID = uuid()
             await startPlaybackDuckingIfNeeded()
             logger.info("Recording started")
             consoleLog("Recording started")
@@ -683,6 +682,10 @@ final class AppModel {
                 return
             }
         } catch {
+            await cancelStreamingTranscription()
+            await audioClient.cancelRecording()
+            recordingModel = nil
+            activeHistorySessionID = nil
             reportIssue(error)
             sessionState = .error(error.localizedDescription)
             lastError = error.localizedDescription
@@ -750,7 +753,60 @@ final class AppModel {
 
     // MARK: - Private: Recording & Transcription
 
+    private func startAudioCapture(model: ModelOption) async throws {
+        let levelHandler: @Sendable (Double) -> Void = { [weak self] level in
+            Task { @MainActor [weak self] in self?.recordingLevelDidUpdate(level) }
+        }
+        guard model.supportsStreamingTranscription else {
+            try await audioClient.startRecording(levelHandler)
+            try Task.checkCancellation()
+            return
+        }
+        let audio = try await audioClient.startStreamingRecording(levelHandler)
+        try Task.checkCancellation()
+        let sessionID = activeHistorySessionID
+        let client = transcriptionClient
+        streamingTask = Task { [weak self] in
+            try await client.transcribeStream(audio) { [weak self] text in
+                await self?.streamingTranscriptDidUpdate(text, sessionID: sessionID)
+            }
+        }
+    }
+
+    private func streamingTranscriptDidUpdate(_ text: String, sessionID: UUID?) async {
+        guard activeHistorySessionID == sessionID, sessionState == .recording, !Task.isCancelled else { return }
+        await floatingCapsuleClient.updateLiveTranscript(text)
+    }
+
+    private func cancelStreamingTranscription() async {
+        let task = streamingTask
+        streamingTask = nil
+        task?.cancel()
+        _ = await task?.result
+    }
+
+    private func finishTranscription(audioURL: URL, model: ModelOption, mode: TranscriptionMode) async throws -> String {
+        if let task = streamingTask {
+            streamingTask = nil
+            do {
+                return try await task.value
+            } catch is CancellationError {
+                throw CancellationError()
+            } catch {
+                // The streaming task has released its decoder before replaying the saved file.
+                logClient.error("AppModel", "Live transcription failed; retrying recorded audio: \(error.localizedDescription)")
+            }
+        }
+        return try await transcriptionClient.transcribe(
+            audioURL, model, mode, mode == .smart ? smartPrompt : nil
+        )
+    }
+
     private func stopRecordingAndTranscribe() async {
+        guard !isStartingRecording || sessionState == .recording else {
+            pendingStopAfterStart = true
+            return
+        }
         guard !isStoppingRecording else {
             logger.debug("Ignoring stop request while stop is already in flight")
             return
@@ -764,6 +820,8 @@ final class AppModel {
             pushToTalkIsActive = false
             toggleRecordingIsActive = false
             activeHistorySessionID = nil
+            recordingModel = nil
+            await cancelStreamingTranscription()
             sessionState = .idle
             await stopPlaybackDuckingIfNeeded()
             await floatingCapsuleClient.hide()
@@ -772,10 +830,18 @@ final class AppModel {
 
         toggleRecordingIsActive = false
         isAwaitingCancelRecordingConfirmation = false
-        sessionState = .processing(.trimming)
-        await floatingCapsuleClient.showTrimming()
+        let usesStreaming = recordingModel?.supportsStreamingTranscription == true
+        sessionState = .processing(usesStreaming ? .transcribing : .trimming)
+        if usesStreaming {
+            await floatingCapsuleClient.showTranscribing()
+        } else {
+            await floatingCapsuleClient.showTrimming()
+        }
         let historySessionID = activeHistorySessionID ?? uuid()
-        defer { activeHistorySessionID = nil }
+        defer {
+            activeHistorySessionID = nil
+            recordingModel = nil
+        }
         let pipelineStart = now
         var pipelineStage = "stop-recording"
         var recordedAudioURL: URL?
@@ -795,7 +861,7 @@ final class AppModel {
             let stopRecordingElapsed = now.timeIntervalSince(stopRecordingStart)
             let audioSizeBytes = appAudioFileSizeBytes(audioURL) ?? 0
 
-            guard let selectedModelOption else {
+            guard let selectedModelOption = recordingModel else {
                 throw AppTranscriptionError.pipelineUnavailable
             }
 
@@ -820,7 +886,7 @@ final class AppModel {
                 )
             )
 
-            if autoSpeedRate(for: audioDuration) != nil {
+            if !usesStreaming, autoSpeedRate(for: audioDuration) != nil {
                 sessionState = .processing(.speeding)
                 await floatingCapsuleClient.showSpeeding()
             }
@@ -831,24 +897,19 @@ final class AppModel {
             await soundClient.playTranscriptionStarted()
             startTranscriptionProgressTracking(audioDuration: audioDuration)
             let transcriptionStart = now
-            let mode = normalizedTranscriptionMode(transcriptionMode)
+            let mode = normalizedTranscriptionMode(transcriptionMode, model: selectedModelOption)
             logger.info("Mode normalization: requested=\(self.transcriptionMode.rawValue, privacy: .public), resolved=\(mode.rawValue, privacy: .public), model=\(selectedModelOption.rawValue, privacy: .public)")
             if transcriptionMode != mode {
                 $transcriptionMode.withLock { $0 = mode }
             }
 
             let transcriptionCallStart = now
-            var transcript = try await transcriptionClient.transcribe(
-                audioURL,
-                selectedModelOption,
-                mode,
-                mode == .smart ? smartPrompt : nil
-            )
+            var transcript = try await finishTranscription(audioURL: audioURL, model: selectedModelOption, mode: mode)
             let transcriptionCallElapsed = now.timeIntervalSince(transcriptionCallStart)
             let originalTranscript = transcript
             var shouldPersistOriginalVariant = false
             let transcriptionElapsed = now.timeIntervalSince(transcriptionStart)
-            updateTranscriptionSpeedEstimate(audioDuration: audioDuration, elapsed: transcriptionElapsed)
+            if !usesStreaming { updateTranscriptionSpeedEstimate(audioDuration: audioDuration, elapsed: transcriptionElapsed) }
             stopTranscriptionProgressTracking(finalProgress: 1)
 
             logClient.dumpDebug(
@@ -1098,6 +1159,8 @@ final class AppModel {
                 )
             )
         } catch {
+            await cancelStreamingTranscription()
+            await audioClient.cancelRecording()
             await stopPlaybackDuckingIfNeeded()
             if !historyWasPersisted, let recordedAudioURL {
                 let failurePaths = await persistHistoryArtifacts(
@@ -1105,11 +1168,11 @@ final class AppModel {
                     transcript: "",
                     timestamp: pipelineStart,
                     mode: "failed",
-                    modelID: selectedModelOption?.rawValue ?? selectedModelID
+                    modelID: recordingModel?.rawValue ?? selectedModelID
                 )
                 appendTranscriptHistory(
                     transcript: "",
-                    modelID: selectedModelOption?.rawValue ?? selectedModelID,
+                    modelID: recordingModel?.rawValue ?? selectedModelID,
                     mode: "failed",
                     audioDuration: recordedAudioDuration > 0
                         ? recordedAudioDuration
@@ -1421,17 +1484,16 @@ final class AppModel {
     }
 
     private func cancelRecordingFromConfirmation() {
+        guard !isStoppingRecording else { return }
+        isStoppingRecording = true
         cancelConfirmationTimerTask?.cancel()
         cancelConfirmationTimerTask = nil
         Task {
-            let isCurrentlyRecording = await audioClient.isRecording()
-            guard isCurrentlyRecording else {
-                isAwaitingCancelRecordingConfirmation = false
-                await stopPlaybackDuckingIfNeeded()
-                return
-            }
-
+            defer { isStoppingRecording = false }
+            activeHistorySessionID = nil
             await audioClient.cancelRecording()
+            await cancelStreamingTranscription()
+            recordingModel = nil
 
             isAwaitingCancelRecordingConfirmation = false
             pushToTalkIsActive = false
@@ -1544,12 +1606,10 @@ final class AppModel {
         do {
             logger.info("Deep link start attempting to start recording")
             consoleLog("Deep link start attempting to start recording")
-            try await startRecordingWithTimeout { [weak self] level in
-                guard let self else { return }
-                Task { @MainActor [self, level] in
-                    self.recordingLevelDidUpdate(level)
-                }
-            }
+            guard let model = selectedModelOption else { throw AppTranscriptionError.pipelineUnavailable }
+            recordingModel = model
+            activeHistorySessionID = uuid()
+            try await startRecordingWithTimeout(model: model)
 
             isAwaitingCancelRecordingConfirmation = false
             pushToTalkIsActive = false
@@ -1557,14 +1617,21 @@ final class AppModel {
             ignoreNextShortcutKeyUp = false
             currentShortcutPressStart = nil
             sessionState = .recording
-            activeHistorySessionID = uuid()
             transientMessage = "Listening... use petal://stop to transcribe."
             await startPlaybackDuckingIfNeeded()
             logger.info("Recording started from deep link")
             consoleLog("Recording started from deep link")
             Task { await soundClient.playRecordingStarted() }
             await showRecordingCapsule()
+            if pendingStopAfterStart {
+                pendingStopAfterStart = false
+                await stopRecordingAndTranscribe()
+            }
         } catch {
+            activeHistorySessionID = nil
+            recordingModel = nil
+            await cancelStreamingTranscription()
+            await audioClient.cancelRecording()
             reportIssue(error)
             sessionState = .error(error.localizedDescription)
             lastError = error.localizedDescription
@@ -1575,10 +1642,7 @@ final class AppModel {
         }
     }
 
-    private func startRecordingWithTimeout(
-        levelHandler: @escaping @Sendable (Double) -> Void
-    ) async throws {
-        let startRecording = audioClient.startRecording
+    private func startRecordingWithTimeout(model: ModelOption) async throws {
         let timeoutSeconds = Self.deepLinkStartTimeoutSeconds
         let timeoutInterval = DispatchTimeInterval.milliseconds(Int(timeoutSeconds * 1000))
         let timeoutLogger = Logger(subsystem: "com.optimalapps.petal", category: "AppModel")
@@ -1588,7 +1652,7 @@ final class AppModel {
             try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
                 let startTask = Task {
                     do {
-                        try await startRecording(levelHandler)
+                        try await startAudioCapture(model: model)
                         timeoutLogger.debug("Deep link start task completed before timeout")
                         continuationGate.resume(continuation, with: .success(()))
                     } catch {
@@ -1882,8 +1946,8 @@ final class AppModel {
         return false
     }
 
-    private func normalizedTranscriptionMode(_ mode: TranscriptionMode) -> TranscriptionMode {
-        guard let selectedModelOption else { return mode }
+    private func normalizedTranscriptionMode(_ mode: TranscriptionMode, model: ModelOption? = nil) -> TranscriptionMode {
+        guard let selectedModelOption = model ?? selectedModelOption else { return mode }
         if selectedModelOption.supportsTranscriptionMode(mode) { return mode }
         // Allow smart mode when Apple Intelligence can post-process
         if mode == .smart, appleIntelligenceEnabled, foundationModelClient.isAvailable() { return mode }
@@ -2028,6 +2092,8 @@ final class AppModel {
         switch model {
         case .qwen3ASR06B4bit:
             return 2.2
+        case .parakeetUnified06B:
+            return 2.0
         case .parakeetTDT06BV3:
             return 1.8
         case .parakeetTDT06BV2:
