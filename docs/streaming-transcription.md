@@ -39,17 +39,15 @@ with dropped files and history reprocessing through the same streaming decoder.
 
 ## Dependency
 
-This integration depends on [altic-dev/FluidAudio#4](https://github.com/altic-dev/FluidAudio/pull/4),
-which backports upstream Unified without removing the fork's Qwen3 support.
-The package currently pins that PR's exact commit in `chintan100/FluidAudio`.
-After it merges, change the URL back to `altic-dev/FluidAudio` and pin the merged
-revision in both lockfiles.
+Petal uses the upstream [FluidInference/FluidAudio](https://github.com/FluidInference/FluidAudio)
+release, which includes Parakeet Unified. Upstream removed its Qwen3 ASR backend,
+so PetalKit keeps those sources in the `Qwen3ASR` target under the Apache 2.0 license.
 
 ## Validation
 
 The regular PetalKit suite covers PCM order and tail delivery, bounded-buffer
 failure, cancellation, real speech resampling, model mapping, download receipts
-and streaming bypass of file preprocessing. The dependency PR separately tests
+and streaming bypass of file preprocessing. FluidAudio separately tests
 windowing for all four model contexts and real CoreML reset/cancellation behavior.
 
 An opt-in PetalKit integration test runs the real audio capture client in its

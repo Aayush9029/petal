@@ -4,7 +4,9 @@ import Foundation
 /// One latency tier keeps the model picker simple and avoids downloading unused encoders.
 enum UnifiedModelArtifacts {
     static let config = UnifiedConfig(chunkFrames: 7, rightFrames: 1)
-    static let requiredFiles = ModelNames.ParakeetUnified.requiredModels(config: config)
+    static let requiredFiles = ModelNames.ParakeetUnified.requiredModels(variant: nil).union([
+        ModelNames.ParakeetUnified.streamingEncoderFile(precision: .int8, contextSuffix: config.contextSuffix)
+    ])
     private static let receiptName = ".petal-unified-640ms-int8.json"
 
     static var directory: URL {

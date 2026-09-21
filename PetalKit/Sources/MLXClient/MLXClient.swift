@@ -2,6 +2,7 @@ import AVFoundation
 import Dependencies
 import DependenciesMacros
 import FluidAudio
+import Qwen3ASR
 import Foundation
 import LogClient
 import Shared
@@ -349,12 +350,13 @@ private actor LiveMLXRuntime {
                 "prepare.parakeet.model-ready elapsed=\(formatElapsedSeconds(resolveElapsed)), directory=\(modelDirectory.lastPathComponent)"
             )
             let asrLoadStart = ProcessInfo.processInfo.systemUptime
-            let asrModels = try await AsrModels.load(from: modelDirectory, version: version)
+            // loadLocal stays offline; load would fetch an optional CTC head from the network.
+            let asrModels = try AsrModels.loadLocal(from: modelDirectory, version: version)
             let asrLoadElapsed = ProcessInfo.processInfo.systemUptime - asrLoadStart
             log("prepare.parakeet.asrModels-loaded elapsed=\(formatElapsedSeconds(asrLoadElapsed))")
             let managerInitStart = ProcessInfo.processInfo.systemUptime
             let manager = AsrManager(config: .default)
-            try await manager.initialize(models: asrModels)
+            try await manager.loadModels(asrModels)
             let managerInitElapsed = ProcessInfo.processInfo.systemUptime - managerInitStart
             log("prepare.parakeet.manager-initialized elapsed=\(formatElapsedSeconds(managerInitElapsed))")
             parakeetAsrManager = manager
@@ -478,7 +480,8 @@ private actor LiveMLXRuntime {
 
                 nonisolated(unsafe) let manager = parakeetAsrManager
                 let inferenceStart = ProcessInfo.processInfo.systemUptime
-                let result = try await manager.transcribe(audioURL, source: .system)
+                var decoderState = try TdtDecoderState(decoderLayers: await manager.decoderLayerCount)
+                let result = try await manager.transcribe(audioURL, decoderState: &decoderState)
                 let inferenceElapsed = ProcessInfo.processInfo.systemUptime - inferenceStart
                 log(
                     "transcribe.parakeet.inference completed elapsed=\(formatElapsedSeconds(inferenceElapsed)), rawChars=\(result.text.count)"
@@ -528,6 +531,17 @@ private actor LiveMLXRuntime {
         }
     }
 
+    /// Upstream FluidAudio accepts streaming input only as a PCM buffer.
+    private static func pcmBuffer(_ samples: [Float]) throws -> AVAudioPCMBuffer {
+        guard let format = AVAudioFormat(standardFormatWithSampleRate: 16_000, channels: 1),
+              let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: AVAudioFrameCount(samples.count)),
+              let channel = buffer.floatChannelData?[0]
+        else { throw MLXError.pipelineUnavailable }
+        samples.withUnsafeBufferPointer { channel.update(from: $0.baseAddress!, count: samples.count) }
+        buffer.frameLength = AVAudioFrameCount(samples.count)
+        return buffer
+    }
+
     func transcribeStream(
         _ audio: AudioSampleStream, onPartial: @escaping @Sendable (String) async -> Void
     ) async throws -> String {
@@ -540,7 +554,8 @@ private actor LiveMLXRuntime {
             var previousTranscript = ""
             for try await samples in audio {
                 try Task.checkCancellation()
-                try await manager.appendAudio(samples)
+                guard !samples.isEmpty else { continue }
+                try await manager.appendAudio(Self.pcmBuffer(samples))
                 try await manager.processBufferedAudio()
                 _ = await manager.consumeTokenTimings()
                 let partial = await manager.getPartialTranscript()
@@ -710,7 +725,11 @@ private enum FluidAudioModel: Sendable, Equatable {
                 modelsRoot.appendingPathComponent("qwen3-asr-0.6b-coreml-int8", isDirectory: true),
                 modelsRoot.appendingPathComponent("qwen3-asr-0.6b-coreml-f32", isDirectory: true),
             ]
-        case .parakeetUnified, .parakeetTdtV3, .parakeetTdtV2, .parakeetTdtCtc110m:
+        case .parakeetTdtV3, .parakeetTdtV2:
+            // Petal 2.0 used a FluidAudio fork that kept the "-coreml" suffix in these folder names.
+            let legacyName = directoryURL.lastPathComponent + "-coreml"
+            return [directoryURL, directoryURL.deletingLastPathComponent().appendingPathComponent(legacyName, isDirectory: true)]
+        case .parakeetUnified, .parakeetTdtCtc110m:
             return [directoryURL]
         }
     }
@@ -768,6 +787,19 @@ private enum FluidAudioCache {
         }
     }
 
+    /// AsrModels.modelsExist replaces the folder name with its own, so it cannot check a legacy folder.
+    private static func parakeetFilesExist(at directory: URL, version: AsrModelVersion) -> Bool {
+        let models: Set<String>
+        switch version {
+        case .v3: models = ModelNames.ASR.requiredModelsV3(precision: .int8)
+        case .tdtCtc110m: models = ModelNames.ASR.requiredModelsFused
+        default: models = ModelNames.ASR.requiredModels
+        }
+        return models.union([ModelNames.ASR.vocabularyFile]).allSatisfy {
+            FileManager.default.fileExists(atPath: directory.appendingPathComponent($0).path)
+        }
+    }
+
     private static func isModelDownloaded(model: FluidAudioModel) -> Bool {
         resolvedDirectoryURL(for: model) != nil
     }
@@ -785,8 +817,7 @@ private enum FluidAudioCache {
             return nil
         case .parakeetTdtV3, .parakeetTdtV2, .parakeetTdtCtc110m:
             guard let version = model.parakeetVersion else { return nil }
-            let defaultDirectory = model.directoryURL
-            return AsrModels.modelsExist(at: defaultDirectory, version: version) ? defaultDirectory : nil
+            return model.candidateDirectoryURLs.first { parakeetFilesExist(at: $0, version: version) }
         }
     }
 

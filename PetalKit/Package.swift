@@ -9,6 +9,7 @@ extension Target.Dependency {
     static let ui: Self = "UI"
     static let modelDownloadFeature: Self = "ModelDownloadFeature"
     static let mlxClient: Self = "MLXClient"
+    static let qwen3ASR: Self = "Qwen3ASR"
     static let audioTrimClient: Self = "AudioTrimClient"
     static let audioSpeedClient: Self = "AudioSpeedClient"
     static let permissionsClient: Self = "PermissionsClient"
@@ -69,9 +70,7 @@ let package = Package(
         .library(name: "FoundationModelClient", targets: ["FoundationModelClient"]),
     ],
     dependencies: [
-        // Includes the Unified streaming backport while preserving altic-dev's Qwen3 and Parakeet support.
-        // Switch back to altic-dev/FluidAudio after the prerequisite PR is merged.
-        .package(url: "https://github.com/chintan100/FluidAudio.git", revision: "548ebb85e3e3a8f55ce74ed1cd4b0a83652f5d8b"),
+        .package(url: "https://github.com/FluidInference/FluidAudio.git", exact: "0.15.8"),
         .package(name: "MLXVoxtralSwift", path: "../mlx-voxtral-swift"),
         .package(url: "https://github.com/pointfreeco/swift-dependencies", from: "1.17.1"),
         .package(url: "https://github.com/pointfreeco/swift-custom-dump", from: "1.7.3"),
@@ -171,11 +170,17 @@ let package = Package(
                 .ui,
             ]
         ),
+        // Upstream FluidAudio removed Qwen3 ASR. These sources come from FluidAudio (Apache 2.0).
+        .target(
+            name: "Qwen3ASR",
+            exclude: ["LICENSE-FluidAudio"]
+        ),
         .target(
             name: "MLXClient",
             dependencies: [
                 .shared,
                 .logClient,
+                .qwen3ASR,
                 .voxtralCore,
                 .mlxAudioCore,
                 .mlxAudioSTT,
