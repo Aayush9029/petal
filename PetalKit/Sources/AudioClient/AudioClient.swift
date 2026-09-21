@@ -1,6 +1,7 @@
 @preconcurrency import AVFoundation
 import Dependencies
 import DependenciesMacros
+import CoreAudio
 import Foundation
 import OSLog
 import Shared
@@ -282,6 +283,7 @@ private final class LiveAudioCaptureRuntime: @unchecked Sendable {
             try recording.start()
             selectedInputRecording = recording
             recordingURL = audioURL
+            logger.info("Recording via capture session on \(selectedDevice.localizedName, privacy: .public), streaming=\(sampleProducer != nil, privacy: .public)")
             return
         }
 
@@ -593,11 +595,35 @@ private final class LiveAudioCaptureRuntime: @unchecked Sendable {
 
     nonisolated private static func fallbackCaptureDevice() -> AVCaptureDevice? {
         let devices = inputCaptureDevices().filter(\.isConnected)
+        // AVCaptureDevice.default can differ from the input that the user set in System Settings.
+        if let defaultUID = coreAudioDefaultInputUID(),
+           let match = devices.first(where: { $0.uniqueID == defaultUID }) {
+            return match
+        }
         if let systemDefault = AVCaptureDevice.default(for: .audio),
            let match = devices.first(where: { $0.uniqueID == systemDefault.uniqueID }) {
             return match
         }
         return devices.first
+    }
+
+    nonisolated private static func coreAudioDefaultInputUID() -> String? {
+        var deviceID = AudioObjectID(kAudioObjectUnknown)
+        var size = UInt32(MemoryLayout<AudioObjectID>.size)
+        var address = AudioObjectPropertyAddress(
+            mSelector: kAudioHardwarePropertyDefaultInputDevice,
+            mScope: kAudioObjectPropertyScopeGlobal,
+            mElement: kAudioObjectPropertyElementMain
+        )
+        guard AudioObjectGetPropertyData(AudioObjectID(kAudioObjectSystemObject), &address, 0, nil, &size, &deviceID) == noErr,
+              deviceID != kAudioObjectUnknown
+        else { return nil }
+
+        var uid: Unmanaged<CFString>?
+        size = UInt32(MemoryLayout<Unmanaged<CFString>?>.size)
+        address.mSelector = kAudioDevicePropertyDeviceUID
+        guard AudioObjectGetPropertyData(deviceID, &address, 0, nil, &size, &uid) == noErr else { return nil }
+        return uid?.takeRetainedValue() as String?
     }
 
     nonisolated private static func inputCaptureDevices() -> [AVCaptureDevice] {
@@ -652,16 +678,15 @@ private final class SelectedInputAudioRecording: NSObject, AVCaptureAudioDataOut
 
         session.beginConfiguration()
         session.addInput(input)
-        if sampleProducer != nil {
-            audioOutput.audioSettings = [
-                AVFormatIDKey: kAudioFormatLinearPCM,
-                AVSampleRateKey: 16_000,
-                AVNumberOfChannelsKey: 1,
-                AVLinearPCMBitDepthKey: 32,
-                AVLinearPCMIsFloatKey: true,
-                AVLinearPCMIsNonInterleaved: false,
-            ]
-        }
+        // Stereo and multichannel devices make the mono AAC writer fail, so the output always converts to mono.
+        audioOutput.audioSettings = [
+            AVFormatIDKey: kAudioFormatLinearPCM,
+            AVSampleRateKey: sampleProducer != nil ? 16_000 : 44_100,
+            AVNumberOfChannelsKey: 1,
+            AVLinearPCMBitDepthKey: 32,
+            AVLinearPCMIsFloatKey: true,
+            AVLinearPCMIsNonInterleaved: false,
+        ]
         audioOutput.setSampleBufferDelegate(self, queue: captureQueue)
         session.addOutput(audioOutput)
         session.commitConfiguration()
