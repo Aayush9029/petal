@@ -18,24 +18,17 @@ SCRIPTS_DIR="$PROJECT_DIR/scripts/release"
 BUILD_DIR="$PROJECT_DIR/build-release"
 SECRET_KEYS_DIR="$PROJECT_DIR/secret_keys"
 P8_BASE64_FILE="$SECRET_KEYS_DIR/api_key_p8_base64.txt"
-P12_BASE64_FILE="$SECRET_KEYS_DIR/certificate_p12_base64.txt"
 SPARKLE_PRIVATE_KEY_FILE="$SECRET_KEYS_DIR/sparkle_private_key.txt"
 
 VERSION=""
 BUILD_NUMBER=""
 SKIP_NOTARIZE=false
-BUILD_KEYCHAIN=""
 
 # ─── Cleanup trap ────────────────────────────────────────────────────────────
 cleanup() {
     rm -f "$BUILD_DIR/AuthKey_${API_KEY_ID}.p8" 2>/dev/null || true
     rm -f "$BUILD_DIR/ExportOptions.plist" 2>/dev/null || true
     rm -f "$BUILD_DIR/app-for-notarization.zip" 2>/dev/null || true
-    rm -f "$BUILD_DIR/developer_id.p12" 2>/dev/null || true
-    # Delete temporary keychain if created
-    if [[ -n "$BUILD_KEYCHAIN" && -f "$BUILD_KEYCHAIN" ]]; then
-        security delete-keychain "$BUILD_KEYCHAIN" 2>/dev/null || true
-    fi
 }
 trap cleanup EXIT
 
@@ -54,7 +47,7 @@ Options:
 
 Prerequisites:
   - create-dmg (brew install create-dmg)
-  - Developer ID certificate at secret_keys/certificate_p12_base64.txt
+  - Developer ID Application: Optimal Life Technologies, Inc (6Q29HJZ4AG) in the login keychain
   - API key at secret_keys/api_key_p8_base64.txt
   - Sparkle private key at secret_keys/sparkle_private_key.txt
   - DMG background at dmg-assets/dmg-bg@2x.jpg
@@ -101,8 +94,8 @@ if [[ ! -f "$P8_BASE64_FILE" ]]; then
     exit 1
 fi
 
-if [[ ! -f "$P12_BASE64_FILE" ]]; then
-    echo "Error: Developer ID certificate not found at $P12_BASE64_FILE"
+if ! security find-identity -v -p codesigning | grep -q "$SIGNING_IDENTITY"; then
+    echo "Error: $SIGNING_IDENTITY not found in the keychain search list"
     exit 1
 fi
 
@@ -131,43 +124,8 @@ if [[ ! -x "$SIGN_UPDATE" ]]; then
     tar -xf "$PROJECT_DIR/.derived/sparkle-download/Sparkle-${SPARKLE_VERSION}.tar.xz" -C "$SPARKLE_TOOLS_DIR"
 fi
 
-# ─── Setup temporary keychain ───────────────────────────────────────────────
-# macOS 26 blocks CLI access to Developer ID keys in the login keychain.
-# Create a temporary keychain with the cert imported (same approach as CI).
-echo "Setting up build keychain..."
-BUILD_KEYCHAIN="$BUILD_DIR/build.keychain-db"
-KEYCHAIN_PASSWORD="$(openssl rand -base64 32)"
-
-# Prepare build directory (must exist before creating keychain inside it)
 rm -rf "$BUILD_DIR"
 mkdir -p "$BUILD_DIR"
-
-# Decode the base64-encoded .p12
-P12_DECODED="$BUILD_DIR/developer_id.p12"
-base64 --decode < "$P12_BASE64_FILE" > "$P12_DECODED"
-
-# Create temporary keychain
-security create-keychain -p "$KEYCHAIN_PASSWORD" "$BUILD_KEYCHAIN"
-security set-keychain-settings -lut 21600 "$BUILD_KEYCHAIN"
-security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$BUILD_KEYCHAIN"
-
-# Import Developer ID certificate with -A (allow all apps), empty password
-security import "$P12_DECODED" \
-    -P "" \
-    -A \
-    -t cert \
-    -f pkcs12 \
-    -k "$BUILD_KEYCHAIN"
-rm -f "$P12_DECODED"
-
-# Allow codesign to access the keychain
-security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" "$BUILD_KEYCHAIN" >/dev/null 2>&1
-
-# Add build keychain to search list (prepend so it's found first)
-EXISTING_KEYCHAINS=$(security list-keychains -d user | tr -d '"' | tr '\n' ' ')
-security list-keychains -d user -s "$BUILD_KEYCHAIN" $EXISTING_KEYCHAINS
-
-echo "Build keychain ready."
 
 # Read version from project.pbxproj if not overridden
 if [[ -z "$VERSION" ]]; then
@@ -211,7 +169,6 @@ $XCODEBUILD archive \
     CODE_SIGN_IDENTITY="Developer ID Application" \
     DEVELOPMENT_TEAM="$TEAM_ID" \
     CODE_SIGN_STYLE=Manual \
-    OTHER_CODE_SIGN_FLAGS="--keychain $BUILD_KEYCHAIN" \
     -quiet
 echo "Archive complete."
 
@@ -246,13 +203,11 @@ echo "=== Step 3/10: Sign embedded aria2c ==="
 "$SCRIPTS_DIR/sign-aria2c.sh" \
     --app "$APP_PATH" \
     --identity "$SIGNING_IDENTITY" \
-    --keychain "$BUILD_KEYCHAIN" \
     --skip-gatekeeper
 
 # ─── Step 4/10: Re-sign app bundle ──────────────────────────────────────────
 echo "=== Step 4/10: Re-sign app bundle ==="
 codesign --force --deep --sign "$SIGNING_IDENTITY" \
-    --keychain "$BUILD_KEYCHAIN" \
     --entitlements "$PROJECT_DIR/petal/petal.entitlements" \
     --options runtime \
     --timestamp \
@@ -290,7 +245,7 @@ echo "=== Step 7/10: Create DMG ==="
 
 # ─── Step 8/10: Sign + notarize + staple DMG ────────────────────────────────
 echo "=== Step 8/10: Sign DMG ==="
-codesign --force --sign "$SIGNING_IDENTITY" --keychain "$BUILD_KEYCHAIN" --timestamp "$DMG_PATH"
+codesign --force --sign "$SIGNING_IDENTITY" --timestamp "$DMG_PATH"
 echo "DMG signed."
 
 if $SKIP_NOTARIZE; then
