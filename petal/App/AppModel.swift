@@ -49,6 +49,7 @@ final class AppModel {
     @ObservationIgnored @Shared(.historyRetentionMode) var historyRetentionMode: HistoryRetentionMode = .both
     @ObservationIgnored @Shared(.pushToTalkThreshold) var pushToTalkThreshold: PushToTalkThreshold = .long
     @ObservationIgnored @Shared(.restoreClipboardAfterPaste) var restoreClipboardAfterPaste = true
+    @ObservationIgnored @Shared(.showLiveTranscript) var showLiveTranscript = true
     @ObservationIgnored @Shared(.duckSystemAudioDuringRecording) var duckSystemAudioDuringRecording = false
     @ObservationIgnored @Shared(.shortcutTriggerMode) var shortcutTriggerMode: ShortcutTriggerMode = .combo
     @ObservationIgnored @Shared(.doubleTapKey) var doubleTapKey: DoubleTapKey = .unconfigured
@@ -775,7 +776,7 @@ final class AppModel {
 
     private func streamingTranscriptDidUpdate(_ text: String, sessionID: UUID?) async {
         guard activeHistorySessionID == sessionID, sessionState == .recording, !Task.isCancelled else { return }
-        await floatingCapsuleClient.updateLiveTranscript(text)
+        await floatingCapsuleClient.updateLiveTranscript(showLiveTranscript ? text : "")
     }
 
     private func cancelStreamingTranscription() async {

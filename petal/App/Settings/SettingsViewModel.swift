@@ -25,6 +25,7 @@ final class SettingsViewModel {
     @ObservationIgnored @Shared(.appleIntelligenceEnabled) var appleIntelligenceEnabled = false
     @ObservationIgnored @Shared(.logsEnabled) var logsEnabled = false
     @ObservationIgnored @Shared(.restoreClipboardAfterPaste) var restoreClipboardAfterPaste = true
+    @ObservationIgnored @Shared(.showLiveTranscript) var showLiveTranscript = true
     @ObservationIgnored @Shared(.duckSystemAudioDuringRecording) var duckSystemAudioDuringRecording = false
     @ObservationIgnored @Shared(.pushToTalkThreshold) var pushToTalkThreshold: PushToTalkThreshold = .long
     @ObservationIgnored @Shared(.shortcutTriggerMode) var shortcutTriggerMode: ShortcutTriggerMode = .combo
@@ -36,6 +37,9 @@ final class SettingsViewModel {
     var microphoneAuthorized = false
     var accessibilityAuthorized = false
     var permissionMessage: String?
+    var launchAtLoginState: LaunchAtLoginState = .disabled
+    var launchAtLoginMessage: String?
+    var launchAtLoginEnabled: Bool { launchAtLoginState != .disabled }
     var audioInputDevices: [AudioInputDevice] = [
         AudioInputDevice(id: AudioInputDevice.systemDefaultID, name: "System Default", isSystemDefault: true),
     ]
@@ -162,6 +166,22 @@ final class SettingsViewModel {
     func refreshPermissions() async {
         microphoneAuthorized = await permissionsClient.microphonePermissionState() == .authorized
         accessibilityAuthorized = await permissionsClient.hasAccessibilityPermission()
+        launchAtLoginState = await permissionsClient.launchAtLoginState()
+    }
+
+    func launchAtLoginToggled(_ enabled: Bool) async {
+        launchAtLoginMessage = nil
+        do {
+            launchAtLoginState = try await permissionsClient.setLaunchAtLogin(enabled)
+            if launchAtLoginState == .requiresApproval {
+                launchAtLoginMessage = "Allow Petal in System Settings > General > Login Items."
+                await permissionsClient.openLoginItemsSettings()
+            }
+        } catch {
+            launchAtLoginState = await permissionsClient.launchAtLoginState()
+            launchAtLoginMessage = "Petal could not change the login item. Move Petal to the Applications folder and try again."
+            logClient.error("Settings", "Launch at login change failed: \(error.localizedDescription)")
+        }
     }
 
     func refreshAudioInputDevices() async {

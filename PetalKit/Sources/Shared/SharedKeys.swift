@@ -26,6 +26,10 @@ public extension SharedKey where Self == AppStorageKey<Bool>.Default {
         Self[.appStorage("logs_enabled"), default: false]
     }
 
+    static var showLiveTranscript: Self {
+        Self[.appStorage("show_live_transcript"), default: true]
+    }
+
     static var restoreClipboardAfterPaste: Self {
         Self[.appStorage("restore_clipboard_after_paste"), default: true]
     }

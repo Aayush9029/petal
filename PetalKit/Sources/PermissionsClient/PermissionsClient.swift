@@ -4,6 +4,7 @@ import AVFoundation
 import Dependencies
 import DependenciesMacros
 import Foundation
+import ServiceManagement
 
 public enum MicrophonePermissionState: Sendable {
     case notDetermined
@@ -20,6 +21,16 @@ public struct PermissionsClient: Sendable {
     public var openMicrophonePrivacySettings: @Sendable () async -> Void = {}
     public var openAccessibilityPrivacySettings: @Sendable () async -> Void = {}
     public var openGuidedAccessibilityPrivacySettings: @Sendable () async -> Void = {}
+    public var launchAtLoginState: @Sendable () async -> LaunchAtLoginState = { .disabled }
+    public var setLaunchAtLogin: @Sendable (Bool) async throws -> LaunchAtLoginState
+    public var openLoginItemsSettings: @Sendable () async -> Void = {}
+}
+
+public enum LaunchAtLoginState: Sendable {
+    case disabled
+    case enabled
+    /// macOS registered the login item, but the user must allow it in System Settings.
+    case requiresApproval
 }
 
 extension PermissionsClient: DependencyKey {
@@ -45,6 +56,20 @@ extension PermissionsClient: DependencyKey {
             },
             openGuidedAccessibilityPrivacySettings: {
                 await MainActor.run { AccessibilitySettingsGuide.shared.present() }
+            },
+            launchAtLoginState: {
+                LaunchAtLoginState(SMAppService.mainApp.status)
+            },
+            setLaunchAtLogin: { enabled in
+                if enabled {
+                    try SMAppService.mainApp.register()
+                } else {
+                    try await SMAppService.mainApp.unregister()
+                }
+                return LaunchAtLoginState(SMAppService.mainApp.status)
+            },
+            openLoginItemsSettings: {
+                SMAppService.openSystemSettingsLoginItems()
             }
         )
     }
@@ -59,8 +84,21 @@ extension PermissionsClient: TestDependencyKey {
             promptForAccessibilityPermission: {},
             openMicrophonePrivacySettings: {},
             openAccessibilityPrivacySettings: {},
-            openGuidedAccessibilityPrivacySettings: {}
+            openGuidedAccessibilityPrivacySettings: {},
+            launchAtLoginState: { .disabled },
+            setLaunchAtLogin: { $0 ? .enabled : .disabled },
+            openLoginItemsSettings: {}
         )
+    }
+}
+
+private extension LaunchAtLoginState {
+    init(_ status: SMAppService.Status) {
+        switch status {
+        case .enabled: self = .enabled
+        case .requiresApproval: self = .requiresApproval
+        default: self = .disabled
+        }
     }
 }
 

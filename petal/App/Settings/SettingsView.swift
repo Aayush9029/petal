@@ -97,12 +97,34 @@ struct GeneralPane: View {
             }
 
             SettingsPanel {
+                SettingsControlRow(
+                    title: "Launch at Login",
+                    description: viewModel.launchAtLoginMessage ?? "Open Petal automatically when you log in."
+                ) {
+                    SettingsSwitch(isOn: viewModel.launchAtLoginEnabled) { value in
+                        Task { await viewModel.launchAtLoginToggled(value) }
+                    }
+                }
+            }
+
+            SettingsPanel {
                 CapsuleAppearancePicker(selection: viewModel.floatingCapsuleBackgroundStyle) { style in
                     withAnimation(.snappy(duration: 0.24)) {
                         viewModel.$floatingCapsuleBackgroundStyle.withLock { $0 = style }
                     }
                 }
                 .padding(14)
+
+                SettingsCardDivider()
+
+                SettingsControlRow(
+                    title: "Show Live Transcript",
+                    description: "Show your words above the capsule as you speak. Works with models that transcribe live."
+                ) {
+                    SettingsSwitch(isOn: viewModel.showLiveTranscript) { value in
+                        viewModel.$showLiveTranscript.withLock { $0 = value }
+                    }
+                }
             }
 
             if !viewModel.microphoneAuthorized || !viewModel.accessibilityAuthorized {
