@@ -523,10 +523,15 @@ private final class HistoryRuntime: @unchecked Sendable {
         try? fileManager.setAttributes(protectedAttributes, ofItemAtPath: url.path)
     }
 
-    private static var appDocumentsDirectoryURL: URL {
-        FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
+    private static let appDocumentsDirectoryURL: URL = {
+        // Retention changes delete directories, so a test process must never resolve the user's real data.
+        if isTesting {
+            return FileManager.default.temporaryDirectory
+                .appending(path: "petal-tests-\(UUID().uuidString)", directoryHint: .isDirectory)
+        }
+        return FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
             .appending(path: "petal", directoryHint: .isDirectory)
-    }
+    }()
 
     private static var modelsDirectoryURL: URL {
         appDocumentsDirectoryURL.appending(path: "models", directoryHint: .isDirectory)
