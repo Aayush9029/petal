@@ -1,7 +1,6 @@
 import AVFoundation
 import Foundation
 import Shared
-import Synchronization
 
 /// Confined to the capture queue. Only owned samples cross into the ASR task.
 /// Thirty seconds of fixed-size chunks bounds memory while a cold model loads.
@@ -82,15 +81,14 @@ final class AudioSampleProducer {
               )
         else { throw AudioClientError.invalidStreamFormat }
         try file.read(into: input)
-        let pendingInput = Mutex<AVAudioPCMBuffer?>(input)
+        // The input block runs synchronously inside convert. A captured Mutex crashes the Swift 6.4 compiler.
+        nonisolated(unsafe) var pendingInput: AVAudioPCMBuffer? = input
         var error: NSError?
         let status = converter.convert(to: output, error: &error) { _, inputStatus in
-            pendingInput.withLock { pending in
-                let buffer = pending
-                pending = nil
-                inputStatus.pointee = buffer == nil ? .endOfStream : .haveData
-                return buffer
-            }
+            let buffer = pendingInput
+            pendingInput = nil
+            inputStatus.pointee = buffer == nil ? .endOfStream : .haveData
+            return buffer
         }
         if let error { throw error }
         guard status != .error, let samples = output.floatChannelData?[0] else {
