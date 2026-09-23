@@ -162,7 +162,7 @@ struct ModelSelectorCard: View {
             ProgressView()
                 .controlSize(.small)
         case let .downloading(progress):
-            circularProgress(progress.fraction)
+            CircularDownloadProgress(fraction: progress.fraction)
         case .paused:
             Image(systemName: "pause.circle.fill")
                 .foregroundStyle(Color.accentColor)
@@ -198,18 +198,6 @@ struct ModelSelectorCard: View {
         default:
             EmptyView()
         }
-    }
-
-    private func circularProgress(_ progress: Double) -> some View {
-        ZStack {
-            Circle().stroke(.secondary.opacity(0.24), lineWidth: 3.5)
-            Circle()
-                .trim(from: 0, to: max(0.03, min(1, progress)))
-                .stroke(Color.accentColor, style: StrokeStyle(lineWidth: 3.5, lineCap: .round))
-                .rotationEffect(.degrees(-90))
-        }
-        .frame(width: 18, height: 18)
-        .animation(.linear(duration: 0.15), value: progress)
     }
 
     private func scoreMeter(_ kind: ScoreKind, score: Int) -> some View {

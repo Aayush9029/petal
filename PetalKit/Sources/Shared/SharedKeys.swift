@@ -18,10 +18,6 @@ public extension SharedKey where Self == AppStorageKey<Bool>.Default {
         Self[.appStorage("compress_history_audio"), default: true]
     }
 
-    static var appleIntelligenceEnabled: Self {
-        Self[.appStorage("apple_intelligence_enabled"), default: false]
-    }
-
     static var logsEnabled: Self {
         Self[.appStorage("logs_enabled"), default: false]
     }
@@ -48,14 +44,42 @@ public extension SharedKey where Self == AppStorageKey<String>.Default {
         Self[.appStorage("selected_audio_input_device_id"), default: "system-default"]
     }
 
+    static var s1MiniSystemPrompt: Self {
+        Self[.appStorage("s1_mini_system_prompt"), default: S1MiniControls.defaultSystemPrompt]
+    }
+
     static var smartPrompt: Self {
-        Self[.appStorage("smart_prompt"), default: "Clean up filler words and repeated phrases. Return a polished version of what was said."]
+        Self[.appStorage("smart_prompt"), default: TranscriptionMode.defaultSmartPrompt]
     }
 }
 
 public extension SharedKey where Self == AppStorageKey<TranscriptionMode>.Default {
     static var transcriptionMode: Self {
         Self[.appStorage("transcription_mode"), default: .verbatim]
+    }
+}
+
+public extension SharedKey where Self == AppStorageKey<CleanupModel>.Default {
+    static var cleanupModel: Self {
+        Self[.appStorage("cleanup_model"), default: CleanupModel.legacyDefault]
+    }
+}
+
+public extension SharedKey where Self == AppStorageKey<S1MiniStyling>.Default {
+    static var s1MiniStyling: Self {
+        Self[.appStorage("s1_mini_styling"), default: .semiFormal]
+    }
+}
+
+public extension SharedKey where Self == AppStorageKey<S1MiniStructure>.Default {
+    static var s1MiniStructure: Self {
+        Self[.appStorage("s1_mini_structure"), default: .prose]
+    }
+}
+
+public extension SharedKey where Self == AppStorageKey<S1MiniContext>.Default {
+    static var s1MiniContext: Self {
+        Self[.appStorage("s1_mini_context"), default: .general]
     }
 }
 

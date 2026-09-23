@@ -37,8 +37,8 @@ public struct OnboardingView: View {
                 case .accessibility:
                     AccessibilityPermissionPage(model: model)
 
-                case .appleIntelligence:
-                    AppleIntelligencePage(model: model)
+                case .cleanup:
+                    CleanupPage(model: model)
 
                 case .historyRetention:
                     HistoryRetentionPage(model: model)
@@ -110,8 +110,8 @@ public struct OnboardingView: View {
     OnboardingView(model: .makePreview(page: .accessibility))
 }
 
-#Preview("Apple Intelligence") {
-    OnboardingView(model: .makePreview(page: .appleIntelligence))
+#Preview("Cleanup") {
+    OnboardingView(model: .makePreview(page: .cleanup))
 }
 
 #Preview("History Retention") {

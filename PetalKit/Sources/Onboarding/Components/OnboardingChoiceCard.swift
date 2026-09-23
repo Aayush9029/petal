@@ -2,8 +2,10 @@ import Shared
 import SwiftUI
 import UI
 
-struct RetentionCard: View {
+struct OnboardingChoiceCard: View {
     var symbol: String
+    /// Replaces the symbol with a brand icon.
+    var image: Image?
     var title: String
     var description: String
     var recommended = false
@@ -58,7 +60,21 @@ struct RetentionCard: View {
 
     // MARK: - Subviews
 
+    @ViewBuilder
     private var symbolImage: some View {
+        if let image {
+            image
+                .resizable()
+                .aspectRatio(contentMode: .fill)
+                .frame(width: 40, height: 40)
+                .clipShape(.rect(cornerRadius: 10))
+                .padding(.bottom, 8)
+        } else {
+            symbolView
+        }
+    }
+
+    private var symbolView: some View {
         Image(systemName: symbol)
             .font(.largeTitle)
             .symbolRenderingMode(.hierarchical)
@@ -95,7 +111,7 @@ struct RetentionCard: View {
 // MARK: - Previews
 
 #Preview("Selected") {
-    RetentionCard(
+    OnboardingChoiceCard(
         symbol: "doc.text.below.ecg",
         title: "Audio + Transcripts",
         description: "Save both audio recordings and transcription text for full history.",
@@ -108,7 +124,7 @@ struct RetentionCard: View {
 }
 
 #Preview("Unselected") {
-    RetentionCard(
+    OnboardingChoiceCard(
         symbol: "hand.raised.fill",
         title: "Private",
         description: "Nothing is saved to disk. Transcriptions are pasted to your clipboard and forgotten.",

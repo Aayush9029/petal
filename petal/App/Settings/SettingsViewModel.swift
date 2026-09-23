@@ -18,11 +18,15 @@ final class SettingsViewModel {
     @ObservationIgnored @Shared(.trimSilenceEnabled) var trimSilenceEnabled = false
     @ObservationIgnored @Shared(.autoSpeedEnabled) var autoSpeedEnabled = false
     @ObservationIgnored @Shared(.transcriptionMode) var transcriptionMode: TranscriptionMode = .verbatim
-    @ObservationIgnored @Shared(.smartPrompt) var smartPrompt = "Clean up filler words and repeated phrases. Return a polished version of what was said."
+    @ObservationIgnored @Shared(.smartPrompt) var smartPrompt = TranscriptionMode.defaultSmartPrompt
     @ObservationIgnored @Shared(.historyRetentionMode) var historyRetentionMode: HistoryRetentionMode = .both
     @ObservationIgnored @Shared(.floatingCapsuleBackgroundStyle) var floatingCapsuleBackgroundStyle: FloatingCapsuleBackgroundStyle = .liquidGlass
     @ObservationIgnored @Shared(.compressHistoryAudio) var compressHistoryAudio = true
-    @ObservationIgnored @Shared(.appleIntelligenceEnabled) var appleIntelligenceEnabled = false
+    @ObservationIgnored @Shared(.cleanupModel) var cleanupModel: CleanupModel = .off
+    @ObservationIgnored @Shared(.s1MiniStyling) var s1MiniStyling: S1MiniStyling = .semiFormal
+    @ObservationIgnored @Shared(.s1MiniStructure) var s1MiniStructure: S1MiniStructure = .prose
+    @ObservationIgnored @Shared(.s1MiniContext) var s1MiniContext: S1MiniContext = .general
+    @ObservationIgnored @Shared(.s1MiniSystemPrompt) var s1MiniSystemPrompt = S1MiniControls.defaultSystemPrompt
     @ObservationIgnored @Shared(.logsEnabled) var logsEnabled = false
     @ObservationIgnored @Shared(.restoreClipboardAfterPaste) var restoreClipboardAfterPaste = true
     @ObservationIgnored @Shared(.showLiveTranscript) var showLiveTranscript = true
@@ -140,10 +144,17 @@ final class SettingsViewModel {
         foundationModelClient.isAvailable()
     }
 
-    /// Whether smart mode should be available for the currently selected model.
     var smartModeAvailable: Bool {
         downloadModel.selectedModelOption?.supportsSmartTranscription == true
-            || appleIntelligenceEnabled
+    }
+
+    var showsInstructions: Bool {
+        (cleanupModel == .appleIntelligence && appleIntelligenceAvailable)
+            || (smartModeAvailable && transcriptionMode == .smart)
+    }
+
+    var cleanupModels: [CleanupModel] {
+        CleanupModel.allCases.filter { $0 != .appleIntelligence || appleIntelligenceAvailable }
     }
 
     var modelProviderGroups: IdentifiedArrayOf<ModelOptionProviderGroup> {
@@ -151,6 +162,7 @@ final class SettingsViewModel {
     }
 
     let downloadModel: ModelDownloadModel
+    let s1MiniDownload: S1MiniDownloadModel
     private let appModel: AppModel
     @ObservationIgnored @Dependency(\.permissionsClient) private var permissionsClient
     @ObservationIgnored @Dependency(\.audioClient) private var audioClient
@@ -160,7 +172,17 @@ final class SettingsViewModel {
 
     init(appModel: AppModel) {
         downloadModel = appModel.modelDownloadViewModel
+        s1MiniDownload = appModel.s1MiniDownloadModel
         self.appModel = appModel
+    }
+
+    func cleanupModelTapped(_ model: CleanupModel) async {
+        $cleanupModel.withLock { $0 = model }
+        appModel.cleanupModelDidChange()
+        // Speech and S1-mini downloads share one aria2 session.
+        if model == .s1Mini, !downloadModel.state.isActive, !downloadModel.state.isPaused {
+            await s1MiniDownload.downloadButtonTapped()
+        }
     }
 
     func refreshPermissions() async {
@@ -279,7 +301,7 @@ final class SettingsViewModel {
 
     func downloadModelConfirmed(_ option: ModelOption) async {
         guard !downloadModel.isDeletingModel(option) else { return }
-        guard !downloadModel.state.isActive, !downloadModel.state.isPaused else { return }
+        guard !downloadModel.state.isActive, !downloadModel.state.isPaused, !s1MiniDownload.state.isActive else { return }
         ensureReadySelectedModel(excluding: option)
         await downloadModel.downloadModel(option)
     }

@@ -18,7 +18,7 @@ public final class OnboardingModel {
         case shortcut
         case microphone
         case accessibility
-        case appleIntelligence
+        case cleanup
         case historyRetention
         case download
     }
@@ -36,8 +36,8 @@ public final class OnboardingModel {
             .historyRetention,
             .model,
         ]
-        if shouldShowAppleIntelligencePage {
-            pages.append(.appleIntelligence)
+        if shouldShowCleanupPage {
+            pages.append(.cleanup)
         }
         if selectedModelOption?.requiresDownload ?? true {
             pages.append(.download)
@@ -83,6 +83,7 @@ public final class OnboardingModel {
             let downloadState = modelDownloadViewModel.state
             if downloadState.isActive || downloadState.isPaused { return false }
         }
+        if currentPage == .cleanup, s1MiniDownloadModel.state.isActive { return false }
         return true
     }
 
@@ -97,7 +98,10 @@ public final class OnboardingModel {
             return accessibilityAuthorized ? "Continue" : "Enable Accessibility"
         case .microphone:
             return microphoneAuthorized ? "Continue" : "Enable Microphone"
-        case .appleIntelligence:
+        case .cleanup:
+            if needsS1MiniDownload {
+                return s1MiniDownloadModel.state.isActive ? "Downloading..." : "Download S1-mini"
+            }
             return nextPage == nil ? "Finish Setup" : "Continue"
         case .download:
             if modelDownloadViewModel.state.isActive { return "Downloading..." }
@@ -110,7 +114,8 @@ public final class OnboardingModel {
 
     public var primaryDisabled: Bool {
         switch currentPage {
-        case .welcome, .historyRetention, .appleIntelligence: false
+        case .welcome, .historyRetention: false
+        case .cleanup: s1MiniDownloadModel.state.isActive
         case .model: selectedModelOption == nil
         case .shortcut: !hasConfiguredShortcut
         case .microphone: false
@@ -153,8 +158,10 @@ public final class OnboardingModel {
             } else {
                 accessibilityPermissionButtonTapped()
             }
-        case .appleIntelligence:
-            if let _ = nextPage {
+        case .cleanup:
+            if needsS1MiniDownload {
+                Task { await s1MiniDownloadModel.downloadButtonTapped() }
+            } else if nextPage != nil {
                 moveForward()
             } else {
                 completeSetup()
@@ -167,6 +174,7 @@ public final class OnboardingModel {
     // MARK: - Model Download
 
     public let modelDownloadViewModel: ModelDownloadModel
+    public let s1MiniDownloadModel: S1MiniDownloadModel
 
     public var selectedModelID: String {
         get { modelDownloadViewModel.selectedModelID }
@@ -177,7 +185,8 @@ public final class OnboardingModel {
     public var microphoneAuthorized = false
     public var accessibilityAuthorized = false
     @ObservationIgnored @Shared(.historyRetentionMode) public var historyRetentionMode: HistoryRetentionMode = .both
-    @ObservationIgnored @Shared(.appleIntelligenceEnabled) public var appleIntelligenceEnabled = false
+    @ObservationIgnored @Shared(.cleanupModel) public var cleanupModel: CleanupModel = .off
+    @ObservationIgnored @Shared(.s1MiniStyling) public var s1MiniStyling: S1MiniStyling = .semiFormal
     @ObservationIgnored @Shared(.shortcutTriggerMode) var shortcutTriggerMode: ShortcutTriggerMode = .combo
     @ObservationIgnored @Shared(.doubleTapKey) var doubleTapKey: DoubleTapKey = .unconfigured
     @ObservationIgnored @Shared(.doubleTapInterval) var doubleTapInterval: Double = 0.4
@@ -198,10 +207,16 @@ public final class OnboardingModel {
     @ObservationIgnored private var lastPageTransitionDate: Date?
     @ObservationIgnored private let isPreviewMode: Bool
 
-    public init(initialPage: Page = .welcome, downloadViewModel: ModelDownloadModel? = nil, isPreviewMode: Bool = false) {
+    public init(
+        initialPage: Page = .welcome,
+        downloadViewModel: ModelDownloadModel? = nil,
+        s1MiniDownloadModel: S1MiniDownloadModel = S1MiniDownloadModel(),
+        isPreviewMode: Bool = false
+    ) {
         self.currentPage = initialPage
         self.isPreviewMode = isPreviewMode
         modelDownloadViewModel = downloadViewModel ?? ModelDownloadModel(isPreviewMode: isPreviewMode)
+        self.s1MiniDownloadModel = s1MiniDownloadModel
 
         if isPreviewMode {
             $historyRetentionMode.withLock { $0 = .both }
@@ -220,13 +235,20 @@ public final class OnboardingModel {
         modelDownloadViewModel.selectedModelOption
     }
 
-    private var shouldShowAppleIntelligencePage: Bool {
-        guard foundationModelClient.isAvailable() else { return false }
+    private var shouldShowCleanupPage: Bool {
         guard let selectedModelOption else { return false }
         if selectedModelOption.provider == .voxtralCore {
             return false
         }
         return !selectedModelOption.supportsSmartTranscription
+    }
+
+    public var cleanupModels: [CleanupModel] {
+        CleanupModel.allCases.filter { $0 != .appleIntelligence || foundationModelClient.isAvailable() }
+    }
+
+    private var needsS1MiniDownload: Bool {
+        cleanupModel == .s1Mini && !s1MiniDownloadModel.state.isDownloaded
     }
 
     private var shouldCompleteAfterModelSelection: Bool {
@@ -298,6 +320,10 @@ public final class OnboardingModel {
     public func windowAppeared() {
         if isPreviewMode { return }
         refreshPermissionStatus()
+    }
+
+    public func cleanupModelTapped(_ model: CleanupModel) {
+        $cleanupModel.withLock { $0 = model }
     }
 
     public func selectedModelChanged() {
@@ -416,7 +442,7 @@ public final class OnboardingModel {
 extension OnboardingModel.Page {
     public var primaryTitle: String {
         switch self {
-        case .welcome, .model, .shortcut, .microphone, .accessibility, .appleIntelligence, .historyRetention: "Continue"
+        case .welcome, .model, .shortcut, .microphone, .accessibility, .cleanup, .historyRetention: "Continue"
         case .download: "Download Model"
         }
     }

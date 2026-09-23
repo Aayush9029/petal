@@ -18,6 +18,7 @@ import os
 import PasteClient
 import PermissionsClient
 import PlaybackDuckingClient
+import S1MiniClient
 import Shared
 import SoundClient
 import TranscriptionClient
@@ -43,8 +44,12 @@ final class AppModel {
 
     @ObservationIgnored @Shared(.hasCompletedSetup) var hasCompletedSetup = false
     @ObservationIgnored @Shared(.transcriptionMode) var transcriptionMode: TranscriptionMode = .verbatim
-    @ObservationIgnored @Shared(.smartPrompt) var smartPrompt = "Clean up filler words and repeated phrases. Return a polished version of what was said."
-    @ObservationIgnored @Shared(.appleIntelligenceEnabled) var appleIntelligenceEnabled = false
+    @ObservationIgnored @Shared(.smartPrompt) var smartPrompt = TranscriptionMode.defaultSmartPrompt
+    @ObservationIgnored @Shared(.cleanupModel) var cleanupModel: CleanupModel = .off
+    @ObservationIgnored @Shared(.s1MiniStyling) var s1MiniStyling: S1MiniStyling = .semiFormal
+    @ObservationIgnored @Shared(.s1MiniStructure) var s1MiniStructure: S1MiniStructure = .prose
+    @ObservationIgnored @Shared(.s1MiniContext) var s1MiniContext: S1MiniContext = .general
+    @ObservationIgnored @Shared(.s1MiniSystemPrompt) var s1MiniSystemPrompt = S1MiniControls.defaultSystemPrompt
     @ObservationIgnored @Shared(.compressHistoryAudio) var compressHistoryAudio = true
     @ObservationIgnored @Shared(.historyRetentionMode) var historyRetentionMode: HistoryRetentionMode = .both
     @ObservationIgnored @Shared(.pushToTalkThreshold) var pushToTalkThreshold: PushToTalkThreshold = .long
@@ -57,6 +62,7 @@ final class AppModel {
     @ObservationIgnored @Shared(.transcriptHistoryDays) var transcriptHistoryDays: [TranscriptHistoryDay] = []
 
     let modelDownloadViewModel: ModelDownloadModel
+    let s1MiniDownloadModel = S1MiniDownloadModel()
 
     var selectedModelID: String {
         get { modelDownloadViewModel.selectedModelID }
@@ -91,6 +97,7 @@ final class AppModel {
     @ObservationIgnored @Dependency(\.historyClient) private var historyClient
     @ObservationIgnored @Dependency(\.logClient) private var logClient
     @ObservationIgnored @Dependency(\.foundationModelClient) private var foundationModelClient
+    @ObservationIgnored @Dependency(\.s1MiniClient) private var s1MiniClient
     @ObservationIgnored @Dependency(\.doubleTapClient) private var doubleTapClient
     @ObservationIgnored @Dependency(\.windowClient) private var windowClient
     @ObservationIgnored @Dependency(\.playbackDuckingClient) private var playbackDuckingClient
@@ -114,6 +121,7 @@ final class AppModel {
     @ObservationIgnored private var permissionMonitorTask: Task<Void, Never>?
     @ObservationIgnored private var miniDownloadRestoreTask: Task<Void, Never>?
     @ObservationIgnored private var warmupTask: Task<Void, Never>?
+    @ObservationIgnored private var cleanupWarmupTask: Task<Void, Never>?
     @ObservationIgnored private var menuBarFlashTask: Task<Void, Never>?
     @ObservationIgnored private var downloadStateObserverTask: Task<Void, Never>?
     @ObservationIgnored private var isShowingMiniDownload = false
@@ -468,7 +476,7 @@ final class AppModel {
                         "model": selectedModelOption.rawValue,
                         "modeRequested": transcriptionMode.rawValue,
                         "modeResolved": mode.rawValue,
-                        "appleIntelligenceRefinement": "skippedForDroppedFile",
+                        "cleanup": "skippedForDroppedFile",
                         "audioFile": audioURL.lastPathComponent,
                         "audioDuration": formatElapsedSeconds(audioDuration),
                         "audioSizeBytes": "\(audioSizeBytes)"
@@ -755,6 +763,7 @@ final class AppModel {
     // MARK: - Private: Recording & Transcription
 
     private func startAudioCapture(model: ModelOption) async throws {
+        prepareCleanupModelIfNeeded()
         let levelHandler: @Sendable (Double) -> Void = { [weak self] level in
             Task { @MainActor [weak self] in self?.recordingLevelDidUpdate(level) }
         }
@@ -927,55 +936,19 @@ final class AppModel {
                 )
             )
 
-            // Post-process with Apple Intelligence when smart mode is requested
-            // and the model doesn't natively support it.
-            let needsAIRefine = mode == .smart
-                && !selectedModelOption.supportsSmartTranscription
-                && appleIntelligenceEnabled
-                && foundationModelClient.isAvailable()
-                && !transcript.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            let cleanup = activeCleanupModel(mode: mode, model: selectedModelOption)
+            logger.info("Cleanup decision: mode=\(mode.rawValue, privacy: .public), selected=\(self.cleanupModel.rawValue, privacy: .public), resolved=\(cleanup?.rawValue ?? "none", privacy: .public)")
 
-            logger.info("Refine decision: mode=\(mode.rawValue, privacy: .public), modelSupportsSmartNatively=\(selectedModelOption.supportsSmartTranscription, privacy: .public), aiEnabled=\(self.appleIntelligenceEnabled, privacy: .public), aiAvailable=\(self.foundationModelClient.isAvailable(), privacy: .public), willRefine=\(needsAIRefine, privacy: .public)")
-
-            if needsAIRefine {
+            if let cleanup, !transcript.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 pipelineStage = "refining"
                 sessionState = .processing(.refining)
-                await soundClient.playRefineStarted()
+                if cleanup == .appleIntelligence {
+                    await soundClient.playRefineStarted()
+                }
                 await floatingCapsuleClient.showRefining()
-                logger.info("Starting Apple Intelligence refinement: inputLength=\(transcript.count, privacy: .public)")
-                let refineStart = now
-
-                if let refined = try? await foundationModelClient.refine(transcript, smartPrompt),
-                   !refined.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                {
-                    let refineElapsed = now.timeIntervalSince(refineStart)
-                    logger.info("Apple Intelligence refinement succeeded: outputLength=\(refined.count, privacy: .public)")
-                    shouldPersistOriginalVariant = refined != transcript
-                    transcript = refined
-                    logClient.dumpDebug(
-                        "AppModel",
-                        "Refinement succeeded",
-                        appDumpString(
-                            [
-                                "sessionID": historySessionID.uuidString,
-                                "elapsed": formatElapsedSeconds(refineElapsed),
-                                "outputCharacters": "\(refined.count)"
-                            ]
-                        )
-                    )
-                } else {
-                    let refineElapsed = now.timeIntervalSince(refineStart)
-                    logger.warning("Apple Intelligence refinement returned empty or failed, keeping original transcript")
-                    logClient.dumpDebug(
-                        "AppModel",
-                        "Refinement skipped/failed",
-                        appDumpString(
-                            [
-                                "sessionID": historySessionID.uuidString,
-                                "elapsed": formatElapsedSeconds(refineElapsed)
-                            ]
-                        )
-                    )
+                if let cleaned = await cleanedTranscript(transcript, using: cleanup, sessionID: historySessionID) {
+                    shouldPersistOriginalVariant = cleaned != transcript
+                    transcript = cleaned
                 }
             }
 
@@ -1208,7 +1181,7 @@ final class AppModel {
 
     func beginOnboardingFlow() {
         guard onboardingModel == nil else { return }
-        let model = OnboardingModel(downloadViewModel: modelDownloadViewModel)
+        let model = OnboardingModel(downloadViewModel: modelDownloadViewModel, s1MiniDownloadModel: s1MiniDownloadModel)
         model.onCompleted = { [weak self] in
             self?.handleOnboardingCompleted()
         }
@@ -1949,12 +1922,86 @@ final class AppModel {
 
     private func normalizedTranscriptionMode(_ mode: TranscriptionMode, model: ModelOption? = nil) -> TranscriptionMode {
         guard let selectedModelOption = model ?? selectedModelOption else { return mode }
-        if selectedModelOption.supportsTranscriptionMode(mode) { return mode }
-        // Allow smart mode when Apple Intelligence can post-process
-        if mode == .smart, appleIntelligenceEnabled, foundationModelClient.isAvailable() { return mode }
-        return .verbatim
+        return selectedModelOption.supportsTranscriptionMode(mode) ? mode : .verbatim
     }
 
+    private var s1MiniControls: S1MiniControls {
+        S1MiniControls(
+            styling: s1MiniStyling,
+            structure: s1MiniStructure,
+            context: s1MiniContext,
+            systemPrompt: s1MiniSystemPrompt
+        )
+    }
+
+    /// Speech models with native smart transcription already applied the prompt, so a second pass is skipped.
+    private func activeCleanupModel(mode: TranscriptionMode, model: ModelOption) -> CleanupModel? {
+        if mode == .smart, model.supportsSmartTranscription { return nil }
+        switch cleanupModel {
+        case .off: return nil
+        case .appleIntelligence: return foundationModelClient.isAvailable() ? .appleIntelligence : nil
+        case .s1Mini: return s1MiniClient.isDownloaded() ? .s1Mini : nil
+        }
+    }
+
+    private func cleanedTranscript(_ transcript: String, using cleanup: CleanupModel, sessionID: UUID) async -> String? {
+        let start = now
+        var details = ["sessionID": sessionID.uuidString, "cleanup": cleanup.rawValue]
+        var cleaned: String?
+        do {
+            switch cleanup {
+            case .off:
+                break
+            case .appleIntelligence where FillerWords.isFillerOnly(transcript):
+                cleaned = ""
+            case .appleIntelligence:
+                let refined = try await foundationModelClient.refine(transcript, smartPrompt)
+                // Apple Intelligence returns empty text only on failure.
+                cleaned = refined.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : refined
+            case .s1Mini:
+                let result = try await s1MiniClient.clean(transcript, s1MiniControls)
+                details["chunks"] = "\(result.chunkCount)"
+                details["promptTokens"] = "\(result.promptTokens)"
+                details["generatedTokens"] = "\(result.generatedTokens)"
+                details["modelElapsed"] = "\(result.elapsed)"
+                cleaned = result.text
+            }
+        } catch {
+            details["error"] = error.localizedDescription
+        }
+        details["elapsed"] = formatElapsedSeconds(now.timeIntervalSince(start))
+
+        if let cleaned {
+            details["outputCharacters"] = "\(cleaned.count)"
+            logger.info("\(cleanup.rawValue, privacy: .public) cleanup succeeded: outputLength=\(cleaned.count, privacy: .public)")
+            logClient.dumpDebug("AppModel", "Cleanup succeeded", appDumpString(details))
+        } else {
+            logger.warning("\(cleanup.rawValue, privacy: .public) cleanup failed, keeping original transcript")
+            logClient.dumpDebug("AppModel", "Cleanup skipped/failed", appDumpString(details))
+        }
+        return cleaned
+    }
+
+    /// Loads S1-mini while the user speaks so cleanup starts on warm weights.
+    private func prepareCleanupModelIfNeeded() {
+        guard cleanupModel == .s1Mini, cleanupWarmupTask == nil, s1MiniClient.isDownloaded() else { return }
+        let client = s1MiniClient
+        cleanupWarmupTask = Task { [weak self] in
+            do {
+                try await client.prepare()
+            } catch {
+                self?.logger.error("S1-mini warmup failed: \(error.localizedDescription, privacy: .public)")
+                self?.cleanupWarmupTask = nil
+            }
+        }
+    }
+
+    func cleanupModelDidChange() {
+        guard cleanupModel != .s1Mini else { return }
+        cleanupWarmupTask?.cancel()
+        cleanupWarmupTask = nil
+        Task { await s1MiniClient.unload() }
+    }
     private func droppedFileTranscriptionMode(
         _ requestedMode: TranscriptionMode,
         model: ModelOption

@@ -21,6 +21,7 @@ extension Target.Dependency {
     static let doubleTapClient: Self = "DoubleTapClient"
     static let logClient: Self = "LogClient"
     static let playbackDuckingClient: Self = "PlaybackDuckingClient"
+    static let s1MiniClient: Self = "S1MiniClient"
 
     static let dependencies: Self = .product(name: "Dependencies", package: "swift-dependencies")
     static let dependenciesMacros: Self = .product(name: "DependenciesMacros", package: "swift-dependencies")
@@ -37,6 +38,10 @@ extension Target.Dependency {
     static let mlxAudioSTT: Self = .product(name: "MLXAudioSTT", package: "mlx-audio-swift")
     static let whisperKit: Self = .product(name: "WhisperKit", package: "argmax-oss-swift")
     static let onnxRuntime: Self = .product(name: "onnxruntime", package: "onnxruntime-swift-package-manager")
+    static let mlx: Self = .product(name: "MLX", package: "mlx-swift")
+    static let mlxLLM: Self = .product(name: "MLXLLM", package: "mlx-swift-lm")
+    static let mlxLMCommon: Self = .product(name: "MLXLMCommon", package: "mlx-swift-lm")
+    static let tokenizers: Self = .product(name: "Tokenizers", package: "swift-transformers")
 }
 
 let package = Package(
@@ -68,6 +73,7 @@ let package = Package(
         .library(name: "WindowClient", targets: ["WindowClient"]),
         .library(name: "DoubleTapClient", targets: ["DoubleTapClient"]),
         .library(name: "FoundationModelClient", targets: ["FoundationModelClient"]),
+        .library(name: "S1MiniClient", targets: ["S1MiniClient"]),
     ],
     dependencies: [
         .package(url: "https://github.com/FluidInference/FluidAudio.git", exact: "0.15.8"),
@@ -82,6 +88,9 @@ let package = Package(
         .package(url: "https://github.com/Blaizzy/mlx-audio-swift.git", from: "0.1.3"),
         .package(url: "https://github.com/argmaxinc/argmax-oss-swift", from: "1.1.0"),
         .package(url: "https://github.com/microsoft/onnxruntime-swift-package-manager", from: "1.24.2"),
+        .package(url: "https://github.com/ml-explore/mlx-swift", from: "0.31.6"),
+        .package(url: "https://github.com/ml-explore/mlx-swift-lm", from: "3.31.4"),
+        .package(url: "https://github.com/huggingface/swift-transformers", from: "1.3.4"),
     ],
     targets: [
         .target(
@@ -117,6 +126,7 @@ let package = Package(
             dependencies: [
                 .shared,
                 .downloadClient,
+                .s1MiniClient,
             ]
         ),
         .target(
@@ -208,6 +218,18 @@ let package = Package(
             ]
         ),
         .target(
+            name: "S1MiniClient",
+            dependencies: [
+                .shared,
+                .downloadClient,
+                .voxtralCore,
+                .mlx,
+                .mlxLLM,
+                .mlxLMCommon,
+                .tokenizers,
+            ]
+        ),
+        .target(
             name: "TranscriptionClient",
             dependencies: [
                 .shared,
@@ -284,6 +306,7 @@ let package = Package(
                 "MLXClient",
                 "TranscriptionClient",
                 "FoundationModelClient",
+                "S1MiniClient",
                 "DownloadClient",
                 "HistoryClient",
                 "SoundClient",

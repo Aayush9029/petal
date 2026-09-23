@@ -18,6 +18,7 @@ struct SettingsView: View {
                     sidebarRow(.general)
                     sidebarRow(.recording)
                     sidebarRow(.transcription)
+                    sidebarRow(.intelligence)
                 }
 
                 Section("Library") {
@@ -61,6 +62,8 @@ struct SettingsView: View {
             GeneralPane(viewModel: viewModel)
         case .transcription:
             TranscriptionPane(viewModel: viewModel)
+        case .intelligence:
+            IntelligencePane(viewModel: viewModel)
         case .recording:
             RecordingPane(viewModel: viewModel)
         case .history:
@@ -267,59 +270,7 @@ struct TranscriptionPane: View {
                 }
             }
 
-            if viewModel.appleIntelligenceAvailable || viewModel.smartModeAvailable {
-                SettingsPanelSection(title: "Enhancement") {
-                    if viewModel.appleIntelligenceAvailable {
-                        SettingsControlRow(
-                            title: "Enhance with Apple Intelligence",
-                            description: "Refine transcripts on-device after speech recognition."
-                        ) {
-                            HStack(spacing: 10) {
-                                IntelligenceProcessingWaveform(
-                                    bars: 11,
-                                    rows: 5,
-                                    isAnimated: viewModel.appleIntelligenceEnabled
-                                )
-                                SettingsSwitch(
-                                    isOn: viewModel.appleIntelligenceEnabled
-                                ) { value in
-                                    viewModel.$appleIntelligenceEnabled.withLock { $0 = value }
-                                }
-                            }
-                        }
-                    }
-
-                    if viewModel.appleIntelligenceAvailable && viewModel.smartModeAvailable {
-                        SettingsCardDivider()
-                    }
-
-                    if viewModel.smartModeAvailable {
-                        SettingsControlRow(
-                            title: "Writing Style"
-                        ) {
-                            SettingsSegmentedPicker(
-                                values: TranscriptionMode.allCases,
-                                selection: viewModel.transcriptionMode,
-                                title: \.displayName
-                            ) { mode in
-                                viewModel.$transcriptionMode.withLock { $0 = mode }
-                            }
-                            .frame(width: 205)
-                        }
-
-                        if viewModel.transcriptionMode == .smart {
-                            SettingsCardDivider()
-                            TextField("Smart prompt", text: Binding(viewModel.$smartPrompt), axis: .vertical)
-                                .textFieldStyle(.roundedBorder)
-                                .lineLimit(3 ... 6)
-                                .padding(14)
-                        }
-                    }
-                }
-                .transition(.opacity.combined(with: .move(edge: .bottom)))
-            }
         }
-        .animation(.smooth(duration: 0.25), value: viewModel.transcriptionMode)
         .alert(
             "Delete Download",
             isPresented: isShowingDeleteConfirmation,

@@ -26,14 +26,14 @@ struct HistoryRetentionPage: View {
 
     private var cards: some View {
         HStack(alignment: .top, spacing: 12) {
-            RetentionCard(
+            OnboardingChoiceCard(
                 symbol: "doc.text",
                 title: "Text Only",
                 description: "Save the transcription text. Audio is not stored.",
                 isSelected: model.historyRetentionMode == .transcripts
             ) { model.$historyRetentionMode.withLock { $0 = .transcripts } }
 
-            RetentionCard(
+            OnboardingChoiceCard(
                 symbol: "doc.text.below.ecg",
                 title: "Everything",
                 description: "Keep audio recordings and transcription text.",
@@ -41,7 +41,7 @@ struct HistoryRetentionPage: View {
                 isSelected: model.historyRetentionMode == .both
             ) { model.$historyRetentionMode.withLock { $0 = .both } }
 
-            RetentionCard(
+            OnboardingChoiceCard(
                 symbol: "hand.raised.fill",
                 title: "Private",
                 description: "Nothing is saved. Transcriptions are pasted and discarded.",
