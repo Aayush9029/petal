@@ -2,7 +2,6 @@ import AVFoundation
 import Dependencies
 import DependenciesMacros
 import FluidAudio
-import Qwen3ASR
 import Foundation
 import LogClient
 import Shared
@@ -56,15 +55,11 @@ public struct MLXModelInfo: Sendable, Equatable {
 }
 
 public enum MLXPipelineModel: String, Sendable {
-    case mini3b
     case mini3b8bit
-    case qwen3ASR06B4bit
+    case qwen3ASR17B8bit
     case parakeetUnified06B
-    case parakeetTDT06BV3
-    case parakeetTDT06BV2
     case parakeetTDTCTC110M
     case whisperLargeV3Turbo
-    case whisperTiny
 }
 
 public enum MLXTranscriptionMode: Sendable {
@@ -254,9 +249,8 @@ private actor LiveMLXRuntime {
     private let audioConverter = AudioConverter()
 
     private var loadedModel: MLXPipelineModel?
-    private var voxtralPipeline: VoxtralPipeline?
     private var voxtralRealtimeModel: VoxtralRealtimeModel?
-    private var qwen3AsrManager: Qwen3AsrManager?
+    private var qwen3AsrModel: Qwen3ASRModel?
     private var parakeetAsrManager: AsrManager?
     private var whisperKitInstance: WhisperKit?
     private var unifiedAsrManager: StreamingUnifiedAsrManager?
@@ -292,43 +286,15 @@ private actor LiveMLXRuntime {
             let loadElapsed = ProcessInfo.processInfo.systemUptime - loadStart
             log("prepare.voxtral-realtime.loaded elapsed=\(formatElapsedSeconds(loadElapsed))")
 
-        case .mini3b:
-            log("prepare.voxtral.begin model=\(model.rawValue)")
-            var config = VoxtralPipeline.Configuration.default
-            config.maxTokens = 1024
-            config.temperature = 0.0
-            config.topP = 0.95
-            config.repetitionPenalty = 1.15
-
-            let pipeline = VoxtralPipeline(
-                model: model.voxtralModel,
-                backend: .hybrid,
-                configuration: config
-            )
-
-            let loadStart = ProcessInfo.processInfo.systemUptime
-            try await pipeline.loadModel()
-            let loadElapsed = ProcessInfo.processInfo.systemUptime - loadStart
-            log("prepare.voxtral.loaded elapsed=\(formatElapsedSeconds(loadElapsed))")
-            voxtralPipeline = pipeline
-
-        case .qwen3ASR06B4bit:
-            guard let fluidAudioModel = model.fluidAudioModel else {
+        case .qwen3ASR17B8bit:
+            guard let info = model.huggingFaceModelInfo,
+                  let modelDirectory = ModelDownloader.findModelPath(for: info)
+            else {
                 throw MLXError.invalidModelIdentifier(model.rawValue)
             }
-            log("prepare.qwen.begin")
-            let resolveStart = ProcessInfo.processInfo.systemUptime
-            let modelDirectory = try await FluidAudioCache.downloadIfNeeded(model: fluidAudioModel)
-            let resolveElapsed = ProcessInfo.processInfo.systemUptime - resolveStart
-            log(
-                "prepare.qwen.model-ready elapsed=\(formatElapsedSeconds(resolveElapsed)), directory=\(modelDirectory.lastPathComponent)"
-            )
-            let manager = Qwen3AsrManager()
             let loadStart = ProcessInfo.processInfo.systemUptime
-            try await manager.loadModels(from: modelDirectory)
-            let loadElapsed = ProcessInfo.processInfo.systemUptime - loadStart
-            log("prepare.qwen.loaded elapsed=\(formatElapsedSeconds(loadElapsed))")
-            qwen3AsrManager = manager
+            qwen3AsrModel = try await Qwen3ASRModel.fromModelDirectory(modelDirectory)
+            log("prepare.qwen-mlx.loaded elapsed=\(formatElapsedSeconds(ProcessInfo.processInfo.systemUptime - loadStart))")
 
         case .parakeetUnified06B:
             let directory = try await FluidAudioCache.downloadIfNeeded(model: .parakeetUnified)
@@ -336,7 +302,7 @@ private actor LiveMLXRuntime {
             try await manager.loadModels(from: directory)
             unifiedAsrManager = manager
 
-        case .parakeetTDT06BV3, .parakeetTDT06BV2, .parakeetTDTCTC110M:
+        case .parakeetTDTCTC110M:
             guard let fluidAudioModel = model.fluidAudioModel,
                   let version = fluidAudioModel.parakeetVersion
             else {
@@ -361,7 +327,7 @@ private actor LiveMLXRuntime {
             log("prepare.parakeet.manager-initialized elapsed=\(formatElapsedSeconds(managerInitElapsed))")
             parakeetAsrManager = manager
 
-        case .whisperLargeV3Turbo, .whisperTiny:
+        case .whisperLargeV3Turbo:
             guard let variant = model.whisperKitVariant else {
                 throw MLXError.invalidModelIdentifier(model.rawValue)
             }
@@ -424,47 +390,18 @@ private actor LiveMLXRuntime {
                 }
                 transcript = text
 
-            case .mini3b:
-                guard let voxtralPipeline else {
+            case .qwen3ASR17B8bit:
+                guard let qwen3AsrModel else {
                     throw MLXError.pipelineUnavailable
                 }
-
-                let backendStart = ProcessInfo.processInfo.systemUptime
-                switch mode {
-                case .verbatim:
-                    transcript = try await voxtralPipeline.transcribe(audio: audioURL, language: "en")
-                case let .smart(prompt):
-                    log("transcribe.voxtral.smart-prompt length=\(prompt.count)")
-                    transcript = try await voxtralPipeline.chat(audio: audioURL, prompt: prompt, language: "en")
-                }
-                let backendElapsed = ProcessInfo.processInfo.systemUptime - backendStart
-                log("transcribe.voxtral.backend completed elapsed=\(formatElapsedSeconds(backendElapsed))")
-
-            case .qwen3ASR06B4bit:
-                guard let qwen3AsrManager else {
-                    throw MLXError.pipelineUnavailable
-                }
-
-                let resampleStart = ProcessInfo.processInfo.systemUptime
-                let audioSamples = try audioConverter.resampleAudioFile(audioURL)
-                let resampleElapsed = ProcessInfo.processInfo.systemUptime - resampleStart
-                log(
-                    "transcribe.qwen.resample completed elapsed=\(formatElapsedSeconds(resampleElapsed)), samples=\(audioSamples.count)"
-                )
-
+                let (_, audio) = try loadAudioArray(from: audioURL, sampleRate: 16_000)
                 let inferenceStart = ProcessInfo.processInfo.systemUptime
-                let text = try await qwen3AsrManager.transcribe(audioSamples: audioSamples)
-                let inferenceElapsed = ProcessInfo.processInfo.systemUptime - inferenceStart
-                log(
-                    "transcribe.qwen.inference completed elapsed=\(formatElapsedSeconds(inferenceElapsed)), rawChars=\(text.count)"
-                )
-
-                let normalizedText = normalizeQwenTranscript(text)
+                let output = qwen3AsrModel.generate(audio: audio)
+                log("transcribe.qwen-mlx.inference completed elapsed=\(formatElapsedSeconds(ProcessInfo.processInfo.systemUptime - inferenceStart)), rawChars=\(output.text.count)")
+                let normalizedText = normalizeQwenTranscript(output.text)
                 guard !normalizedText.isEmpty else {
-                    log("transcribe.qwen.empty-normalized-output")
                     throw MLXError.pipelineUnavailable
                 }
-                log("transcribe.qwen.normalized chars=\(normalizedText.count)")
                 transcript = normalizedText
 
             case .parakeetUnified06B:
@@ -473,7 +410,7 @@ private actor LiveMLXRuntime {
                 let audio = AudioSampleStream(unfolding: { await reader.next() })
                 transcript = try await transcribeStream(audio, onPartial: { _ in })
 
-            case .parakeetTDT06BV3, .parakeetTDT06BV2, .parakeetTDTCTC110M:
+            case .parakeetTDTCTC110M:
                 guard let parakeetAsrManager else {
                     throw MLXError.pipelineUnavailable
                 }
@@ -495,7 +432,7 @@ private actor LiveMLXRuntime {
                 log("transcribe.parakeet.normalized chars=\(text.count)")
                 transcript = text
 
-            case .whisperLargeV3Turbo, .whisperTiny:
+            case .whisperLargeV3Turbo:
                 guard let whisperKitInstance else {
                     throw MLXError.pipelineUnavailable
                 }
@@ -576,10 +513,8 @@ private actor LiveMLXRuntime {
     }
 
     func unloadModel() {
-        voxtralPipeline?.unload()
-        voxtralPipeline = nil
         voxtralRealtimeModel = nil
-        qwen3AsrManager = nil
+        qwen3AsrModel = nil
         parakeetAsrManager = nil
         whisperKitInstance = nil
         unifiedAsrManager = nil
@@ -637,10 +572,7 @@ private func normalizeDownloadError(_ error: any Error) -> MLXDownloadError {
 }
 
 private enum FluidAudioModel: Sendable, Equatable {
-    case qwen3Asr
     case parakeetUnified
-    case parakeetTdtV3
-    case parakeetTdtV2
     case parakeetTdtCtc110m
 
     init?(info: MLXModelInfo) {
@@ -648,30 +580,14 @@ private enum FluidAudioModel: Sendable, Equatable {
         let normalizedRepo = info.repoId.lowercased()
 
         switch normalizedID {
-        case MLXPipelineModel.qwen3ASR06B4bit.rawValue:
-            self = .qwen3Asr
         case MLXPipelineModel.parakeetUnified06B.rawValue:
             self = .parakeetUnified
-        case MLXPipelineModel.parakeetTDT06BV3.rawValue:
-            self = .parakeetTdtV3
-        case MLXPipelineModel.parakeetTDT06BV2.rawValue:
-            self = .parakeetTdtV2
         case MLXPipelineModel.parakeetTDTCTC110M.rawValue:
             self = .parakeetTdtCtc110m
         default:
             switch normalizedRepo {
-            case "fluidinference/qwen3-asr-0.6b-coreml/f32",
-                 "fluidinference/qwen3-asr-0.6b-coreml/int8",
-                 "mlx-community/qwen3-asr-0.6b-4bit":
-                self = .qwen3Asr
             case "fluidinference/parakeet-unified-en-0.6b-coreml":
                 self = .parakeetUnified
-            case "fluidinference/parakeet-tdt-0.6b-v3-coreml",
-                 "mlx-community/parakeet-tdt-0.6b-v3":
-                self = .parakeetTdtV3
-            case "fluidinference/parakeet-tdt-0.6b-v2-coreml",
-                 "mlx-community/parakeet-tdt-0.6b-v2":
-                self = .parakeetTdtV2
             case "fluidinference/parakeet-tdt-ctc-110m-coreml":
                 self = .parakeetTdtCtc110m
             default:
@@ -682,18 +598,14 @@ private enum FluidAudioModel: Sendable, Equatable {
 
     var parakeetVersion: AsrModelVersion? {
         switch self {
-        case .qwen3Asr, .parakeetUnified: return nil
-        case .parakeetTdtV3: return .v3
-        case .parakeetTdtV2: return .v2
+        case .parakeetUnified: return nil
         case .parakeetTdtCtc110m: return .tdtCtc110m
         }
     }
 
     var parakeetRepoId: String? {
         switch self {
-        case .qwen3Asr, .parakeetUnified: return nil
-        case .parakeetTdtV3: return "FluidInference/parakeet-tdt-0.6b-v3-coreml"
-        case .parakeetTdtV2: return "FluidInference/parakeet-tdt-0.6b-v2-coreml"
+        case .parakeetUnified: return nil
         case .parakeetTdtCtc110m: return "FluidInference/parakeet-tdt-ctc-110m-coreml"
         }
     }
@@ -702,33 +614,13 @@ private enum FluidAudioModel: Sendable, Equatable {
         switch self {
         case .parakeetUnified:
             return UnifiedModelArtifacts.directory
-        case .qwen3Asr:
-            return Qwen3AsrModels.defaultCacheDirectory(variant: .int8)
-        case .parakeetTdtV3, .parakeetTdtV2, .parakeetTdtCtc110m:
-            return AsrModels.defaultCacheDirectory(for: parakeetVersion ?? .v3)
+        case .parakeetTdtCtc110m:
+            return AsrModels.defaultCacheDirectory(for: .tdtCtc110m)
         }
     }
 
     var candidateDirectoryURLs: [URL] {
         switch self {
-        case .qwen3Asr:
-            let defaultDirectory = Qwen3AsrModels.defaultCacheDirectory(variant: .int8)
-            let repoDirectory = defaultDirectory.deletingLastPathComponent()
-            let modelsRoot = repoDirectory.deletingLastPathComponent()
-
-            return [
-                defaultDirectory,
-                Qwen3AsrModels.defaultCacheDirectory(variant: .f32),
-                repoDirectory,
-                repoDirectory.appendingPathComponent("qwen3-asr-0.6b-coreml-int8", isDirectory: true),
-                repoDirectory.appendingPathComponent("qwen3-asr-0.6b-coreml-f32", isDirectory: true),
-                modelsRoot.appendingPathComponent("qwen3-asr-0.6b-coreml-int8", isDirectory: true),
-                modelsRoot.appendingPathComponent("qwen3-asr-0.6b-coreml-f32", isDirectory: true),
-            ]
-        case .parakeetTdtV3, .parakeetTdtV2:
-            // Petal 2.0 used a FluidAudio fork that kept the "-coreml" suffix in these folder names.
-            let legacyName = directoryURL.lastPathComponent + "-coreml"
-            return [directoryURL, directoryURL.deletingLastPathComponent().appendingPathComponent(legacyName, isDirectory: true)]
         case .parakeetUnified, .parakeetTdtCtc110m:
             return [directoryURL]
         }
@@ -738,12 +630,6 @@ private enum FluidAudioModel: Sendable, Equatable {
         switch self {
         case .parakeetUnified:
             return "Parakeet Unified"
-        case .qwen3Asr:
-            return "Qwen3 ASR"
-        case .parakeetTdtV3:
-            return "Parakeet TDT v3"
-        case .parakeetTdtV2:
-            return "Parakeet TDT v2"
         case .parakeetTdtCtc110m:
             return "Parakeet TDT-CTC 110M"
         }
@@ -791,7 +677,6 @@ private enum FluidAudioCache {
     private static func parakeetFilesExist(at directory: URL, version: AsrModelVersion) -> Bool {
         let models: Set<String>
         switch version {
-        case .v3: models = ModelNames.ASR.requiredModelsV3(precision: .int8)
         case .tdtCtc110m: models = ModelNames.ASR.requiredModelsFused
         default: models = ModelNames.ASR.requiredModels
         }
@@ -808,14 +693,7 @@ private enum FluidAudioCache {
         switch model {
         case .parakeetUnified:
             return UnifiedModelArtifacts.isDownloaded(at: model.directoryURL) ? model.directoryURL : nil
-        case .qwen3Asr:
-            for candidate in model.candidateDirectoryURLs {
-                if Qwen3AsrModels.modelsExist(at: candidate) {
-                    return candidate
-                }
-            }
-            return nil
-        case .parakeetTdtV3, .parakeetTdtV2, .parakeetTdtCtc110m:
+        case .parakeetTdtCtc110m:
             guard let version = model.parakeetVersion else { return nil }
             return model.candidateDirectoryURLs.first { parakeetFilesExist(at: $0, version: version) }
         }
@@ -843,20 +721,7 @@ private enum FluidAudioCache {
                 progress: progress
             )
             try UnifiedModelArtifacts.recordCompletedDownload(at: model.directoryURL)
-        case .qwen3Asr:
-            try await ModelDownloader.downloadFromHuggingFace(
-                repoId: "FluidInference/qwen3-asr-0.6b-coreml",
-                subfolder: "int8",
-                destination: Qwen3AsrModels.defaultCacheDirectory(variant: .int8),
-                fileFilter: { path in
-                    path == "qwen3_asr_embeddings.bin"
-                        || path == "vocab.json"
-                        || path.hasPrefix("qwen3_asr_audio_encoder_v2.mlmodelc/")
-                        || path.hasPrefix("qwen3_asr_decoder_stateful.mlmodelc/")
-                },
-                progress: progress
-            )
-        case .parakeetTdtV3, .parakeetTdtV2, .parakeetTdtCtc110m:
+        case .parakeetTdtCtc110m:
             guard let repoId = model.parakeetRepoId else {
                 throw MLXError.invalidModelIdentifier(model.displayName)
             }
@@ -900,17 +765,11 @@ private extension MLXModelInfo {
 private extension MLXPipelineModel {
     var fluidAudioModel: FluidAudioModel? {
         switch self {
-        case .qwen3ASR06B4bit:
-            return .qwen3Asr
         case .parakeetUnified06B:
             return .parakeetUnified
-        case .parakeetTDT06BV3:
-            return .parakeetTdtV3
-        case .parakeetTDT06BV2:
-            return .parakeetTdtV2
         case .parakeetTDTCTC110M:
             return .parakeetTdtCtc110m
-        case .mini3b, .mini3b8bit, .whisperLargeV3Turbo, .whisperTiny:
+        case .mini3b8bit, .qwen3ASR17B8bit, .whisperLargeV3Turbo:
             return nil
         }
     }
@@ -919,25 +778,11 @@ private extension MLXPipelineModel {
         switch self {
         case .whisperLargeV3Turbo:
             return "openai_whisper-large-v3_turbo_954MB"
-        case .whisperTiny:
-            return "openai_whisper-small_216MB"
-        case .mini3b, .mini3b8bit, .parakeetUnified06B, .qwen3ASR06B4bit,
-             .parakeetTDT06BV3, .parakeetTDT06BV2, .parakeetTDTCTC110M:
+        case .mini3b8bit, .parakeetUnified06B, .qwen3ASR17B8bit, .parakeetTDTCTC110M:
             return nil
         }
     }
 
-    var voxtralModel: VoxtralPipeline.Model {
-        switch self {
-        case .mini3b:
-            return .mini3b
-        case .mini3b8bit:
-            return .mini3b8bit
-        case .parakeetUnified06B, .qwen3ASR06B4bit, .parakeetTDT06BV3, .parakeetTDT06BV2,
-             .parakeetTDTCTC110M, .whisperLargeV3Turbo, .whisperTiny:
-            return .mini3b
-        }
-    }
 }
 
 private enum WhisperKitCache {
@@ -995,8 +840,6 @@ private enum WhisperKitCache {
         switch variant {
         case "whisper-large-v3-turbo":
             return "openai_whisper-large-v3_turbo_954MB"
-        case "whisper-tiny":
-            return "openai_whisper-small_216MB"
         default:
             return variant
         }
@@ -1004,6 +847,19 @@ private enum WhisperKitCache {
 }
 
 private extension MLXPipelineModel {
+    var huggingFaceModelInfo: VoxtralModelInfo? {
+        guard case .qwen3ASR17B8bit = self else { return voxtralRealtimeModelInfo }
+        return VoxtralModelInfo(
+            id: rawValue,
+            repoId: "mlx-community/Qwen3-ASR-1.7B-8bit",
+            name: "Qwen3 ASR 1.7B",
+            description: "Multilingual transcription with automatic language detection.",
+            size: "~2.5 GB",
+            quantization: "8-bit MLX",
+            parameters: "1.7B"
+        )
+    }
+
     var voxtralRealtimeModelInfo: VoxtralModelInfo? {
         guard case .mini3b8bit = self else { return nil }
         return VoxtralModelInfo(

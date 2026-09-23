@@ -58,13 +58,13 @@ struct ModelOptionCard: View {
 // MARK: - Previews
 
 #Preview("Selected") {
-    ModelOptionCard(option: .mini3b, isSelected: true) {}
+    ModelOptionCard(option: .mini3b8bit, isSelected: true) {}
         .padding()
         .preferredColorScheme(.dark)
 }
 
 #Preview("Unselected") {
-    ModelOptionCard(option: .mini3b, isSelected: false) {}
+    ModelOptionCard(option: .mini3b8bit, isSelected: false) {}
         .padding()
         .preferredColorScheme(.dark)
 }

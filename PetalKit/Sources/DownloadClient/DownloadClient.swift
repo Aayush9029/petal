@@ -192,11 +192,11 @@ private extension ModelOption {
         case .appleSpeech:
             // Apple Speech is handled outside MLX download/runtime paths.
             return .fluidAudio
-        case .mini3b, .mini3b8bit:
+        case .mini3b8bit, .qwen3ASR17B8bit:
             return .voxtral
-        case .parakeetUnified06B, .qwen3ASR06B4bit, .parakeetTDT06BV3, .parakeetTDT06BV2, .parakeetTDTCTC110M:
+        case .parakeetUnified06B, .parakeetTDTCTC110M:
             return .fluidAudio
-        case .whisperLargeV3Turbo, .whisperTiny:
+        case .whisperLargeV3Turbo:
             return .whisperKit
         }
     }

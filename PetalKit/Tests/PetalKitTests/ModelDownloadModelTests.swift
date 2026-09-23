@@ -115,22 +115,22 @@ func deletingModelMarksOptionUnavailableUntilDeletionFinishes() async {
         }
     } operation: { @MainActor in
         let model = ModelDownloadModel(isPreviewMode: true)
-        model.$selectedModelID.withLock { $0 = ModelOption.whisperTiny.rawValue }
+        model.$selectedModelID.withLock { $0 = ModelOption.whisperLargeV3Turbo.rawValue }
         model.state = .downloaded
 
         let deleteTask = Task {
-            await model.deleteModel(.whisperTiny)
+            await model.deleteModel(.whisperLargeV3Turbo)
         }
 
         await gate.waitUntilWaiting()
-        #expect(model.isDeletingModel(.whisperTiny))
-        #expect(!model.isModelDownloaded(.whisperTiny))
+        #expect(model.isDeletingModel(.whisperLargeV3Turbo))
+        #expect(!model.isModelDownloaded(.whisperLargeV3Turbo))
         expectNoDifference(model.state, .notDownloaded)
 
         await gate.open()
         await deleteTask.value
 
-        #expect(!model.isDeletingModel(.whisperTiny))
+        #expect(!model.isDeletingModel(.whisperLargeV3Turbo))
         expectNoDifference(model.lastError, nil)
     }
 }

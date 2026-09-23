@@ -2138,22 +2138,14 @@ final class AppModel {
         guard let model else { return 2.2 }
 
         switch model {
-        case .qwen3ASR06B4bit:
-            return 2.2
+        case .qwen3ASR17B8bit:
+            return 1.5
         case .parakeetUnified06B:
-            return 2.0
-        case .parakeetTDT06BV3:
-            return 1.8
-        case .parakeetTDT06BV2:
             return 2.0
         case .parakeetTDTCTC110M:
             return 2.5
         case .whisperLargeV3Turbo:
             return 0.85
-        case .whisperTiny:
-            return 2.8
-        case .mini3b:
-            return 0.8
         case .mini3b8bit:
             return 1.5
         case .appleSpeech:

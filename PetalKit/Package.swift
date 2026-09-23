@@ -9,7 +9,6 @@ extension Target.Dependency {
     static let ui: Self = "UI"
     static let modelDownloadFeature: Self = "ModelDownloadFeature"
     static let mlxClient: Self = "MLXClient"
-    static let qwen3ASR: Self = "Qwen3ASR"
     static let audioTrimClient: Self = "AudioTrimClient"
     static let audioSpeedClient: Self = "AudioSpeedClient"
     static let permissionsClient: Self = "PermissionsClient"
@@ -76,7 +75,7 @@ let package = Package(
         .library(name: "S1MiniClient", targets: ["S1MiniClient"]),
     ],
     dependencies: [
-        .package(url: "https://github.com/FluidInference/FluidAudio.git", exact: "0.15.8"),
+        .package(url: "https://github.com/FluidInference/FluidAudio.git", exact: "0.17.1"),
         .package(name: "MLXVoxtralSwift", path: "../mlx-voxtral-swift"),
         .package(url: "https://github.com/pointfreeco/swift-dependencies", from: "1.17.1"),
         .package(url: "https://github.com/pointfreeco/swift-custom-dump", from: "1.7.3"),
@@ -180,17 +179,11 @@ let package = Package(
                 .ui,
             ]
         ),
-        // Upstream FluidAudio removed Qwen3 ASR. These sources come from FluidAudio (Apache 2.0).
-        .target(
-            name: "Qwen3ASR",
-            exclude: ["LICENSE-FluidAudio"]
-        ),
         .target(
             name: "MLXClient",
             dependencies: [
                 .shared,
                 .logClient,
-                .qwen3ASR,
                 .voxtralCore,
                 .mlxAudioCore,
                 .mlxAudioSTT,

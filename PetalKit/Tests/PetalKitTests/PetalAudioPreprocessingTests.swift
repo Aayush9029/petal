@@ -100,7 +100,7 @@ func transcriptionClientUsesTrimAndSpeedDependenciesBeforeMLX() async throws {
         @Shared(.autoSpeedEnabled) var speedEnabled = false
         $trimEnabled.withLock { $0 = true }
         $speedEnabled.withLock { $0 = true }
-        return try await TranscriptionClient.liveValue.transcribe(audioURL, .mini3b, .verbatim, nil)
+        return try await TranscriptionClient.liveValue.transcribe(audioURL, .mini3b8bit, .verbatim, nil)
     }
 
     #expect(output == "ok")

@@ -26,7 +26,7 @@ public extension ModelProvider {
         switch self {
         case .appleSpeech:
             return "Built In"
-        case .fluidAudio:
+        case .mlxAudio:
             return "Qwen"
         case .nvidia:
             return "NVIDIA"

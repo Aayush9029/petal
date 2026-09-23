@@ -6,9 +6,9 @@ import Foundation
 public enum ModelProvider: String, Sendable, Equatable {
     case voxtralCore = "Voxtral Core"
     case appleSpeech = "Apple Speech"
-    case fluidAudio = "FluidAudio"
     case nvidia = "NVIDIA"
     case whisperKit = "WhisperKit"
+    case mlxAudio = "MLX Audio"
 }
 
 public struct ModelDescriptor: Sendable, Equatable {
@@ -55,26 +55,18 @@ public struct ModelDescriptor: Sendable, Equatable {
 
 public enum ModelOption: String, CaseIterable, Identifiable, Sendable {
     case appleSpeech = "apple-speech"
-    case qwen3ASR06B4bit = "qwen3-asr-0.6b-4bit"
+    case qwen3ASR17B8bit = "qwen3-asr-1.7b-8bit"
     case parakeetUnified06B = "parakeet-unified-en-0.6b"
-    case parakeetTDT06BV3 = "parakeet-tdt-0.6b-v3"
-    case parakeetTDT06BV2 = "parakeet-tdt-0.6b-v2"
     case parakeetTDTCTC110M = "parakeet-tdt-ctc-110m"
     case whisperLargeV3Turbo = "whisper-large-v3-turbo"
-    case whisperTiny = "whisper-tiny"
-    case mini3b = "mini-3b"
     case mini3b8bit = "voxtral-realtime-4b-2602-4bit"
 
     public static var allCases: [ModelOption] {
         var options: [ModelOption] = [
             .parakeetTDTCTC110M,
-            .qwen3ASR06B4bit,
+            .qwen3ASR17B8bit,
             .parakeetUnified06B,
-            .parakeetTDT06BV3,
-            .parakeetTDT06BV2,
             .whisperLargeV3Turbo,
-            .whisperTiny,
-            .mini3b,
             .mini3b8bit,
         ]
         if isAppleSpeechSupportedOnCurrentDevice {
@@ -113,19 +105,19 @@ public enum ModelOption: String, CaseIterable, Identifiable, Sendable {
                 speedScore: 5,
                 smartScore: 3
             )
-        case .qwen3ASR06B4bit:
+        case .qwen3ASR17B8bit:
             return ModelDescriptor(
                 id: rawValue,
-                repoID: "FluidInference/qwen3-asr-0.6b-coreml/int8",
-                name: "Qwen3 ASR 0.6B INT8",
-                summary: "Memory-efficient multilingual transcription across 30 languages with automatic language detection.",
-                size: "~1.3 GB",
-                quantization: "INT8 CoreML",
-                parameters: "0.6B",
-                provider: .fluidAudio,
+                repoID: "mlx-community/Qwen3-ASR-1.7B-8bit",
+                name: "Qwen3 ASR 1.7B",
+                summary: "The most accurate open model on the Open ASR Leaderboard, with 30 languages and automatic language detection.",
+                size: "~2.5 GB",
+                quantization: "8-bit MLX",
+                parameters: "1.7B",
+                provider: .mlxAudio,
                 recommended: false,
-                speedScore: 4,
-                smartScore: 4
+                speedScore: 3,
+                smartScore: 5
             )
         case .parakeetUnified06B:
             return ModelDescriptor(
@@ -135,34 +127,6 @@ public enum ModelOption: String, CaseIterable, Identifiable, Sendable {
                 summary: "Live English transcription as you speak, running locally on Apple Silicon.",
                 size: "~625 MB",
                 quantization: "INT8 CoreML",
-                parameters: "0.6B",
-                provider: .nvidia,
-                recommended: false,
-                speedScore: 5,
-                smartScore: 3
-            )
-        case .parakeetTDT06BV3:
-            return ModelDescriptor(
-                id: rawValue,
-                repoID: "FluidInference/parakeet-tdt-0.6b-v3-coreml",
-                name: "Parakeet 0.6B V3",
-                summary: "Top-ranked accuracy on the Open ASR Leaderboard with 110x real-time speed.",
-                size: "~3.0 GB",
-                quantization: "CoreML",
-                parameters: "0.6B",
-                provider: .nvidia,
-                recommended: false,
-                speedScore: 5,
-                smartScore: 4
-            )
-        case .parakeetTDT06BV2:
-            return ModelDescriptor(
-                id: rawValue,
-                repoID: "FluidInference/parakeet-tdt-0.6b-v2-coreml",
-                name: "Parakeet 0.6B V2",
-                summary: "Fastest English-only dictation, tuned for the lowest latency on Apple Silicon.",
-                size: "~2.6 GB",
-                quantization: "CoreML",
                 parameters: "0.6B",
                 provider: .nvidia,
                 recommended: false,
@@ -193,34 +157,6 @@ public enum ModelOption: String, CaseIterable, Identifiable, Sendable {
                 quantization: "CoreML",
                 parameters: "809M",
                 provider: .whisperKit,
-                recommended: false,
-                speedScore: 2,
-                smartScore: 5
-            )
-        case .whisperTiny:
-            return ModelDescriptor(
-                id: rawValue,
-                repoID: "argmaxinc/whisperkit-coreml",
-                name: "Whisper Small",
-                summary: "Compact multilingual Whisper with a stronger accuracy-to-size balance than Tiny.",
-                size: "~217 MB",
-                quantization: "CoreML",
-                parameters: "244M",
-                provider: .whisperKit,
-                recommended: false,
-                speedScore: 3,
-                smartScore: 3
-            )
-        case .mini3b:
-            return ModelDescriptor(
-                id: rawValue,
-                repoID: "mlx-community/Voxtral-Mini-3B-2507-bf16",
-                name: "Voxtral Mini 3B BF16",
-                summary: "Mistral's speech model with transcription, Q&A, and summarization from voice.",
-                size: "~9.4 GB",
-                quantization: "BF16",
-                parameters: "3B",
-                provider: .voxtralCore,
                 recommended: false,
                 speedScore: 2,
                 smartScore: 5
@@ -270,20 +206,14 @@ public enum ModelOption: String, CaseIterable, Identifiable, Sendable {
         switch self {
         case .appleSpeech:
             return false
-        case .parakeetUnified06B, .qwen3ASR06B4bit, .parakeetTDT06BV3, .parakeetTDT06BV2, .parakeetTDTCTC110M,
-             .whisperLargeV3Turbo, .whisperTiny, .mini3b, .mini3b8bit:
+        case .parakeetUnified06B, .qwen3ASR17B8bit, .parakeetTDTCTC110M,
+             .whisperLargeV3Turbo, .mini3b8bit:
             return true
         }
     }
 
     public var supportedTranscriptionModes: [TranscriptionMode] {
-        switch self {
-        case .appleSpeech, .parakeetUnified06B, .qwen3ASR06B4bit, .parakeetTDT06BV3, .parakeetTDT06BV2,
-             .parakeetTDTCTC110M, .whisperLargeV3Turbo, .whisperTiny, .mini3b8bit:
-            return [.verbatim]
-        case .mini3b:
-            return TranscriptionMode.allCases
-        }
+        [.verbatim]
     }
 
     /// Whether microphone audio can be transcribed before recording stops.
@@ -307,53 +237,51 @@ public enum ModelOption: String, CaseIterable, Identifiable, Sendable {
              "apple-speech-transcriber",
              "speechtranscriber":
             return isAppleSpeechSupportedOnCurrentDevice ? .appleSpeech : .defaultOption
-        case Self.qwen3ASR06B4bit.rawValue,
+        case Self.qwen3ASR17B8bit.rawValue,
+             "qwen3-asr-1.7b",
+             "mlx-community/qwen3-asr-1.7b-8bit",
+             "qwen3-asr-0.6b-4bit",
              "qwen3-asr-0.6b",
              "mlx-community/qwen3-asr-0.6b-4bit",
              "fluidinference/qwen3-asr-0.6b-coreml/f32",
              "fluidinference/qwen3-asr-0.6b-coreml/int8":
-            return .qwen3ASR06B4bit
+            return .qwen3ASR17B8bit
         case Self.parakeetUnified06B.rawValue,
              "fluidinference/parakeet-unified-en-0.6b-coreml":
             return .parakeetUnified06B
-        case Self.parakeetTDT06BV3.rawValue,
+        // Parakeet TDT v2 and v3 were replaced by Parakeet Unified.
+        case "parakeet-tdt-0.6b-v3",
              "parakeet",
              "paracrete",
              "parakeet-tdt",
              "parakeet-tdt-0.6b",
              "mlx-community/parakeet-tdt-0.6b-v3",
-             "fluidinference/parakeet-tdt-0.6b-v3-coreml":
-            return .parakeetTDT06BV3
-        case Self.parakeetTDT06BV2.rawValue,
+             "fluidinference/parakeet-tdt-0.6b-v3-coreml",
              "parakeet-tdt-0.6b-v2",
-             "fluidinference/parakeet-tdt-0.6b-v2-coreml":
-            return .parakeetTDT06BV2
+             "fluidinference/parakeet-tdt-0.6b-v2-coreml",
+             "parakeet-ctc",
+             "parakeet-ctc-0.6b",
+             "mlx-community/parakeet-ctc-0.6b":
+            return .parakeetUnified06B
         case Self.parakeetTDTCTC110M.rawValue,
              "parakeet-flash",
              "parakeet-tdt-ctc-110m",
              "fluidinference/parakeet-tdt-ctc-110m-coreml":
             return .parakeetTDTCTC110M
-        case "parakeet-ctc",
-             "parakeet-ctc-0.6b",
-             "mlx-community/parakeet-ctc-0.6b":
-            // Keep backward compatibility with old persisted IDs, but force TDT-only behavior.
-            return .parakeetTDT06BV3
         case Self.whisperLargeV3Turbo.rawValue,
              "whisper-large-v3-turbo-asr-fp16",
              "whisper-large-v3",
-             "mlx-community/whisper-large-v3-turbo-asr-fp16":
-            return .whisperLargeV3Turbo
-        case Self.whisperTiny.rawValue,
+             "mlx-community/whisper-large-v3-turbo-asr-fp16",
+             "whisper-tiny",
              "whisper-small",
              "openai_whisper-small_216mb",
              "whisper-tiny-mlx",
              "mlx-community/whisper-tiny-mlx":
-            return .whisperTiny
-        case Self.mini3b.rawValue,
-             "mlx-community/voxtral-mini-3b-2507-bf16":
-            return .mini3b
+            return .whisperLargeV3Turbo
         case Self.mini3b8bit.rawValue,
-             "mlx-community/voxtral-mini-4b-realtime-2602-4bit":
+             "mlx-community/voxtral-mini-4b-realtime-2602-4bit",
+             "mini-3b",
+             "mlx-community/voxtral-mini-3b-2507-bf16":
             return .mini3b8bit
         default:
             return .defaultOption

@@ -267,22 +267,14 @@ private extension ModelOption {
         switch self {
         case .appleSpeech:
             return nil
-        case .qwen3ASR06B4bit:
-            return .qwen3ASR06B4bit
+        case .qwen3ASR17B8bit:
+            return .qwen3ASR17B8bit
         case .parakeetUnified06B:
             return .parakeetUnified06B
-        case .parakeetTDT06BV3:
-            return .parakeetTDT06BV3
-        case .parakeetTDT06BV2:
-            return .parakeetTDT06BV2
         case .parakeetTDTCTC110M:
             return .parakeetTDTCTC110M
         case .whisperLargeV3Turbo:
             return .whisperLargeV3Turbo
-        case .whisperTiny:
-            return .whisperTiny
-        case .mini3b:
-            return .mini3b
         case .mini3b8bit:
             return .mini3b8bit
         }

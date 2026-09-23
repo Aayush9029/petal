@@ -75,12 +75,6 @@ struct ModelInfoRow: View {
     }
 
     private var providerIcon: Image {
-        switch option.provider {
-        case .appleSpeech: .swiftLogo
-        case .fluidAudio: .qwen
-        case .nvidia: .nvidia
-        case .whisperKit: .openai
-        case .voxtralCore: .mistral
-        }
+        option.provider.icon
     }
 }

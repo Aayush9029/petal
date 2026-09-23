@@ -94,14 +94,10 @@ struct ModelSelectorCard: View {
     private var compactSummary: String {
         switch option {
         case .appleSpeech: "Built-in, private transcription."
-        case .qwen3ASR06B4bit: "Fast multilingual transcription."
+        case .qwen3ASR17B8bit: "Most accurate multilingual transcription."
         case .parakeetUnified06B: "Live English transcription as you speak."
-        case .parakeetTDT06BV3: "Accurate multilingual dictation."
-        case .parakeetTDT06BV2: "Fast English-only dictation."
         case .parakeetTDTCTC110M: "Lightweight, instant English dictation."
         case .whisperLargeV3Turbo: "High-quality transcription in 99 languages."
-        case .whisperTiny: "Small, fast multilingual transcription."
-        case .mini3b: "Smart speech recognition with richer context."
         case .mini3b8bit: "A smaller smart model with lower memory use."
         }
     }
@@ -109,7 +105,7 @@ struct ModelSelectorCard: View {
     private var icon: Image {
         switch option.provider {
         case .appleSpeech: .swiftLogo
-        case .fluidAudio: .qwen
+        case .mlxAudio: .qwen
         case .nvidia: .nvidia
         case .whisperKit: .openai
         case .voxtralCore: .mistral
