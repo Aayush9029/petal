@@ -46,6 +46,9 @@ extension PermissionsClient: DependencyKey {
                 await MainActor.run { AXIsProcessTrusted() }
             },
             promptForAccessibilityPermission: {
+                if await MainActor.run(body: { !AXIsProcessTrusted() }) {
+                    await resetAccessibilityEntryLive()
+                }
                 await MainActor.run { promptForAccessibilityPermissionLive() }
             },
             openMicrophonePrivacySettings: {
@@ -172,6 +175,27 @@ private func requestMicrophonePermissionLive() async -> Bool {
     }
 
     return await MainActor.run(body: { microphonePermissionStateLive() == .authorized })
+}
+
+/// A signing identity change leaves a stale Accessibility entry. System Settings shows it as on, but
+/// `AXIsProcessTrusted()` stays false for the new signature, and turning it off and on again does not help.
+/// Removing Petal's own entry lets the next prompt add one for the current signature.
+private func resetAccessibilityEntryLive() async {
+    guard let bundleID = Bundle.main.bundleIdentifier else { return }
+    let process = Process()
+    process.executableURL = URL(fileURLWithPath: "/usr/bin/tccutil")
+    process.arguments = ["reset", "Accessibility", bundleID]
+    process.standardOutput = FileHandle.nullDevice
+    process.standardError = FileHandle.nullDevice
+    await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+        process.terminationHandler = { _ in continuation.resume() }
+        do {
+            try process.run()
+        } catch {
+            process.terminationHandler = nil
+            continuation.resume()
+        }
+    }
 }
 
 @MainActor
