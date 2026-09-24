@@ -1,6 +1,6 @@
 import Foundation
 
-public struct S1MiniCleanup: Sendable, Equatable {
+public struct LocalCleanupResult: Sendable, Equatable {
     public var text: String
     public var chunkCount: Int
     public var promptTokens: Int

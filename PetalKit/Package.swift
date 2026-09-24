@@ -20,7 +20,7 @@ extension Target.Dependency {
     static let doubleTapClient: Self = "DoubleTapClient"
     static let logClient: Self = "LogClient"
     static let playbackDuckingClient: Self = "PlaybackDuckingClient"
-    static let s1MiniClient: Self = "S1MiniClient"
+    static let localCleanupClient: Self = "LocalCleanupClient"
 
     static let dependencies: Self = .product(name: "Dependencies", package: "swift-dependencies")
     static let dependenciesMacros: Self = .product(name: "DependenciesMacros", package: "swift-dependencies")
@@ -72,7 +72,7 @@ let package = Package(
         .library(name: "WindowClient", targets: ["WindowClient"]),
         .library(name: "DoubleTapClient", targets: ["DoubleTapClient"]),
         .library(name: "FoundationModelClient", targets: ["FoundationModelClient"]),
-        .library(name: "S1MiniClient", targets: ["S1MiniClient"]),
+        .library(name: "LocalCleanupClient", targets: ["LocalCleanupClient"]),
     ],
     dependencies: [
         .package(url: "https://github.com/FluidInference/FluidAudio.git", exact: "0.17.1"),
@@ -125,7 +125,7 @@ let package = Package(
             dependencies: [
                 .shared,
                 .downloadClient,
-                .s1MiniClient,
+                .localCleanupClient,
             ]
         ),
         .target(
@@ -211,7 +211,7 @@ let package = Package(
             ]
         ),
         .target(
-            name: "S1MiniClient",
+            name: "LocalCleanupClient",
             dependencies: [
                 .shared,
                 .downloadClient,
@@ -299,7 +299,7 @@ let package = Package(
                 "MLXClient",
                 "TranscriptionClient",
                 "FoundationModelClient",
-                "S1MiniClient",
+                "LocalCleanupClient",
                 "DownloadClient",
                 "HistoryClient",
                 "SoundClient",

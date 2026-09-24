@@ -4,7 +4,7 @@ import SwiftUI
 
 struct IntelligencePane: View {
     @Bindable var viewModel: SettingsViewModel
-    @State private var isConfirmingS1MiniDelete = false
+    @State private var modelPendingDelete: CleanupModel?
 
     var body: some View {
         SettingsPaneLayout(tab: .intelligence) {
@@ -16,13 +16,17 @@ struct IntelligencePane: View {
                     card(for: model)
                 }
             }
-            .task { viewModel.s1MiniDownload.task() }
-            .confirmationDialog("Delete S1-mini?", isPresented: $isConfirmingS1MiniDelete) {
+            .task { viewModel.cleanupDownloads.task() }
+            .confirmationDialog(
+                "Delete \(modelPendingDelete?.displayName ?? "")?",
+                isPresented: Binding(get: { modelPendingDelete != nil }, set: { if !$0 { modelPendingDelete = nil } }),
+                presenting: modelPendingDelete
+            ) { model in
                 Button("Delete", role: .destructive) {
-                    Task { await viewModel.s1MiniDownload.deleteButtonTapped() }
+                    Task { await viewModel.cleanupDownloads[model]?.deleteButtonTapped() }
                 }
-            } message: {
-                Text("Cleanup turns off until you download S1-mini again.")
+            } message: { model in
+                Text("Cleanup turns off until you download \(model.displayName) again.")
             }
 
             if viewModel.cleanupModel == .s1Mini {
@@ -89,10 +93,10 @@ struct IntelligencePane: View {
         CleanupModelCard(
             model: model,
             isSelected: viewModel.cleanupModel == model,
-            downloadState: model == .s1Mini ? viewModel.s1MiniDownload.state : nil,
-            sizeLabel: model == .s1Mini ? viewModel.s1MiniDownload.sizeLabel : nil,
-            onCancelDownload: { viewModel.s1MiniDownload.cancelButtonTapped() },
-            onDeleteDownload: { isConfirmingS1MiniDelete = true }
+            downloadState: viewModel.cleanupDownloads[model]?.state,
+            sizeLabel: viewModel.cleanupDownloads[model]?.sizeLabel,
+            onCancelDownload: { viewModel.cleanupDownloads[model]?.cancelButtonTapped() },
+            onDeleteDownload: { modelPendingDelete = model }
         ) {
             Task { await viewModel.cleanupModelTapped(model) }
         }

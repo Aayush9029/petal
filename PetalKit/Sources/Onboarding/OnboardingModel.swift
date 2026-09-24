@@ -83,7 +83,7 @@ public final class OnboardingModel {
             let downloadState = modelDownloadViewModel.state
             if downloadState.isActive || downloadState.isPaused { return false }
         }
-        if currentPage == .cleanup, s1MiniDownloadModel.state.isActive { return false }
+        if currentPage == .cleanup, cleanupDownloads.isAnyActive { return false }
         return true
     }
 
@@ -99,8 +99,8 @@ public final class OnboardingModel {
         case .microphone:
             return microphoneAuthorized ? "Continue" : "Enable Microphone"
         case .cleanup:
-            if needsS1MiniDownload {
-                return s1MiniDownloadModel.state.isActive ? "Downloading..." : "Download S1-mini"
+            if let download = pendingCleanupDownload {
+                return download.state.isActive ? "Downloading..." : "Download \(cleanupModel.displayName)"
             }
             return nextPage == nil ? "Finish Setup" : "Continue"
         case .download:
@@ -115,7 +115,7 @@ public final class OnboardingModel {
     public var primaryDisabled: Bool {
         switch currentPage {
         case .welcome, .historyRetention: false
-        case .cleanup: s1MiniDownloadModel.state.isActive
+        case .cleanup: cleanupDownloads.isAnyActive
         case .model: selectedModelOption == nil
         case .shortcut: !hasConfiguredShortcut
         case .microphone: false
@@ -159,8 +159,8 @@ public final class OnboardingModel {
                 accessibilityPermissionButtonTapped()
             }
         case .cleanup:
-            if needsS1MiniDownload {
-                Task { await s1MiniDownloadModel.downloadButtonTapped() }
+            if let download = pendingCleanupDownload {
+                Task { await download.downloadButtonTapped() }
             } else if nextPage != nil {
                 moveForward()
             } else {
@@ -174,7 +174,7 @@ public final class OnboardingModel {
     // MARK: - Model Download
 
     public let modelDownloadViewModel: ModelDownloadModel
-    public let s1MiniDownloadModel: S1MiniDownloadModel
+    public let cleanupDownloads: LocalCleanupDownloads
 
     public var selectedModelID: String {
         get { modelDownloadViewModel.selectedModelID }
@@ -210,13 +210,13 @@ public final class OnboardingModel {
     public init(
         initialPage: Page = .welcome,
         downloadViewModel: ModelDownloadModel? = nil,
-        s1MiniDownloadModel: S1MiniDownloadModel = S1MiniDownloadModel(),
+        cleanupDownloads: LocalCleanupDownloads = LocalCleanupDownloads(),
         isPreviewMode: Bool = false
     ) {
         self.currentPage = initialPage
         self.isPreviewMode = isPreviewMode
         modelDownloadViewModel = downloadViewModel ?? ModelDownloadModel(isPreviewMode: isPreviewMode)
-        self.s1MiniDownloadModel = s1MiniDownloadModel
+        self.cleanupDownloads = cleanupDownloads
 
         if isPreviewMode {
             $historyRetentionMode.withLock { $0 = .both }
@@ -247,8 +247,8 @@ public final class OnboardingModel {
         CleanupModel.allCases.filter { $0 != .appleIntelligence || foundationModelClient.isAvailable() }
     }
 
-    private var needsS1MiniDownload: Bool {
-        cleanupModel == .s1Mini && !s1MiniDownloadModel.state.isDownloaded
+    private var pendingCleanupDownload: LocalCleanupDownloadModel? {
+        cleanupDownloads[cleanupModel].flatMap { $0.state.isDownloaded ? nil : $0 }
     }
 
     private var shouldCompleteAfterModelSelection: Bool {

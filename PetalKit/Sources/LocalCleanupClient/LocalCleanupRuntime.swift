@@ -4,27 +4,33 @@ import MLXLLM
 import MLXLMCommon
 import Shared
 
-actor S1MiniRuntime {
+actor LocalCleanupRuntime {
     private var container: ModelContainer?
+    private var loadedDirectory: URL?
     private var loadTask: Task<ModelContainer, any Error>?
     /// Increments on unload so a load that finishes afterward does not keep the weights resident.
     private var generation = 0
 
-    func prepare(directory: URL? = S1MiniModelFiles.directory) async throws -> ModelContainer {
+    func prepare(directory: URL?) async throws -> ModelContainer {
+        guard let directory else { throw LocalCleanupError.notDownloaded }
+        if loadedDirectory != directory { unload() }
         if let container { return container }
         if let loadTask { return try await loadTask.value }
-        guard let directory else { throw S1MiniError.notDownloaded }
 
         let loadGeneration = generation
+        loadedDirectory = directory
         let task = Task {
-            try await LLMModelFactory.shared.loadContainer(from: directory, using: S1MiniTokenizerLoader())
+            try await LLMModelFactory.shared.loadContainer(from: directory, using: CleanupTokenizerLoader())
         }
         loadTask = task
         let loaded: ModelContainer
         do {
             loaded = try await task.value
         } catch {
-            if generation == loadGeneration { loadTask = nil }
+            if generation == loadGeneration {
+                loadTask = nil
+                loadedDirectory = nil
+            }
             throw error
         }
         guard generation == loadGeneration else { return loaded }
@@ -33,9 +39,10 @@ actor S1MiniRuntime {
         return loaded
     }
 
-    func clean(_ transcript: String, controls: S1MiniControls, directory: URL? = S1MiniModelFiles.directory) async throws -> S1MiniCleanup {
+    func clean(_ transcript: String, model: CleanupModel, controls: S1MiniControls, directory: URL?) async throws -> LocalCleanupResult {
         let container = try await prepare(directory: directory)
-        return try await container.perform(values: Request(transcript: transcript, controls: controls)) { context, request in
+        let request = Request(transcript: transcript, model: model, controls: controls)
+        return try await container.perform(values: request) { context, request in
             try Self.generate(request, context: context)
         }
     }
@@ -44,22 +51,24 @@ actor S1MiniRuntime {
         generation += 1
         loadTask?.cancel()
         loadTask = nil
+        loadedDirectory = nil
         container = nil
         MLX.Memory.clearCache()
     }
 
     private struct Request: Sendable {
         var transcript: String
+        var model: CleanupModel
         var controls: S1MiniControls
     }
 
-    private static func generate(_ request: Request, context: ModelContext) throws -> S1MiniCleanup {
+    private static func generate(_ request: Request, context: ModelContext) throws -> LocalCleanupResult {
         let start = ContinuousClock.now
         let tokenizer = context.tokenizer
         let stopTokens = Set(["<|im_end|>", "<|endoftext|>"].compactMap(tokenizer.convertTokenToId))
-        guard !stopTokens.isEmpty else { throw S1MiniError.missingStopToken }
+        guard !stopTokens.isEmpty else { throw LocalCleanupError.missingStopToken }
 
-        let chunks = S1MiniChunker().chunks(request.transcript) {
+        let chunks = CleanupChunker().chunks(request.transcript) {
             tokenizer.encode(text: $0, addSpecialTokens: false).count
         }
         var outputs: [String] = []
@@ -70,22 +79,22 @@ actor S1MiniRuntime {
         for chunk in chunks {
             try Task.checkCancellation()
             let prompt = tokenizer.encode(
-                text: S1MiniPrompt.text(transcript: chunk, controls: request.controls),
+                text: LocalCleanupPrompt.text(model: request.model, transcript: chunk, controls: request.controls),
                 addSpecialTokens: false
             )
-            let decoded = try S1MiniPromptLookupDecoder(model: context.model, stopTokens: stopTokens)
-                .decode(prompt: prompt, maxTokens: S1MiniPrompt.maxOutputTokens(promptTokens: prompt.count))
+            let decoded = try PromptLookupDecoder(model: context.model, stopTokens: stopTokens)
+                .decode(prompt: prompt, maxTokens: LocalCleanupPrompt.maxOutputTokens(promptTokens: prompt.count))
             let generated = decoded.tokens
             forwardPasses += decoded.forwardPasses
             promptTokens += prompt.count
             generatedTokens += generated.count
             let output = tokenizer.decode(tokenIds: generated, skipSpecialTokens: true)
                 .trimmingCharacters(in: .whitespacesAndNewlines)
-            outputs.append(output.isEmpty && !S1MiniChunker.canBeFillerOnly(chunk) ? chunk : output)
+            outputs.append(output.isEmpty && !CleanupChunker.canBeFillerOnly(chunk) ? chunk : output)
         }
 
-        return S1MiniCleanup(
-            text: S1MiniChunker.join(outputs),
+        return LocalCleanupResult(
+            text: CleanupChunker.join(outputs),
             chunkCount: chunks.count,
             promptTokens: promptTokens,
             generatedTokens: generatedTokens,

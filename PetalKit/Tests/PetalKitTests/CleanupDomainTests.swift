@@ -1,6 +1,6 @@
 import Dependencies
 import Foundation
-@testable import S1MiniClient
+@testable import LocalCleanupClient
 @testable import Shared
 import Testing
 
@@ -15,10 +15,10 @@ func s1MiniControlLineUsesTrainedTokens() {
 
 @Test
 func s1MiniPromptMatchesQwen3NonThinkingLayout() {
-    let text = S1MiniPrompt.text(transcript: "um hi", controls: S1MiniControls())
+    let text = LocalCleanupPrompt.text(model: .s1Mini, transcript: "um hi", controls: S1MiniControls())
     #expect(text.hasPrefix("<|im_start|>system\nYou are a text normalizer"))
     #expect(text.hasSuffix("[Context: general]\num hi<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n"))
-    #expect(S1MiniPrompt.maxOutputTokens(promptTokens: 100) == 162)
+    #expect(LocalCleanupPrompt.maxOutputTokens(promptTokens: 100) == 162)
 }
 
 @Test(arguments: [
@@ -49,21 +49,21 @@ private func wordCount(_ text: String) -> Int { text.split(whereSeparator: \.isW
 
 @Test
 func shortTranscriptIsOneChunk() {
-    #expect(S1MiniChunker(maxTokens: 10).chunks("  one two three  ", tokenCount: wordCount) == ["one two three"])
-    #expect(S1MiniChunker(maxTokens: 10).chunks("   ", tokenCount: wordCount).isEmpty)
+    #expect(CleanupChunker(maxTokens: 10).chunks("  one two three  ", tokenCount: wordCount) == ["one two three"])
+    #expect(CleanupChunker(maxTokens: 10).chunks("   ", tokenCount: wordCount).isEmpty)
 }
 
 @Test
 func longTranscriptSplitsAtSentenceEnds() {
     let text = "One two three four. Five six seven eight. Nine ten eleven twelve."
-    let chunks = S1MiniChunker(maxTokens: 8).chunks(text, tokenCount: wordCount)
+    let chunks = CleanupChunker(maxTokens: 8).chunks(text, tokenCount: wordCount)
     #expect(chunks == ["One two three four. Five six seven eight.", "Nine ten eleven twelve."])
 }
 
 @Test
 func unpunctuatedTranscriptSplitsAtWords() {
     let words = (1 ... 25).map { "w\($0)" }
-    let chunks = S1MiniChunker(maxTokens: 10).chunks(words.joined(separator: " "), tokenCount: wordCount)
+    let chunks = CleanupChunker(maxTokens: 10).chunks(words.joined(separator: " "), tokenCount: wordCount)
     #expect(chunks.count == 3)
     #expect(chunks.allSatisfy { wordCount($0) <= 10 })
     #expect(chunks.joined(separator: " ") == words.joined(separator: " "))
@@ -71,12 +71,12 @@ func unpunctuatedTranscriptSplitsAtWords() {
 
 @Test
 func chunkOutputsJoinByLayout() {
-    #expect(S1MiniChunker.join(["First.", "", "Second."]) == "First. Second.")
-    #expect(S1MiniChunker.join(["Hi Sam,\n\nBody.", "Thanks,\nJo"]) == "Hi Sam,\n\nBody.\n\nThanks,\nJo")
+    #expect(CleanupChunker.join(["First.", "", "Second."]) == "First. Second.")
+    #expect(CleanupChunker.join(["Hi Sam,\n\nBody.", "Thanks,\nJo"]) == "Hi Sam,\n\nBody.\n\nThanks,\nJo")
 }
 
 @Test
 func emptyOutputIsTrustedOnlyForShortChunks() {
-    #expect(S1MiniChunker.canBeFillerOnly("um uh"))
-    #expect(!S1MiniChunker.canBeFillerOnly(String(repeating: "word ", count: 20)))
+    #expect(CleanupChunker.canBeFillerOnly("um uh"))
+    #expect(!CleanupChunker.canBeFillerOnly(String(repeating: "word ", count: 20)))
 }

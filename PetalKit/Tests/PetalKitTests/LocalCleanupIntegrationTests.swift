@@ -1,22 +1,22 @@
 import Foundation
 import MLX
 import MLXLMCommon
-@testable import S1MiniClient
+@testable import LocalCleanupClient
 import Shared
 import Testing
 
 /// Runs the real MLX weights. Set `PETAL_S1_MINI_DIR` to a local copy of Aayush9029/s1-mini-mlx-8bit.
 @Suite(.enabled(if: ProcessInfo.processInfo.environment["PETAL_S1_MINI_DIR"] != nil), .serialized)
-struct S1MiniIntegrationTests {
+struct LocalCleanupIntegrationTests {
     let directory = URL(fileURLWithPath: ProcessInfo.processInfo.environment["PETAL_S1_MINI_DIR"] ?? "/")
-    static let runtime = S1MiniRuntime()
+    static let runtime = LocalCleanupRuntime()
 
     @Test
     func handBuiltPromptTokenizesLikeTheChatTemplate() async throws {
         let container = try await Self.runtime.prepare(directory: directory)
         let matches = try await container.perform { context in
             let manual = context.tokenizer.encode(
-                text: S1MiniPrompt.text(transcript: "so um send it by friday", controls: S1MiniControls()),
+                text: LocalCleanupPrompt.text(model: .s1Mini, transcript: "so um send it by friday", controls: S1MiniControls()),
                 addSpecialTokens: false
             )
             let templated = try context.tokenizer.applyChatTemplate(
@@ -41,7 +41,7 @@ struct S1MiniIntegrationTests {
         ("um", ""),
     ])
     func matchesModelCardExamples(input: String, expected: String) async throws {
-        let result = try await Self.runtime.clean(input, controls: S1MiniControls(), directory: directory)
+        let result = try await Self.runtime.clean(input, model: .s1Mini, controls: S1MiniControls(), directory: directory)
         #expect(result.text == expected)
     }
 
@@ -60,10 +60,10 @@ struct S1MiniIntegrationTests {
             var mismatches: [String] = []
             for input in inputs {
                 let prompt = context.tokenizer.encode(
-                    text: S1MiniPrompt.text(transcript: input, controls: S1MiniControls()),
+                    text: LocalCleanupPrompt.text(model: .s1Mini, transcript: input, controls: S1MiniControls()),
                     addSpecialTokens: false
                 )
-                let maxTokens = S1MiniPrompt.maxOutputTokens(promptTokens: prompt.count)
+                let maxTokens = LocalCleanupPrompt.maxOutputTokens(promptTokens: prompt.count)
                 var iterator = try TokenIterator(
                     input: LMInput(tokens: MLXArray(prompt)),
                     model: context.model,
@@ -73,7 +73,7 @@ struct S1MiniIntegrationTests {
                 )
                 var plain: [Int] = []
                 while let token = iterator.next(), !stopTokens.contains(token) { plain.append(token) }
-                let speculative = try S1MiniPromptLookupDecoder(
+                let speculative = try PromptLookupDecoder(
                     model: context.model,
                     stopTokens: stopTokens,
                     speculationMinPromptTokens: 0
@@ -92,10 +92,11 @@ struct S1MiniIntegrationTests {
     @Test
     func controlsChangeOutput() async throws {
         let input = "hey sarah just wanted to follow up on the proposal can you send the numbers by end of week thanks john"
-        let email = try await Self.runtime.clean(input, controls: S1MiniControls(context: .email), directory: directory)
+        let email = try await Self.runtime.clean(input, model: .s1Mini, controls: S1MiniControls(context: .email), directory: directory)
         #expect(email.text.hasPrefix("Hey Sarah,\n\n"))
         let list = try await Self.runtime.clean(
             "the three things i need are the updated deck the budget spreadsheet and the signed contract",
+            model: .s1Mini,
             controls: S1MiniControls(structure: .lists),
             directory: directory
         )
@@ -106,6 +107,7 @@ struct S1MiniIntegrationTests {
     func keepsVoiceAndTechnicalTerms() async throws {
         let result = try await Self.runtime.clean(
             "yo so um open app underscore model dot py and uh refactor the python script to use pydantic",
+            model: .s1Mini,
             controls: S1MiniControls(),
             directory: directory
         )
@@ -119,7 +121,7 @@ struct S1MiniIntegrationTests {
         let sentences = (1 ... 60).map { index in
             "so um item number \(index) on the list is that the team uh needs to review pull request \(index * 7) before the release on friday"
         }
-        let result = try await Self.runtime.clean(sentences.joined(separator: " "), controls: S1MiniControls(), directory: directory)
+        let result = try await Self.runtime.clean(sentences.joined(separator: " "), model: .s1Mini, controls: S1MiniControls(), directory: directory)
         print("S1MINI_LONG chunks=\(result.chunkCount) prompt=\(result.promptTokens) generated=\(result.generatedTokens) passes=\(result.forwardPasses) elapsed=\(result.elapsed)")
         #expect(result.chunkCount >= 2)
         #expect(result.text.contains("420"))
@@ -129,7 +131,7 @@ struct S1MiniIntegrationTests {
     @Test
     func performance() async throws {
         let cold = ContinuousClock.now
-        _ = try await S1MiniRuntime().prepare(directory: directory)
+        _ = try await LocalCleanupRuntime().prepare(directory: directory)
         let loadTime = ContinuousClock.now - cold
 
         let inputs = [
@@ -138,13 +140,13 @@ struct S1MiniIntegrationTests {
             "hi team quick update the server migration finished last night at around eleven thirty pm we saw about two percent error rate for ten minutes which is back to normal now let me know if you see anything weird thanks alex",
             "okay so um i was thinking we could uh push the launch to next tuesday because the the qa build isn't ready yet",
         ]
-        _ = try await Self.runtime.clean(inputs[0], controls: S1MiniControls(), directory: directory)
+        _ = try await Self.runtime.clean(inputs[0], model: .s1Mini, controls: S1MiniControls(), directory: directory)
         var latencies: [Duration] = []
         var generated = 0
         for _ in 0 ..< 3 {
             for input in inputs {
                 let start = ContinuousClock.now
-                let result = try await Self.runtime.clean(input, controls: S1MiniControls(), directory: directory)
+                let result = try await Self.runtime.clean(input, model: .s1Mini, controls: S1MiniControls(), directory: directory)
                 latencies.append(ContinuousClock.now - start)
                 generated += result.generatedTokens
             }
@@ -153,6 +155,9 @@ struct S1MiniIntegrationTests {
         let total = latencies.reduce(Duration.zero, +)
         let tokensPerSecond = Double(generated) / (Double(total.components.seconds) + Double(total.components.attoseconds) / 1e18)
         print("S1MINI_PERF load=\(loadTime) p50=\(latencies[latencies.count / 2]) max=\(latencies.last!) decodeIncludingPrefill=\(Int(tokensPerSecond)) tok/s")
+        // Debug builds run MLX without optimization, so the limit applies only to Release.
+        #if !DEBUG
         #expect(latencies[latencies.count / 2] < .milliseconds(600))
+        #endif
     }
 }

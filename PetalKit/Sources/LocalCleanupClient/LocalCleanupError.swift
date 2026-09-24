@@ -1,6 +1,6 @@
 import Foundation
 
-public enum S1MiniError: LocalizedError, Sendable, Equatable {
+public enum LocalCleanupError: LocalizedError, Sendable, Equatable {
     case notDownloaded
     case missingStopToken
 

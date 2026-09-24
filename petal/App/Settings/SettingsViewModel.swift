@@ -162,7 +162,7 @@ final class SettingsViewModel {
     }
 
     let downloadModel: ModelDownloadModel
-    let s1MiniDownload: S1MiniDownloadModel
+    let cleanupDownloads: LocalCleanupDownloads
     private let appModel: AppModel
     @ObservationIgnored @Dependency(\.permissionsClient) private var permissionsClient
     @ObservationIgnored @Dependency(\.audioClient) private var audioClient
@@ -172,7 +172,7 @@ final class SettingsViewModel {
 
     init(appModel: AppModel) {
         downloadModel = appModel.modelDownloadViewModel
-        s1MiniDownload = appModel.s1MiniDownloadModel
+        cleanupDownloads = appModel.cleanupDownloads
         self.appModel = appModel
     }
 
@@ -180,8 +180,8 @@ final class SettingsViewModel {
         $cleanupModel.withLock { $0 = model }
         appModel.cleanupModelDidChange()
         // Speech and S1-mini downloads share one aria2 session.
-        if model == .s1Mini, !downloadModel.state.isActive, !downloadModel.state.isPaused {
-            await s1MiniDownload.downloadButtonTapped()
+        if let download = cleanupDownloads[model], !downloadModel.state.isActive, !downloadModel.state.isPaused, !cleanupDownloads.isAnyActive {
+            await download.downloadButtonTapped()
         }
     }
 
@@ -301,7 +301,7 @@ final class SettingsViewModel {
 
     func downloadModelConfirmed(_ option: ModelOption) async {
         guard !downloadModel.isDeletingModel(option) else { return }
-        guard !downloadModel.state.isActive, !downloadModel.state.isPaused, !s1MiniDownload.state.isActive else { return }
+        guard !downloadModel.state.isActive, !downloadModel.state.isPaused, !cleanupDownloads.isAnyActive else { return }
         ensureReadySelectedModel(excluding: option)
         await downloadModel.downloadModel(option)
     }

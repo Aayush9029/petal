@@ -1,7 +1,7 @@
 import MLXLMCommon
 import Tokenizers
 
-struct S1MiniTokenizer: MLXLMCommon.Tokenizer {
+struct CleanupTokenizer: MLXLMCommon.Tokenizer {
     let upstream: any Tokenizers.Tokenizer
 
     func encode(text: String, addSpecialTokens: Bool) -> [Int] {

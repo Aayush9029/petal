@@ -85,6 +85,10 @@ struct CleanupModelCard: View {
             Image.superwhisper
                 .resizable()
                 .aspectRatio(contentMode: .fill)
+        case .petalW1:
+            Image.appIcon
+                .resizable()
+                .aspectRatio(contentMode: .fill)
         }
     }
 

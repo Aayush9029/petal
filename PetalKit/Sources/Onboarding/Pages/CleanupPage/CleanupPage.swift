@@ -1,4 +1,5 @@
 import Assets
+import ModelDownloadFeature
 import Shared
 import SwiftUI
 import UI
@@ -19,13 +20,13 @@ struct CleanupPage: View {
 
             VStack(alignment: .leading, spacing: 16) {
                 cards
-                s1MiniDetails
+                localModelDetails
             }
             .slideIn(active: isAnimating, delay: 0.4)
         }
         .animation(.smooth(duration: 0.25), value: model.cleanupModel)
         .onAppear { isAnimating = true }
-        .task { model.s1MiniDownloadModel.task() }
+        .task { model.cleanupDownloads.task() }
     }
 
     private var cards: some View {
@@ -33,10 +34,10 @@ struct CleanupPage: View {
             ForEach(model.cleanupModels) { cleanup in
                 OnboardingChoiceCard(
                     symbol: symbol(for: cleanup),
-                    image: cleanup == .s1Mini ? .superwhisper : nil,
+                    image: image(for: cleanup),
                     title: cleanup.displayName,
                     description: description(for: cleanup),
-                    recommended: cleanup == .s1Mini,
+                    recommended: cleanup == .petalW1,
                     isSelected: model.cleanupModel == cleanup
                 ) { model.cleanupModelTapped(cleanup) }
             }
@@ -45,16 +46,18 @@ struct CleanupPage: View {
     }
 
     @ViewBuilder
-    private var s1MiniDetails: some View {
-        if model.cleanupModel == .s1Mini {
+    private var localModelDetails: some View {
+        if let download = model.cleanupDownloads[model.cleanupModel] {
             HStack(spacing: 16) {
-                Picker("Style", selection: Binding(model.$s1MiniStyling)) {
-                    ForEach(S1MiniStyling.allCases) { Text($0.displayName).tag($0) }
+                if model.cleanupModel == .s1Mini {
+                    Picker("Style", selection: Binding(model.$s1MiniStyling)) {
+                        ForEach(S1MiniStyling.allCases) { Text($0.displayName).tag($0) }
+                    }
+                    .pickerStyle(.segmented)
+                    .frame(width: 320)
                 }
-                .pickerStyle(.segmented)
-                .frame(width: 320)
 
-                Text(s1MiniStatus)
+                Text(status(download))
                     .font(.callout)
                     .foregroundStyle(.secondary)
                     .monospacedDigit()
@@ -63,9 +66,9 @@ struct CleanupPage: View {
         }
     }
 
-    private var s1MiniStatus: String {
-        switch model.s1MiniDownloadModel.state {
-        case .notDownloaded: "\(model.s1MiniDownloadModel.sizeLabel) download"
+    private func status(_ download: LocalCleanupDownloadModel) -> String {
+        switch download.state {
+        case .notDownloaded: "\(download.sizeLabel) download"
         case .preparing: "Preparing download…"
         case let .downloading(progress), let .paused(progress): "Downloading · \(progress.summaryText)"
         case .downloaded: "Ready"
@@ -77,7 +80,15 @@ struct CleanupPage: View {
         switch cleanup {
         case .off: "text.alignleft"
         case .appleIntelligence: "apple.intelligence"
-        case .s1Mini: "wand.and.sparkles"
+        case .s1Mini, .petalW1: "wand.and.sparkles"
+        }
+    }
+
+    private func image(for cleanup: CleanupModel) -> Image? {
+        switch cleanup {
+        case .s1Mini: .superwhisper
+        case .petalW1: .appIcon
+        case .off, .appleIntelligence: nil
         }
     }
 
@@ -86,6 +97,7 @@ struct CleanupPage: View {
         case .off: "Paste what you said as is."
         case .appleIntelligence: "Rewrites with your own instructions."
         case .s1Mini: "Removes fillers and formats numbers and dates."
+        case .petalW1: "Condenses rambles and repeats, keeps your voice."
         }
     }
 }

@@ -7,7 +7,7 @@ import MLXLMCommon
 ///
 /// A verify round must wait for the GPU, but plain decoding overlaps graph building with GPU work. On an M4 Pro,
 /// speculation is 1.5x faster for full 768-token chunks and 20% slower for typical short dictation.
-struct S1MiniPromptLookupDecoder {
+struct PromptLookupDecoder {
     let model: any LanguageModel
     let stopTokens: Set<Int>
     var maxDraftTokens = 8

@@ -18,7 +18,7 @@ import os
 import PasteClient
 import PermissionsClient
 import PlaybackDuckingClient
-import S1MiniClient
+import LocalCleanupClient
 import Shared
 import SoundClient
 import TranscriptionClient
@@ -62,7 +62,7 @@ final class AppModel {
     @ObservationIgnored @Shared(.transcriptHistoryDays) var transcriptHistoryDays: [TranscriptHistoryDay] = []
 
     let modelDownloadViewModel: ModelDownloadModel
-    let s1MiniDownloadModel = S1MiniDownloadModel()
+    let cleanupDownloads = LocalCleanupDownloads()
 
     var selectedModelID: String {
         get { modelDownloadViewModel.selectedModelID }
@@ -97,7 +97,7 @@ final class AppModel {
     @ObservationIgnored @Dependency(\.historyClient) private var historyClient
     @ObservationIgnored @Dependency(\.logClient) private var logClient
     @ObservationIgnored @Dependency(\.foundationModelClient) private var foundationModelClient
-    @ObservationIgnored @Dependency(\.s1MiniClient) private var s1MiniClient
+    @ObservationIgnored @Dependency(\.localCleanupClient) private var localCleanupClient
     @ObservationIgnored @Dependency(\.doubleTapClient) private var doubleTapClient
     @ObservationIgnored @Dependency(\.windowClient) private var windowClient
     @ObservationIgnored @Dependency(\.playbackDuckingClient) private var playbackDuckingClient
@@ -1181,7 +1181,7 @@ final class AppModel {
 
     func beginOnboardingFlow() {
         guard onboardingModel == nil else { return }
-        let model = OnboardingModel(downloadViewModel: modelDownloadViewModel, s1MiniDownloadModel: s1MiniDownloadModel)
+        let model = OnboardingModel(downloadViewModel: modelDownloadViewModel, cleanupDownloads: cleanupDownloads)
         model.onCompleted = { [weak self] in
             self?.handleOnboardingCompleted()
         }
@@ -1940,7 +1940,7 @@ final class AppModel {
         switch cleanupModel {
         case .off: return nil
         case .appleIntelligence: return foundationModelClient.isAvailable() ? .appleIntelligence : nil
-        case .s1Mini: return s1MiniClient.isDownloaded() ? .s1Mini : nil
+        case .s1Mini, .petalW1: return localCleanupClient.isDownloaded(cleanupModel) ? cleanupModel : nil
         }
     }
 
@@ -1958,8 +1958,8 @@ final class AppModel {
                 let refined = try await foundationModelClient.refine(transcript, smartPrompt)
                 // Apple Intelligence returns empty text only on failure.
                 cleaned = refined.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : refined
-            case .s1Mini:
-                let result = try await s1MiniClient.clean(transcript, s1MiniControls)
+            case .s1Mini, .petalW1:
+                let result = try await localCleanupClient.clean(transcript, cleanup, s1MiniControls)
                 details["chunks"] = "\(result.chunkCount)"
                 details["promptTokens"] = "\(result.promptTokens)"
                 details["generatedTokens"] = "\(result.generatedTokens)"
@@ -1982,25 +1982,25 @@ final class AppModel {
         return cleaned
     }
 
-    /// Loads S1-mini while the user speaks so cleanup starts on warm weights.
+    /// Loads the local cleanup model while the user speaks so cleanup starts on warm weights.
     private func prepareCleanupModelIfNeeded() {
-        guard cleanupModel == .s1Mini, cleanupWarmupTask == nil, s1MiniClient.isDownloaded() else { return }
-        let client = s1MiniClient
+        let model = cleanupModel
+        guard model.isLocal, cleanupWarmupTask == nil, localCleanupClient.isDownloaded(model) else { return }
+        let client = localCleanupClient
         cleanupWarmupTask = Task { [weak self] in
             do {
-                try await client.prepare()
+                try await client.prepare(model)
             } catch {
-                self?.logger.error("S1-mini warmup failed: \(error.localizedDescription, privacy: .public)")
+                self?.logger.error("\(model.rawValue, privacy: .public) warmup failed: \(error.localizedDescription, privacy: .public)")
                 self?.cleanupWarmupTask = nil
             }
         }
     }
 
     func cleanupModelDidChange() {
-        guard cleanupModel != .s1Mini else { return }
         cleanupWarmupTask?.cancel()
         cleanupWarmupTask = nil
-        Task { await s1MiniClient.unload() }
+        Task { await localCleanupClient.unload() }
     }
     private func droppedFileTranscriptionMode(
         _ requestedMode: TranscriptionMode,

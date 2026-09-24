@@ -2,26 +2,30 @@ import Dependencies
 import DownloadClient
 import Foundation
 import Observation
-import S1MiniClient
+import LocalCleanupClient
 import Shared
 
 @MainActor
 @Observable
-public final class S1MiniDownloadModel {
+public final class LocalCleanupDownloadModel {
     public var state: ModelDownloadState = .notDownloaded
     public var lastError: String?
 
-    @ObservationIgnored @Dependency(\.s1MiniClient) private var s1MiniClient
+    public let model: CleanupModel
 
-    public init() {}
+    @ObservationIgnored @Dependency(\.localCleanupClient) private var localCleanupClient
 
-    public var sizeLabel: String { S1MiniClient.sizeLabel }
+    public init(model: CleanupModel) {
+        self.model = model
+    }
 
-    public var modelDirectoryURL: URL? { s1MiniClient.modelDirectoryURL() }
+    public var sizeLabel: String { LocalCleanupClient.sizeLabel(for: model) ?? "" }
+
+    public var modelDirectoryURL: URL? { localCleanupClient.modelDirectoryURL(model) }
 
     public func task() {
         guard !state.isActive else { return }
-        state = s1MiniClient.isDownloaded() ? .downloaded : .notDownloaded
+        state = localCleanupClient.isDownloaded(model) ? .downloaded : .notDownloaded
     }
 
     public func downloadButtonTapped() async {
@@ -29,7 +33,7 @@ public final class S1MiniDownloadModel {
         state = .preparing
         lastError = nil
         do {
-            try await s1MiniClient.download { [weak self] update in
+            try await localCleanupClient.download(model) { [weak self] update in
                 Task { @MainActor [weak self] in
                     self?.progressUpdated(update)
                 }
@@ -47,17 +51,17 @@ public final class S1MiniDownloadModel {
     }
 
     public func cancelButtonTapped() {
-        s1MiniClient.cancelDownload()
+        localCleanupClient.cancelDownload()
         state = .notDownloaded
     }
 
     public func deleteButtonTapped() async {
         do {
-            try await s1MiniClient.deleteModel()
+            try await localCleanupClient.deleteModel(model)
             state = .notDownloaded
             lastError = nil
         } catch {
-            lastError = "S1-mini could not be deleted: \(error.localizedDescription)"
+            lastError = "\(model.displayName) could not be deleted: \(error.localizedDescription)"
         }
     }
 

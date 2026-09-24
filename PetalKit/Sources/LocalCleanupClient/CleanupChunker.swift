@@ -3,7 +3,7 @@ import NaturalLanguage
 
 /// Splits long transcripts into passes that stay inside S1-mini's ~1,000-token input window.
 /// Chunks break at sentence ends first, then at word boundaries for unpunctuated ASR output.
-public struct S1MiniChunker: Sendable {
+public struct CleanupChunker: Sendable {
     public var maxTokens: Int
 
     /// 768 transcript tokens plus the ~70-token prompt stays under the model card's 1,000-token guidance.
