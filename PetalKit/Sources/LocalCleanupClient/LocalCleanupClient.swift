@@ -9,6 +9,8 @@ import VoxtralCore
 @DependencyClient
 public struct LocalCleanupClient: Sendable {
     public var isDownloaded: @Sendable (_ model: CleanupModel) -> Bool = { _ in false }
+    /// A local copy exists but is older than the version this app expects.
+    public var isOutdated: @Sendable (_ model: CleanupModel) -> Bool = { _ in false }
     public var download: @Sendable (_ model: CleanupModel, _ progress: @escaping @Sendable (DownloadProgress) -> Void) async throws -> Void
     public var cancelDownload: @Sendable () -> Void = {}
     public var modelDirectoryURL: @Sendable (_ model: CleanupModel) -> URL? = { _ in nil }
@@ -28,12 +30,18 @@ extension LocalCleanupClient: DependencyKey {
         let runtime = LocalCleanupRuntime()
         return Self(
             isDownloaded: { LocalCleanupModelFiles.directory(for: $0) != nil },
+            isOutdated: { LocalCleanupModelFiles.isOutdated($0) },
             download: { model, progress in
                 guard let info = LocalCleanupModelFiles.info(for: model) else { return }
+                if LocalCleanupModelFiles.isOutdated(model), let directory = LocalCleanupModelFiles.directory(for: model) {
+                    await runtime.unload()
+                    try FileManager.default.removeItem(at: directory)
+                }
                 do {
                     _ = try await ModelDownloader.download(info) { fraction, status in
                         progress(DownloadProgress(fractionCompleted: min(max(fraction, 0), 1), status: status, speedText: nil))
                     }
+                    LocalCleanupModelFiles.recordRevision(for: model)
                 } catch let error as ModelDownloaderError {
                     throw DownloadClientFailure(error)
                 }

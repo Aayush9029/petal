@@ -28,6 +28,13 @@ public final class LocalCleanupDownloadModel {
         state = localCleanupClient.isDownloaded(model) ? .downloaded : .notDownloaded
     }
 
+    /// Replaces an outdated local copy. Cleanup keeps working until the old files are removed.
+    public func updateIfOutdated() async {
+        guard !state.isActive, localCleanupClient.isOutdated(model) else { return }
+        state = .notDownloaded
+        await downloadButtonTapped()
+    }
+
     public func downloadButtonTapped() async {
         guard !state.isActive, !state.isDownloaded else { return }
         state = .preparing

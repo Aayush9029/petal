@@ -33,4 +33,22 @@ enum LocalCleanupModelFiles {
     static func directory(for model: CleanupModel) -> URL? {
         info(for: model).flatMap(ModelDownloader.findModelPath(for:))
     }
+
+    /// The Hugging Face tag that the app expects. A local copy without it is replaced in the background.
+    static func revision(for model: CleanupModel) -> String? {
+        model == .petalW1 ? "v1.1" : nil
+    }
+
+    private static let revisionFile = ".petal-revision"
+
+    static func isOutdated(_ model: CleanupModel) -> Bool {
+        guard let revision = revision(for: model), let directory = directory(for: model) else { return false }
+        let recorded = try? String(contentsOf: directory.appending(path: revisionFile), encoding: .utf8)
+        return recorded?.trimmingCharacters(in: .whitespacesAndNewlines) != revision
+    }
+
+    static func recordRevision(for model: CleanupModel) {
+        guard let revision = revision(for: model), let directory = directory(for: model) else { return }
+        try? revision.write(to: directory.appending(path: revisionFile), atomically: true, encoding: .utf8)
+    }
 }

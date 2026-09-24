@@ -180,6 +180,12 @@ final class AppModel {
 
         registerShortcutHandlers()
         registerKeyboardMonitor()
+        let downloads = cleanupDownloads
+        Task {
+            for model in CleanupModel.allCases {
+                await downloads[model]?.updateIfOutdated()
+            }
+        }
         refreshPermissionStatus()
         startPermissionMonitoring()
         audioClient.warmup()
