@@ -36,7 +36,7 @@ enum LocalCleanupModelFiles {
 
     /// The Hugging Face tag that the app expects. A local copy without it is replaced in the background.
     static func revision(for model: CleanupModel) -> String? {
-        model == .petalW1 ? "v1.1" : nil
+        model == .petalW1 ? "v1.2" : nil
     }
 
     private static let revisionFile = ".petal-revision"
