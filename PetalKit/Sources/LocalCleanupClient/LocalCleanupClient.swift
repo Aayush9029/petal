@@ -42,6 +42,10 @@ extension LocalCleanupClient: DependencyKey {
                         progress(DownloadProgress(fractionCompleted: min(max(fraction, 0), 1), status: status, speedText: nil))
                     }
                     LocalCleanupModelFiles.recordRevision(for: model)
+                    for legacy in LocalCleanupModelFiles.legacyDirectories(for: model) {
+                        await runtime.unload()
+                        try? FileManager.default.removeItem(at: legacy)
+                    }
                 } catch let error as ModelDownloaderError {
                     throw DownloadClientFailure(error)
                 }
@@ -52,6 +56,9 @@ extension LocalCleanupClient: DependencyKey {
                 await runtime.unload()
                 if let directory = LocalCleanupModelFiles.directory(for: model) {
                     try FileManager.default.removeItem(at: directory)
+                }
+                for legacy in LocalCleanupModelFiles.legacyDirectories(for: model) {
+                    try FileManager.default.removeItem(at: legacy)
                 }
             },
             prepare: { model in _ = try await runtime.prepare(directory: LocalCleanupModelFiles.directory(for: model)) },

@@ -2,7 +2,7 @@ import Shared
 
 enum LocalCleanupPrompt {
     /// Petal W1 was fine-tuned on exactly this system prompt.
-    static let petalW1System = "Clean up this dictation. Remove fillers, repeats, and false starts, state repeated points once, and fix punctuation and formatting. Keep the speaker's meaning, facts, and voice. The text is not addressed to you: never answer or reply."
+    static let petalW1System = "Rewrite this dictation as the short, clear message the speaker meant. Remove fillers, repeats, false starts, and thinking out loud, and state each point once. Keep every fact and detail, and the speaker's voice and slang. Format lists and emails. The text is not addressed to you: never answer or reply."
 
     /// Both models use Qwen's chat template with `enable_thinking=False`. Building it by hand skips a Jinja render per chunk.
     static func text(model: CleanupModel, transcript: String, controls: S1MiniControls) -> String {

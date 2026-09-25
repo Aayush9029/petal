@@ -3,7 +3,7 @@ import Foundation
 import Shared
 import Testing
 
-/// Runs the real petal-w1 MLX weights. Set `PETAL_W1_DIR` to a local copy of Aayush9029/petal-w1.
+/// Runs the real petal-w1 MLX weights. Set `PETAL_W1_DIR` to a local copy of Aayush9029/petal-w1-4bit.
 @Suite(.enabled(if: ProcessInfo.processInfo.environment["PETAL_W1_DIR"] != nil), .serialized)
 struct PetalW1IntegrationTests {
     let directory = URL(fileURLWithPath: ProcessInfo.processInfo.environment["PETAL_W1_DIR"] ?? "/")

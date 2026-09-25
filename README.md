@@ -30,12 +30,12 @@
 
 ## Petal W1
 
-[Petal W1](https://huggingface.co/Aayush9029/petal-w1) is Petal's on-device cleanup model, fine-tuned from Qwen3.5-0.8B. It cleans a dictation in about 0.2 s. Scores are word similarity to a reference cleanup on held-out dictations.
+[Petal W1](https://huggingface.co/Aayush9029/petal-w1) is Petal's on-device cleanup model, fine-tuned from Qwen3.5-2B. It turns a rambling dictation into the short message you meant, in your own voice, in about 0.2 s. Claude Sonnet graded each output on 120 held-out real dictations.
 
-| Model | All | Self-corrections | Repeated points | Near-synonyms | Answered the dictation |
-|---|---|---|---|---|---|
-| **Petal W1** | **0.849** | **0.877** | **0.797** | **0.786** | 0 |
-| S1-mini | 0.779 | 0.797 | 0.399 | 0.390 | 0 |
+| Model | Error-free outputs | Meaning errors per dictation | Length of long rambles | Answered the dictation |
+|---|---|---|---|---|
+| **Petal W1 v1.4** | **47%** | **0.56** | **55%** | 0 |
+| Petal W1 v1.2 | 40% | 0.73 | 80% | 0 |
 
   
 <a aria-label="Download iOS Version" href="https://apps.apple.com/ml/app/petal-ai-voice-recorder/id6759932376">
