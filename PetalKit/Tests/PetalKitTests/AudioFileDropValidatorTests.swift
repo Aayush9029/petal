@@ -2,6 +2,7 @@ import CustomDump
 import Foundation
 import Shared
 import Testing
+import UniformTypeIdentifiers
 
 @Suite("Audio file drop validation")
 struct AudioFileDropValidatorTests {
@@ -27,5 +28,17 @@ struct AudioFileDropValidatorTests {
 
         let result = AudioFileDropValidator.validate([url])
         expectNoDifference(result.rejected, .unsupportedFile)
+    }
+
+    @Test
+    func exposesCommonAudioContentTypesForFilePicker() {
+        let contentTypeIdentifiers = Set(
+            AudioFileDropValidator.supportedContentTypes.map(\.identifier)
+        )
+
+        #expect(contentTypeIdentifiers.contains(UTType.mp3.identifier))
+        #expect(contentTypeIdentifiers.contains(UTType.wav.identifier))
+        #expect(contentTypeIdentifiers.contains(UTType.aiff.identifier))
+        #expect(contentTypeIdentifiers.contains(UTType.mpeg4Audio.identifier))
     }
 }
