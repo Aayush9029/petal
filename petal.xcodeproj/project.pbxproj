@@ -197,7 +197,7 @@
 			mainGroup = 51F869502F469BEA004C06DD;
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
-				A10000020000000000000001 /* XCLocalSwiftPackageReference "Vendor/mlx-voxtral-swift" */,
+				A10000020000000000000001 /* XCLocalSwiftPackageReference "mlx-voxtral-swift" */,
 				B10000020000000000000001 /* XCLocalSwiftPackageReference "PetalKit" */,
 				A10000030000000000000003 /* XCRemoteSwiftPackageReference "swift-dependencies" */,
 				A10000030000000000000004 /* XCRemoteSwiftPackageReference "swift-sharing" */,
@@ -505,9 +505,9 @@
 /* End XCConfigurationList section */
 
 /* Begin XCLocalSwiftPackageReference section */
-		A10000020000000000000001 /* XCLocalSwiftPackageReference "Vendor/mlx-voxtral-swift" */ = {
+		A10000020000000000000001 /* XCLocalSwiftPackageReference "mlx-voxtral-swift" */ = {
 			isa = XCLocalSwiftPackageReference;
-			relativePath = "Vendor/mlx-voxtral-swift";
+			relativePath = "mlx-voxtral-swift";
 		};
 		B10000020000000000000001 /* XCLocalSwiftPackageReference "PetalKit" */ = {
 			isa = XCLocalSwiftPackageReference;
