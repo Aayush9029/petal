@@ -204,3 +204,13 @@ private struct ProviderGroupSnapshot: Equatable {
         self.options = options
     }
 }
+
+@Test
+func modelCatalogListsEveryModelWithDownloadState() {
+    let catalog = ModelCatalogEntry.catalog { $0 == .parakeetTDTCTC110M }
+    #expect(catalog.ids.map(\.rawValue) == ModelOption.allCases.map(\.rawValue))
+    #expect(catalog[id: "parakeet-tdt-ctc-110m"]?.isDownloaded == true)
+    #expect(catalog[id: "whisper-large-v3-turbo"]?.isDownloaded == false)
+    #expect(catalog[id: "parakeet-unified-en-0.6b"]?.supportsLiveTranscription == true)
+    #expect(catalog[id: "parakeet-tdt-ctc-110m"]?.isRecommended == true)
+}

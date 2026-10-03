@@ -244,7 +244,7 @@ public final class OnboardingModel {
     }
 
     public var cleanupModels: [CleanupModel] {
-        CleanupModel.allCases.filter { $0 != .appleIntelligence || foundationModelClient.isAvailable() }
+        CleanupModel.allCases.filter { $0 != .cloud && ($0 != .appleIntelligence || foundationModelClient.isAvailable()) }
     }
 
     private var pendingCleanupDownload: LocalCleanupDownloadModel? {

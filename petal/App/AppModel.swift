@@ -2,6 +2,8 @@ import AppKit
 import AVFoundation
 import AudioClient
 import class SwiftUI.NSHostingView
+import CloudCleanupClient
+import CloudCleanupFeature
 import DoubleTapClient
 import FloatingCapsuleClient
 import FoundationModelClient
@@ -60,9 +62,11 @@ final class AppModel {
     @ObservationIgnored @Shared(.doubleTapKey) var doubleTapKey: DoubleTapKey = .unconfigured
     @ObservationIgnored @Shared(.doubleTapInterval) var doubleTapInterval: Double = 0.4
     @ObservationIgnored @Shared(.transcriptHistoryDays) var transcriptHistoryDays: [TranscriptHistoryDay] = []
+    @ObservationIgnored @Shared(.modelCatalog) var modelCatalog: IdentifiedArrayOf<ModelCatalogEntry> = []
 
     let modelDownloadViewModel: ModelDownloadModel
     let cleanupDownloads = LocalCleanupDownloads()
+    let cloudCleanup = CloudCleanupModel()
 
     var selectedModelID: String {
         get { modelDownloadViewModel.selectedModelID }
@@ -98,6 +102,7 @@ final class AppModel {
     @ObservationIgnored @Dependency(\.logClient) private var logClient
     @ObservationIgnored @Dependency(\.foundationModelClient) private var foundationModelClient
     @ObservationIgnored @Dependency(\.localCleanupClient) private var localCleanupClient
+    @ObservationIgnored @Dependency(\.cloudCleanupClient) private var cloudCleanupClient
     @ObservationIgnored @Dependency(\.doubleTapClient) private var doubleTapClient
     @ObservationIgnored @Dependency(\.windowClient) private var windowClient
     @ObservationIgnored @Dependency(\.playbackDuckingClient) private var playbackDuckingClient
@@ -160,6 +165,7 @@ final class AppModel {
         }
 
         modelDownloadViewModel.onDownloadCompleted = { [weak self] in
+            self?.refreshModelCatalog()
             guard let self, self.hasCompletedSetup else { return }
             self.warmupTask?.cancel()
             self.isWarmingModel = true
@@ -311,9 +317,13 @@ final class AppModel {
         // Pre-warm sound players in background so first recording
         // feedback is instant.
         Task { await soundClient.warmup() }
+        refreshModelCatalog()
 
         if hasCompletedSetup, isSelectedModelDownloaded {
-            Task { await warmModelTask() }
+            Task {
+                await warmModelTask()
+                await recoverUnfinishedRecordings()
+            }
             return
         }
 
@@ -416,29 +426,55 @@ final class AppModel {
         }
     }
 
-    func transcribeDroppedAudioFile(_ audioURL: URL) async {
+    enum AudioFileOrigin {
+        case dropped
+        case recovered
+    }
+
+    func recoverUnfinishedRecordings() async {
+        for audioURL in await audioClient.unfinishedRecordings() {
+            logger.info("Recovering unfinished recording: \(audioURL.lastPathComponent, privacy: .public)")
+            logClient.info("AppModel", "Recovering unfinished recording \(audioURL.lastPathComponent)")
+            guard await transcribeDroppedAudioFile(audioURL, origin: .recovered) else { return }
+            try? FileManager.default.removeItem(at: audioURL)
+        }
+    }
+
+    func refreshModelCatalog() {
+        let downloads = modelDownloadViewModel
+        let catalog = ModelCatalogEntry.catalog { downloads.isModelDownloaded($0) }
+        guard catalog != modelCatalog else { return }
+        $modelCatalog.withLock { $0 = catalog }
+    }
+
+    @discardableResult
+    func transcribeDroppedAudioFile(_ audioURL: URL, origin: AudioFileOrigin = .dropped) async -> Bool {
         guard hasCompletedSetup else {
-            transientMessage = "Finish setup to transcribe"
-            beginOnboardingFlow()
-            showOnboardingWindow()
-            return
+            if origin == .dropped {
+                transientMessage = "Finish setup to transcribe"
+                beginOnboardingFlow()
+                showOnboardingWindow()
+            }
+            return false
         }
 
         guard !isTranscribingDroppedFile else {
             transientMessage = "Already transcribing a file"
-            return
+            return false
         }
 
         let isCurrentlyRecording = await audioClient.isRecording()
         guard !isCurrentlyRecording, !isRecordingLifecycleBusy else {
-            transientMessage = "Finish the current one first"
-            return
+            if origin == .dropped {
+                transientMessage = "Finish the current one first"
+            }
+            return false
         }
 
         guard let selectedModelOption else {
             sessionState = .error(AppTranscriptionError.pipelineUnavailable.localizedDescription)
             transientMessage = "Transcription unavailable"
-            return
+            return false
         }
 
         isTranscribingDroppedFile = true
@@ -542,9 +578,15 @@ final class AppModel {
                 pipelineStage = "clipboard"
                 await soundClient.playTranscriptionCompleted()
                 copyTranscriptToClipboard(transcript)
-                await postCopiedToClipboardNotification(body: "Copied to clipboard")
+                switch origin {
+                case .dropped:
+                    await postCopiedToClipboardNotification(body: "Copied to clipboard")
+                    transientMessage = "Copied to clipboard"
+                case .recovered:
+                    await postCopiedToClipboardNotification(body: "Petal recovered your last recording and copied it to the clipboard.")
+                    transientMessage = "Recovered last recording"
+                }
                 await floatingCapsuleClient.showCopiedToClipboard()
-                transientMessage = "Copied to clipboard"
 
                 appendTranscriptHistory(
                     transcript: transcript,
@@ -589,6 +631,7 @@ final class AppModel {
         }
 
         await hideCapsuleAfterDelay()
+        return true
     }
 
     // MARK: - Deep Links
@@ -605,6 +648,8 @@ final class AppModel {
             await toggleRecordingFromDeepLink()
         case .setup:
             changeModelButtonTapped()
+        case .settings:
+            openSettingsWindow()
         case .checkForUpdates:
             logger.debug("check-for-updates deep link is handled by Sparkle updater controller")
         }
@@ -948,7 +993,7 @@ final class AppModel {
             if let cleanup, !transcript.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 pipelineStage = "refining"
                 sessionState = .processing(.refining)
-                if cleanup == .appleIntelligence {
+                if cleanup == .appleIntelligence || cleanup == .cloud {
                     await soundClient.playRefineStarted()
                 }
                 await floatingCapsuleClient.showRefining()
@@ -1940,6 +1985,8 @@ final class AppModel {
         )
     }
 
+    nonisolated private static let cloudCleanupFailedMessage = "Cloud cleanup failed. Pasted original."
+
     /// Speech models with native smart transcription already applied the prompt, so a second pass is skipped.
     private func activeCleanupModel(mode: TranscriptionMode, model: ModelOption) -> CleanupModel? {
         if mode == .smart, model.supportsSmartTranscription { return nil }
@@ -1947,6 +1994,7 @@ final class AppModel {
         case .off: return nil
         case .appleIntelligence: return foundationModelClient.isAvailable() ? .appleIntelligence : nil
         case .s1Mini, .petalW1: return localCleanupClient.isDownloaded(cleanupModel) ? cleanupModel : nil
+        case .cloud: return cloudCleanup.configuration == nil ? nil : .cloud
         }
     }
 
@@ -1971,9 +2019,27 @@ final class AppModel {
                 details["generatedTokens"] = "\(result.generatedTokens)"
                 details["modelElapsed"] = "\(result.elapsed)"
                 cleaned = result.text
+            case .cloud where FillerWords.isFillerOnly(transcript):
+                cleaned = ""
+            case .cloud:
+                guard let configuration = cloudCleanup.configuration else { break }
+                details["provider"] = configuration.connection.provider.rawValue
+                details["model"] = configuration.model.rawValue
+                let result = try await cloudCleanupClient.clean(transcript, configuration)
+                details["servedBy"] = (result.model ?? configuration.model).rawValue
+                details["requests"] = "\(result.requestCount)"
+                details["toolCalls"] = result.toolCalls.joined(separator: ",")
+                details["modelElapsed"] = "\(result.elapsed)"
+                cleaned = result.text
+                if transientMessage == Self.cloudCleanupFailedMessage {
+                    transientMessage = nil
+                }
             }
         } catch {
             details["error"] = error.localizedDescription
+            if cleanup == .cloud {
+                transientMessage = Self.cloudCleanupFailedMessage
+            }
         }
         details["elapsed"] = formatElapsedSeconds(now.timeIntervalSince(start))
 

@@ -3,3 +3,4 @@
 @_exported import CasePaths
 @_exported import IdentifiedCollections
 @_exported import Sharing
+@_exported import Tagged

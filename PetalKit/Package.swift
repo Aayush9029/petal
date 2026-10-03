@@ -21,6 +21,9 @@ extension Target.Dependency {
     static let logClient: Self = "LogClient"
     static let playbackDuckingClient: Self = "PlaybackDuckingClient"
     static let localCleanupClient: Self = "LocalCleanupClient"
+    static let keychainClient: Self = "KeychainClient"
+    static let cloudCleanupClient: Self = "CloudCleanupClient"
+    static let systemContextClient: Self = "SystemContextClient"
 
     static let dependencies: Self = .product(name: "Dependencies", package: "swift-dependencies")
     static let dependenciesMacros: Self = .product(name: "DependenciesMacros", package: "swift-dependencies")
@@ -28,6 +31,8 @@ extension Target.Dependency {
     static let customDump: Self = .product(name: "CustomDump", package: "swift-custom-dump")
     static let sharing: Self = .product(name: "Sharing", package: "swift-sharing")
     static let identifiedCollections: Self = .product(name: "IdentifiedCollections", package: "swift-identified-collections")
+    static let tagged: Self = .product(name: "Tagged", package: "swift-tagged")
+    static let debugSnapshots: Self = .product(name: "DebugSnapshots", package: "swift-debug-snapshots")
     static let casePaths: Self = .product(name: "CasePaths", package: "swift-case-paths")
     static let keyboardShortcuts: Self = .product(name: "KeyboardShortcuts", package: "KeyboardShortcuts")
     static let sauce: Self = .product(name: "Sauce", package: "Sauce")
@@ -73,6 +78,10 @@ let package = Package(
         .library(name: "DoubleTapClient", targets: ["DoubleTapClient"]),
         .library(name: "FoundationModelClient", targets: ["FoundationModelClient"]),
         .library(name: "LocalCleanupClient", targets: ["LocalCleanupClient"]),
+        .library(name: "KeychainClient", targets: ["KeychainClient"]),
+        .library(name: "CloudCleanupClient", targets: ["CloudCleanupClient"]),
+        .library(name: "SystemContextClient", targets: ["SystemContextClient"]),
+        .library(name: "CloudCleanupFeature", targets: ["CloudCleanupFeature"]),
     ],
     dependencies: [
         .package(url: "https://github.com/FluidInference/FluidAudio.git", exact: "0.17.1"),
@@ -82,6 +91,9 @@ let package = Package(
         .package(url: "https://github.com/pointfreeco/swift-sharing", from: "2.10.1"),
         .package(url: "https://github.com/pointfreeco/swift-identified-collections", from: "1.1.1"),
         .package(url: "https://github.com/pointfreeco/swift-case-paths", from: "1.10.0"),
+        .package(url: "https://github.com/pointfreeco/swift-tagged", from: "0.10.0"),
+        // 0.5 needs swift-tools 6.4, which the Xcode 26.5 release runner cannot load.
+        .package(url: "https://github.com/pointfreeco/swift-debug-snapshots", "0.4.3" ..< "0.5.0"),
         .package(name: "KeyboardShortcuts", path: "KeyboardShortcuts"),
         .package(url: "https://github.com/Clipy/Sauce.git", from: "2.5.2"),
         .package(url: "https://github.com/Blaizzy/mlx-audio-swift.git", from: "0.1.3"),
@@ -103,6 +115,7 @@ let package = Package(
                 .dependenciesMacros,
                 .sharing,
                 .identifiedCollections,
+                .tagged,
                 .keyboardShortcuts,
                 .casePaths,
             ]
@@ -126,6 +139,15 @@ let package = Package(
                 .shared,
                 .downloadClient,
                 .localCleanupClient,
+            ]
+        ),
+        .target(
+            name: "CloudCleanupFeature",
+            dependencies: [
+                .shared,
+                .keychainClient,
+                .cloudCleanupClient,
+                .debugSnapshots,
             ]
         ),
         .target(
@@ -223,6 +245,28 @@ let package = Package(
             ]
         ),
         .target(
+            name: "KeychainClient",
+            dependencies: [
+                .dependencies,
+                .dependenciesMacros,
+                .tagged,
+            ]
+        ),
+        .target(
+            name: "CloudCleanupClient",
+            dependencies: [
+                .shared,
+                .systemContextClient,
+            ]
+        ),
+        .target(
+            name: "SystemContextClient",
+            dependencies: [
+                .dependencies,
+                .dependenciesMacros,
+            ]
+        ),
+        .target(
             name: "TranscriptionClient",
             dependencies: [
                 .shared,
@@ -300,6 +344,9 @@ let package = Package(
                 "TranscriptionClient",
                 "FoundationModelClient",
                 "LocalCleanupClient",
+                "KeychainClient",
+                "CloudCleanupClient",
+                "CloudCleanupFeature",
                 "DownloadClient",
                 "HistoryClient",
                 "SoundClient",

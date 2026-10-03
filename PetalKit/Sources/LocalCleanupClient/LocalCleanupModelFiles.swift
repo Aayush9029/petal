@@ -25,7 +25,7 @@ enum LocalCleanupModelFiles {
                 quantization: "MLX 4-bit",
                 parameters: "2B"
             )
-        case .off, .appleIntelligence:
+        case .off, .appleIntelligence, .cloud:
             nil
         }
     }

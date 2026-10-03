@@ -1,5 +1,6 @@
 import AppKit
 import AudioClient
+import CloudCleanupFeature
 import Dependencies
 import FoundationModelClient
 import HistoryClient
@@ -157,12 +158,18 @@ final class SettingsViewModel {
         CleanupModel.allCases.filter { $0 != .appleIntelligence || appleIntelligenceAvailable }
     }
 
+    var cloudCleanupDetail: String? {
+        guard cloudCleanup.isConfigured else { return nil }
+        return "\(cloudCleanup.provider.displayName) · \(cloudCleanup.selectedModel.title)"
+    }
+
     var modelProviderGroups: IdentifiedArrayOf<ModelOptionProviderGroup> {
         ModelOption.providerGroups()
     }
 
     let downloadModel: ModelDownloadModel
     let cleanupDownloads: LocalCleanupDownloads
+    let cloudCleanup: CloudCleanupModel
     private let appModel: AppModel
     @ObservationIgnored @Dependency(\.permissionsClient) private var permissionsClient
     @ObservationIgnored @Dependency(\.audioClient) private var audioClient
@@ -173,6 +180,7 @@ final class SettingsViewModel {
     init(appModel: AppModel) {
         downloadModel = appModel.modelDownloadViewModel
         cleanupDownloads = appModel.cleanupDownloads
+        cloudCleanup = appModel.cloudCleanup
         self.appModel = appModel
     }
 
@@ -328,6 +336,7 @@ final class SettingsViewModel {
         }
 
         await downloadModel.deleteModel(option)
+        appModel.refreshModelCatalog()
 
         if selectedModelID == option.rawValue {
             ensureReadySelectedModel(excluding: option)

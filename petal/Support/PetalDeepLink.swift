@@ -5,6 +5,7 @@ enum PetalDeepLinkCommand: String, Sendable {
     case stop
     case toggle
     case setup
+    case settings
     case checkForUpdates = "check-for-updates"
 
     static func parse(_ url: URL) -> Self? {

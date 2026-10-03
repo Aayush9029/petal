@@ -1,3 +1,4 @@
+import CloudCleanupFeature
 import ModelDownloadFeature
 import Shared
 import SwiftUI
@@ -16,7 +17,10 @@ struct IntelligencePane: View {
                     card(for: model)
                 }
             }
-            .task { viewModel.cleanupDownloads.task() }
+            .task {
+                viewModel.cleanupDownloads.task()
+                viewModel.cloudCleanup.task()
+            }
             .confirmationDialog(
                 "Delete \(modelPendingDelete?.displayName ?? "")?",
                 isPresented: Binding(get: { modelPendingDelete != nil }, set: { if !$0 { modelPendingDelete = nil } }),
@@ -55,6 +59,11 @@ struct IntelligencePane: View {
                 .transition(.opacity.combined(with: .move(edge: .bottom)))
             }
 
+            if viewModel.cleanupModel == .cloud {
+                CloudCleanupSections(cloud: viewModel.cloudCleanup)
+                    .transition(.opacity.combined(with: .move(edge: .bottom)))
+            }
+
             if viewModel.smartModeAvailable {
                 SettingsPanelSection(title: "Smart Transcription") {
                     SettingsControlRow(
@@ -83,7 +92,6 @@ struct IntelligencePane: View {
                 }
                 .transition(.opacity.combined(with: .move(edge: .bottom)))
             }
-    
         }
         .animation(.smooth(duration: 0.25), value: viewModel.transcriptionMode)
         .animation(.smooth(duration: 0.25), value: viewModel.cleanupModel)
@@ -95,6 +103,8 @@ struct IntelligencePane: View {
             isSelected: viewModel.cleanupModel == model,
             downloadState: viewModel.cleanupDownloads[model]?.state,
             sizeLabel: viewModel.cleanupDownloads[model]?.sizeLabel,
+            detail: model == .cloud ? viewModel.cloudCleanupDetail : nil,
+            needsSetup: model == .cloud && !viewModel.cloudCleanup.isConfigured,
             onCancelDownload: { viewModel.cleanupDownloads[model]?.cancelButtonTapped() },
             onDeleteDownload: { modelPendingDelete = model }
         ) {

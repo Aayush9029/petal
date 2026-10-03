@@ -5,6 +5,8 @@ public extension Image {
     static let accessibility = Image("accessibility", bundle: .module)
     static let microphone = Image("microphone", bundle: .module)
     static let openai = Image("openai", bundle: .module)
+    static let anthropic = Image("anthropic", bundle: .module)
+    static let openRouter = Image("openrouter", bundle: .module)
     static let qwen = Image("qwen", bundle: .module)
     static let mistral = Image("mistral", bundle: .module)
     static let nvidia = Image("nvidia", bundle: .module)

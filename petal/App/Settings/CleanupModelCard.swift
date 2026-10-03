@@ -8,6 +8,8 @@ struct CleanupModelCard: View {
     /// `nil` when the model needs no download.
     var downloadState: ModelDownloadState?
     var sizeLabel: String?
+    var detail: String?
+    var needsSetup = false
     var onCancelDownload: (() -> Void)?
     var onDeleteDownload: (() -> Void)?
     let action: () -> Void
@@ -55,7 +57,9 @@ struct CleanupModelCard: View {
 
     private var metadata: String? {
         switch downloadState {
-        case nil, .downloaded?:
+        case nil:
+            detail
+        case .downloaded?:
             nil
         case .notDownloaded?:
             ["Download required", sizeLabel].compactMap(\.self).joined(separator: " · ")
@@ -89,6 +93,12 @@ struct CleanupModelCard: View {
             Image.appIcon
                 .resizable()
                 .aspectRatio(contentMode: .fill)
+        case .cloud:
+            Image(systemName: "cloud.fill")
+                .font(.system(size: 13, weight: .bold))
+                .foregroundStyle(.white)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(Color.blue.gradient)
         }
     }
 
@@ -111,17 +121,23 @@ struct CleanupModelCard: View {
             CircularDownloadProgress(fraction: progress.fraction)
         case .notDownloaded?, .failed?:
             if !isSelected {
-                Text("Get")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 12)
-                    .frame(height: 24)
-                    .background(Color.accentColor, in: .capsule)
+                capsuleLabel("Get")
             }
+        case nil where needsSetup && !isSelected:
+            capsuleLabel("Set Up")
         case nil, .downloaded?, .paused?:
             Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
                 .foregroundStyle(isSelected ? AnyShapeStyle(Color.accentColor) : AnyShapeStyle(.tertiary))
         }
+    }
+
+    private func capsuleLabel(_ title: String) -> some View {
+        Text(title)
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(.white)
+            .padding(.horizontal, 12)
+            .frame(height: 24)
+            .background(Color.accentColor, in: .capsule)
     }
 
     @ViewBuilder
@@ -148,6 +164,8 @@ struct CleanupModelCard: View {
         CleanupModelCard(model: .s1Mini, isSelected: false, downloadState: .notDownloaded, sizeLabel: "619 MB") {}
         CleanupModelCard(model: .s1Mini, isSelected: true, downloadState: .downloading(.init(fraction: 0.42, statusText: "")), sizeLabel: "619 MB") {}
         CleanupModelCard(model: .s1Mini, isSelected: true, downloadState: .downloaded, sizeLabel: "619 MB") {}
+        CleanupModelCard(model: .cloud, isSelected: false, detail: "Add an API key to set up", needsSetup: true) {}
+        CleanupModelCard(model: .cloud, isSelected: true, detail: "OpenAI · gpt-6-luna") {}
     }
     .frame(width: 500)
 }

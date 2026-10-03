@@ -1,5 +1,5 @@
 {
-  "originHash" : "a342b20488b306ff6f83e73e65475ffd18a3175670a538dbb9916caf9320cbdb",
+  "originHash" : "6399e1dcbdf044a0795aaa106df78603d7675db3967596c042c60f4eccd17304",
   "pins" : [
     {
       "identity" : "argmax-oss-swift",
@@ -182,6 +182,15 @@
       }
     },
     {
+      "identity" : "swift-debug-snapshots",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/pointfreeco/swift-debug-snapshots",
+      "state" : {
+        "revision" : "1c678e79901b46a1d2b451a4372c18f5767f9c58",
+        "version" : "0.4.3"
+      }
+    },
+    {
       "identity" : "swift-dependencies",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/pointfreeco/swift-dependencies",
@@ -260,6 +269,15 @@
       "state" : {
         "revision" : "79e4b74a295b6eb74a8b585e3a39d29e70c1dbd1",
         "version" : "603.0.2"
+      }
+    },
+    {
+      "identity" : "swift-tagged",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/pointfreeco/swift-tagged",
+      "state" : {
+        "revision" : "3907a9438f5b57d317001dc99f3f11b46882272b",
+        "version" : "0.10.0"
       }
     },
     {

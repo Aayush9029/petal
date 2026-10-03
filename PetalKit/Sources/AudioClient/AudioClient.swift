@@ -52,6 +52,7 @@ public struct AudioClient: Sendable {
     public var startStreamingRecording: @Sendable (@escaping @Sendable (Double) -> Void) async throws -> AudioSampleStream
     public var stopRecording: @Sendable () async throws -> URL
     public var cancelRecording: @Sendable () async -> Void = {}
+    public var unfinishedRecordings: @Sendable () async -> [URL] = { [] }
 }
 
 extension AudioClient: DependencyKey {
@@ -77,6 +78,9 @@ extension AudioClient: DependencyKey {
             },
             cancelRecording: {
                 await LiveAudioCaptureRuntimeContainer.shared.cancelRecording()
+            },
+            unfinishedRecordings: {
+                await LiveAudioCaptureRuntimeContainer.shared.unfinishedRecordings()
             }
         )
     }
@@ -99,7 +103,8 @@ extension AudioClient: TestDependencyKey {
             startRecording: { _ in },
             startStreamingRecording: { _ in AudioSampleStream { $0.finish() } },
             stopRecording: { URL(fileURLWithPath: "/dev/null") },
-            cancelRecording: {}
+            cancelRecording: {},
+            unfinishedRecordings: { [] }
         )
     }
 }
@@ -231,8 +236,7 @@ private final class LiveAudioCaptureRuntime: @unchecked Sendable {
         guard Self.e2eAudioFixtureURL() == nil else { return }
         guard Self.selectedInputDeviceIDForRecording() == AudioInputDevice.systemDefaultID else { return }
 
-        let url = FileManager.default.temporaryDirectory
-            .appending(path: "petal-\(UUID().uuidString).wav")
+        let url = RecordingFiles.newURL(extension: "wav")
         do {
             let rec = try AVAudioRecorder(url: url, settings: Self.recordingSettings)
             rec.isMeteringEnabled = true
@@ -272,8 +276,7 @@ private final class LiveAudioCaptureRuntime: @unchecked Sendable {
                 if let standbyURL { try? FileManager.default.removeItem(at: standbyURL) }
                 standbyURL = nil
             }
-            let audioURL = FileManager.default.temporaryDirectory
-                .appending(path: "petal-\(UUID().uuidString).m4a")
+            let audioURL = RecordingFiles.newURL(extension: "m4a")
             let recording = try SelectedInputAudioRecording(
                 device: selectedDevice,
                 outputURL: audioURL,
@@ -306,8 +309,7 @@ private final class LiveAudioCaptureRuntime: @unchecked Sendable {
         }
 
         // Fallback: create fresh recorder
-        let audioURL = FileManager.default.temporaryDirectory
-            .appending(path: "petal-\(UUID().uuidString).wav")
+        let audioURL = RecordingFiles.newURL(extension: "wav")
 
         if let recorder = try? AVAudioRecorder(url: audioURL, settings: Self.recordingSettings) {
             recorder.isMeteringEnabled = true
@@ -331,8 +333,7 @@ private final class LiveAudioCaptureRuntime: @unchecked Sendable {
         guard let device = Self.fallbackCaptureDevice() else {
             throw AudioClientError.failedToStart
         }
-        let audioURL = FileManager.default.temporaryDirectory
-            .appending(path: "petal-\(UUID().uuidString).m4a")
+        let audioURL = RecordingFiles.newURL(extension: "m4a")
         let recording = try SelectedInputAudioRecording(
             device: device,
             outputURL: audioURL,
@@ -342,6 +343,15 @@ private final class LiveAudioCaptureRuntime: @unchecked Sendable {
         selectedInputRecording = recording
         recordingURL = audioURL
         logger.info("Recording via capture session fallback on \(device.localizedName, privacy: .public)")
+    }
+
+    func unfinishedRecordings() async -> [URL] {
+        await withCheckedContinuation { continuation in
+            stateQueue.async { [self] in
+                let active = Set([standbyURL, recordingURL].compactMap { $0?.standardizedFileURL })
+                continuation.resume(returning: RecordingFiles.unfinished(excluding: active))
+            }
+        }
     }
 
     func stopRecording() async throws -> URL {
@@ -636,7 +646,7 @@ private final class LiveAudioCaptureRuntime: @unchecked Sendable {
     }
 }
 
-private final class SelectedInputAudioRecording: NSObject, AVCaptureAudioDataOutputSampleBufferDelegate, @unchecked Sendable {
+final class SelectedInputAudioRecording: NSObject, AVCaptureAudioDataOutputSampleBufferDelegate, @unchecked Sendable {
     private let session = AVCaptureSession()
     private let audioOutput = AVCaptureAudioDataOutput()
     private let captureQueue = DispatchQueue(label: "com.petal.audio.capture.selected-input")
@@ -658,17 +668,7 @@ private final class SelectedInputAudioRecording: NSObject, AVCaptureAudioDataOut
         self.sampleProducer = sampleProducer
         self.outputURL = outputURL
         self.levelHandler = levelHandler
-        writer = try AVAssetWriter(outputURL: outputURL, fileType: .m4a)
-        writerInput = AVAssetWriterInput(
-            mediaType: .audio,
-            outputSettings: [
-                AVFormatIDKey: kAudioFormatMPEG4AAC,
-                AVSampleRateKey: 44_100,
-                AVNumberOfChannelsKey: 1,
-                AVEncoderBitRateKey: 128_000
-            ]
-        )
-        writerInput.expectsMediaDataInRealTime = true
+        (writer, writerInput) = try Self.makeWriter(outputURL: outputURL)
         super.init()
 
         let input = try AVCaptureDeviceInput(device: device)
@@ -691,6 +691,23 @@ private final class SelectedInputAudioRecording: NSObject, AVCaptureAudioDataOut
         session.addOutput(audioOutput)
         session.commitConfiguration()
         writer.add(writerInput)
+    }
+
+    static func makeWriter(outputURL: URL) throws -> (AVAssetWriter, AVAssetWriterInput) {
+        let writer = try AVAssetWriter(outputURL: outputURL, fileType: .m4a)
+        // Fragments keep the file readable if Petal quits before the writer finishes.
+        writer.movieFragmentInterval = CMTime(seconds: 0.5, preferredTimescale: 600)
+        let input = AVAssetWriterInput(
+            mediaType: .audio,
+            outputSettings: [
+                AVFormatIDKey: kAudioFormatMPEG4AAC,
+                AVSampleRateKey: 44_100,
+                AVNumberOfChannelsKey: 1,
+                AVEncoderBitRateKey: 128_000
+            ]
+        )
+        input.expectsMediaDataInRealTime = true
+        return (writer, input)
     }
 
     func start() throws {

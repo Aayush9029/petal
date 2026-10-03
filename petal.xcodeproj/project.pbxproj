@@ -34,6 +34,9 @@
 		B10000010000000000000011 /* DoubleTapClient in Frameworks */ = {isa = PBXBuildFile; productRef = B10000040000000000000011 /* DoubleTapClient */; };
 		B10000010000000000000012 /* PlaybackDuckingClient in Frameworks */ = {isa = PBXBuildFile; productRef = B10000040000000000000012 /* PlaybackDuckingClient */; };
 		B10000010000000000000013 /* LocalCleanupClient in Frameworks */ = {isa = PBXBuildFile; productRef = B10000040000000000000013 /* LocalCleanupClient */; };
+		B10000010000000000000014 /* KeychainClient in Frameworks */ = {isa = PBXBuildFile; productRef = B10000040000000000000014 /* KeychainClient */; };
+		B10000010000000000000015 /* CloudCleanupClient in Frameworks */ = {isa = PBXBuildFile; productRef = B10000040000000000000015 /* CloudCleanupClient */; };
+		B10000010000000000000016 /* CloudCleanupFeature in Frameworks */ = {isa = PBXBuildFile; productRef = B10000040000000000000016 /* CloudCleanupFeature */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -95,6 +98,9 @@
 				B10000010000000000000011 /* DoubleTapClient in Frameworks */,
 				B10000010000000000000012 /* PlaybackDuckingClient in Frameworks */,
 				B10000010000000000000013 /* LocalCleanupClient in Frameworks */,
+				B10000010000000000000014 /* KeychainClient in Frameworks */,
+				B10000010000000000000015 /* CloudCleanupClient in Frameworks */,
+				B10000010000000000000016 /* CloudCleanupFeature in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -167,6 +173,9 @@
 				B10000040000000000000011 /* DoubleTapClient */,
 				B10000040000000000000012 /* PlaybackDuckingClient */,
 				B10000040000000000000013 /* LocalCleanupClient */,
+				B10000040000000000000014 /* KeychainClient */,
+				B10000040000000000000015 /* CloudCleanupClient */,
+				B10000040000000000000016 /* CloudCleanupFeature */,
 			);
 			productName = petal;
 			productReference = 51F869592F469BEA004C06DD /* petal.app */;
@@ -412,7 +421,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 15.0;
-				MARKETING_VERSION = 2.4.3;
+				MARKETING_VERSION = 2.5.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.optimalapps.petal;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = NO;
@@ -461,7 +470,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 15.0;
-				MARKETING_VERSION = 2.4.3;
+				MARKETING_VERSION = 2.5.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.optimalapps.petal;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = NO;
@@ -671,6 +680,18 @@
 		B10000040000000000000013 /* LocalCleanupClient */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = LocalCleanupClient;
+		};
+		B10000040000000000000014 /* KeychainClient */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = KeychainClient;
+		};
+		B10000040000000000000015 /* CloudCleanupClient */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = CloudCleanupClient;
+		};
+		B10000040000000000000016 /* CloudCleanupFeature */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = CloudCleanupFeature;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

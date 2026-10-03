@@ -132,3 +132,56 @@ public extension SharedKey where Self == FileStorageKey<[TranscriptHistoryDay]>.
         ]
     }
 }
+
+public extension SharedKey where Self == AppStorageKey<CloudProvider>.Default {
+    static var cloudProvider: Self {
+        Self[.appStorage("cloud_provider"), default: .openAI]
+    }
+}
+
+public extension SharedKey where Self == AppStorageKey<CloudModel.ID>.Default {
+    static func cloudModel(_ provider: CloudProvider) -> Self {
+        Self[.appStorage("cloud_model_\(provider.rawValue)"), default: provider.defaultModel]
+    }
+}
+
+public extension SharedKey where Self == AppStorageKey<String>.Default {
+    static var cloudCustomBaseURL: Self {
+        Self[.appStorage("cloud_custom_base_url"), default: ""]
+    }
+
+    static var cloudSystemPrompt: Self {
+        Self[.appStorage("cloud_system_prompt"), default: CloudPromptPreset.cleanUp.prompt]
+    }
+}
+
+public extension SharedKey where Self == AppStorageKey<Bool>.Default {
+    static var cloudDateTimeToolEnabled: Self {
+        Self[.appStorage("cloud_date_time_tool_enabled"), default: false]
+    }
+
+    static var cloudWebSearchEnabled: Self {
+        Self[.appStorage("cloud_web_search_enabled"), default: false]
+    }
+
+    static var cloudClipboardToolEnabled: Self {
+        Self[.appStorage("cloud_clipboard_tool_enabled"), default: false]
+    }
+
+    static var cloudSelectedTextToolEnabled: Self {
+        Self[.appStorage("cloud_selected_text_tool_enabled"), default: false]
+    }
+}
+
+public extension SharedKey where Self == FileStorageKey<IdentifiedArrayOf<ModelCatalogEntry>>.Default {
+    static var modelCatalog: Self {
+        Self[
+            .fileStorage(
+                .documentsDirectory
+                    .appending(component: "petal")
+                    .appending(component: "model-catalog.json")
+            ),
+            default: []
+        ]
+    }
+}

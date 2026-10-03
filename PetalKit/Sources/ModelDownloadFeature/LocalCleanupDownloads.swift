@@ -14,7 +14,7 @@ public final class LocalCleanupDownloads {
         switch model {
         case .s1Mini: s1Mini
         case .petalW1: petalW1
-        case .off, .appleIntelligence: nil
+        case .off, .appleIntelligence, .cloud: nil
         }
     }
 

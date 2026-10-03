@@ -35,6 +35,15 @@ The script builds or tests the Swift packages, builds the app without requiring 
 PETAL_RUN_E2E=1 ./scripts/phase-gate.sh
 ```
 
+Cloud cleanup has live tests against the real provider APIs. They run only when you opt in, and each run costs a few cents:
+
+```sh
+PETAL_CLOUD_TESTS=1 OPENAI_API_KEY=… ANTHROPIC_API_KEY=… OPENROUTER_API_KEY=… \
+  swift test --package-path PetalKit --filter CloudCleanupIntegrationTests
+```
+
+Each test runs for every provider that has a key.
+
 For UI changes, also verify the affected workflow manually and include screenshots or a short recording in the pull request when useful.
 
 ## Pull Requests
