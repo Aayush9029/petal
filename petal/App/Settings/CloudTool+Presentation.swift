@@ -7,6 +7,7 @@ extension CloudTool {
         case .webSearch: "Web Search"
         case .clipboard: "Clipboard"
         case .selectedText: "Selected Text"
+        case .screen: "Screen"
         }
     }
 
@@ -16,6 +17,7 @@ extension CloudTool {
         case .webSearch: "Looks up facts you ask for. Charged per search."
         case .clipboard: "Reads what you copied when you say “this”."
         case .selectedText: "Rewrites or replies to the text you selected."
+        case .screen: "Sends a screenshot of your screen with each dictation."
         }
     }
 
@@ -25,6 +27,7 @@ extension CloudTool {
         case .webSearch: "globe"
         case .clipboard: "doc.on.clipboard"
         case .selectedText: "text.cursor"
+        case .screen: "rectangle.dashed"
         }
     }
 }

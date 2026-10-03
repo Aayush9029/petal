@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import Shared
 import Testing
@@ -109,6 +110,35 @@ struct CloudCleanupIntegrationTests {
         )
         #expect(result.toolCalls.contains("get_clipboard_text"), "\(result)")
         #expect(result.text.contains("Tuesday") || result.text.lowercased().contains("works"), "\(result.text)")
+    }
+
+    @Test(arguments: targets)
+    func screenshotSpellsANameFromTheScreen(target: Target) async throws {
+        let screenshot = try Self.screenshot(showing: "To: Siobhán Ó Ceallaigh\nSubject: Launch review")
+        let runtime = CloudCleanupRuntime(
+            send: { try await URLSession.shared.data(for: $0) },
+            context: CloudRuntimeContext(screenshot: { screenshot })
+        )
+        let result = try await runtime.clean(
+            "hey shivawn o kelly can we move the launch review to monday",
+            configuration: target.configuration(tools: [.screen])
+        )
+        #expect(result.text.contains("Siobhán"), "\(result.text)")
+    }
+
+    static func screenshot(showing text: String) throws -> Data {
+        let size = NSSize(width: 900, height: 300)
+        let image = NSImage(size: size, flipped: false) { rect in
+            NSColor.white.setFill()
+            rect.fill()
+            (text as NSString).draw(
+                at: NSPoint(x: 40, y: 120),
+                withAttributes: [.font: NSFont.systemFont(ofSize: 40), .foregroundColor: NSColor.black]
+            )
+            return true
+        }
+        let tiff = try #require(image.tiffRepresentation)
+        return try #require(NSBitmapImageRep(data: tiff)?.representation(using: .jpeg, properties: [.compressionFactor: 0.8]))
     }
 
     @Test(arguments: targets)

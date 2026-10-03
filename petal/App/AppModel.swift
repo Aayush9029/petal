@@ -48,10 +48,6 @@ final class AppModel {
     @ObservationIgnored @Shared(.transcriptionMode) var transcriptionMode: TranscriptionMode = .verbatim
     @ObservationIgnored @Shared(.smartPrompt) var smartPrompt = TranscriptionMode.defaultSmartPrompt
     @ObservationIgnored @Shared(.cleanupModel) var cleanupModel: CleanupModel = .off
-    @ObservationIgnored @Shared(.s1MiniStyling) var s1MiniStyling: S1MiniStyling = .semiFormal
-    @ObservationIgnored @Shared(.s1MiniStructure) var s1MiniStructure: S1MiniStructure = .prose
-    @ObservationIgnored @Shared(.s1MiniContext) var s1MiniContext: S1MiniContext = .general
-    @ObservationIgnored @Shared(.s1MiniSystemPrompt) var s1MiniSystemPrompt = S1MiniControls.defaultSystemPrompt
     @ObservationIgnored @Shared(.compressHistoryAudio) var compressHistoryAudio = true
     @ObservationIgnored @Shared(.historyRetentionMode) var historyRetentionMode: HistoryRetentionMode = .both
     @ObservationIgnored @Shared(.pushToTalkThreshold) var pushToTalkThreshold: PushToTalkThreshold = .long
@@ -317,6 +313,8 @@ final class AppModel {
         // Pre-warm sound players in background so first recording
         // feedback is instant.
         Task { await soundClient.warmup() }
+        Task { await localCleanupClient.removeRetiredModels() }
+        CleanupModel.removeRetiredSettings()
         refreshModelCatalog()
 
         if hasCompletedSetup, isSelectedModelDownloaded {
@@ -1976,15 +1974,6 @@ final class AppModel {
         return selectedModelOption.supportsTranscriptionMode(mode) ? mode : .verbatim
     }
 
-    private var s1MiniControls: S1MiniControls {
-        S1MiniControls(
-            styling: s1MiniStyling,
-            structure: s1MiniStructure,
-            context: s1MiniContext,
-            systemPrompt: s1MiniSystemPrompt
-        )
-    }
-
     nonisolated private static let cloudCleanupFailedMessage = "Cloud cleanup failed. Pasted original."
 
     /// Speech models with native smart transcription already applied the prompt, so a second pass is skipped.
@@ -1993,7 +1982,7 @@ final class AppModel {
         switch cleanupModel {
         case .off: return nil
         case .appleIntelligence: return foundationModelClient.isAvailable() ? .appleIntelligence : nil
-        case .s1Mini, .petalW1: return localCleanupClient.isDownloaded(cleanupModel) ? cleanupModel : nil
+        case .petalW1: return localCleanupClient.isDownloaded(cleanupModel) ? cleanupModel : nil
         case .cloud: return cloudCleanup.configuration == nil ? nil : .cloud
         }
     }
@@ -2012,8 +2001,8 @@ final class AppModel {
                 let refined = try await foundationModelClient.refine(transcript, smartPrompt)
                 // Apple Intelligence returns empty text only on failure.
                 cleaned = refined.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : refined
-            case .s1Mini, .petalW1:
-                let result = try await localCleanupClient.clean(transcript, cleanup, s1MiniControls)
+            case .petalW1:
+                let result = try await localCleanupClient.clean(transcript, cleanup)
                 details["chunks"] = "\(result.chunkCount)"
                 details["promptTokens"] = "\(result.promptTokens)"
                 details["generatedTokens"] = "\(result.generatedTokens)"

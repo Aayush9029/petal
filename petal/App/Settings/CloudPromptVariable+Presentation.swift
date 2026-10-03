@@ -3,12 +3,13 @@ import Shared
 extension CloudPromptVariable {
     var symbol: String {
         switch self {
-        case .date: "calendar"
-        case .time: "clock"
-        case .timeZone: "globe"
-        case .app: "macwindow"
         case .name: "person"
+        case .firstName: "signature"
+        case .app: "app"
+        case .window: "macwindow"
         case .language: "character.bubble"
+        case .region: "flag"
+        case .timeZone: "globe"
         }
     }
 }

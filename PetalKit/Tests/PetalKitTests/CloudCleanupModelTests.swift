@@ -8,6 +8,7 @@ import Testing
 @testable import CloudCleanupClient
 @testable import CloudCleanupFeature
 @testable import KeychainClient
+import PermissionsClient
 
 @MainActor
 @Suite(.dependencies {
@@ -281,16 +282,96 @@ struct CloudCleanupModelTests {
     }
 
     @Test
+    func `removing the transcript tag shows the warning until the sentence comes back`() {
+        let model = CloudCleanupModel()
+        #expect(!model.isTranscriptTagMissing)
+
+        model.$systemPrompt.withLock { $0 = "Fix my words.  \n" }
+        #expect(model.isTranscriptTagMissing)
+
+        expect(model) {
+            model.addTranscriptTagButtonTapped()
+        } changes: {
+            $0.systemPrompt = "Fix my words.\n\n\(CloudPromptTranscript.sentence)"
+        }
+        #expect(!model.isTranscriptTagMissing)
+    }
+
+    @Test
+    func `the prompt editor opens and closes`() {
+        let model = CloudCleanupModel()
+
+        expect(model) {
+            model.promptEditorTapped()
+        } changes: {
+            $0.destination = .promptEditor
+        }
+        expect(model) {
+            model.promptEditorDoneButtonTapped()
+        } changes: {
+            $0.destination = nil
+        }
+    }
+
+    @Test
+    func `reset brings back the preset the prompt started from`() {
+        let model = CloudCleanupModel()
+        model.presetTapped(.notes)
+        model.$systemPrompt.withLock { $0 += " Use bullets." }
+
+        expect(model) {
+            model.resetPromptButtonTapped()
+        } changes: {
+            $0.systemPrompt = CloudPromptPreset.notes.prompt
+        }
+    }
+
+    @Test
     func `tools follow the toggles and the provider`() {
         let model = CloudCleanupModel()
         for tool in CloudTool.allCases {
             model.toolToggled(tool, isOn: true)
         }
-        #expect(model.tools == [.dateTime, .webSearch, .clipboard, .selectedText])
+        #expect(model.tools == [.dateTime, .webSearch, .clipboard, .selectedText, .screen])
 
         model.providerTapped(.custom)
         #expect(model.tools == [.dateTime, .clipboard, .selectedText])
         #expect(!model.isToolAvailable(.webSearch))
+        #expect(!model.isToolAvailable(.screen))
+    }
+
+    @Test(.dependencies {
+        $0.permissionsClient.hasScreenRecordingPermission = { false }
+        $0.permissionsClient.requestScreenRecordingPermission = { true }
+    })
+    func `turning on Screen asks for Screen Recording access`() {
+        let model = CloudCleanupModel()
+        model.task()
+
+        expect(model) {
+            model.toolToggled(.screen, isOn: true)
+        } changes: {
+            $0.screenToolEnabled = true
+            $0.hasScreenRecordingPermission = true
+        }
+        #expect(model.tools.contains(.screen))
+        #expect(!model.isToolMissingPermission(.screen))
+    }
+
+    @Test(.dependencies {
+        $0.permissionsClient.hasScreenRecordingPermission = { false }
+        $0.permissionsClient.requestScreenRecordingPermission = { false }
+    })
+    func `Screen without access says it needs access while it is on`() {
+        let model = CloudCleanupModel()
+        model.task()
+
+        model.toolToggled(.screen, isOn: true)
+        #expect(model.tools.contains(.screen))
+        #expect(model.isToolMissingPermission(.screen))
+
+        model.toolToggled(.screen, isOn: false)
+        #expect(!model.isToolMissingPermission(.screen))
     }
 
     @Test(.dependencies {

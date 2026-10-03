@@ -21,6 +21,8 @@ public struct PermissionsClient: Sendable {
     public var openMicrophonePrivacySettings: @Sendable () async -> Void = {}
     public var openAccessibilityPrivacySettings: @Sendable () async -> Void = {}
     public var openGuidedAccessibilityPrivacySettings: @Sendable () async -> Void = {}
+    public var hasScreenRecordingPermission: @Sendable () -> Bool = { false }
+    public var requestScreenRecordingPermission: @Sendable () -> Bool = { false }
     public var launchAtLoginState: @Sendable () async -> LaunchAtLoginState = { .disabled }
     public var setLaunchAtLogin: @Sendable (Bool) async throws -> LaunchAtLoginState
     public var openLoginItemsSettings: @Sendable () async -> Void = {}
@@ -60,6 +62,8 @@ extension PermissionsClient: DependencyKey {
             openGuidedAccessibilityPrivacySettings: {
                 await MainActor.run { AccessibilitySettingsGuide.shared.present() }
             },
+            hasScreenRecordingPermission: { CGPreflightScreenCaptureAccess() },
+            requestScreenRecordingPermission: { CGRequestScreenCaptureAccess() },
             launchAtLoginState: {
                 LaunchAtLoginState(SMAppService.mainApp.status)
             },
@@ -88,6 +92,8 @@ extension PermissionsClient: TestDependencyKey {
             openMicrophonePrivacySettings: {},
             openAccessibilityPrivacySettings: {},
             openGuidedAccessibilityPrivacySettings: {},
+            hasScreenRecordingPermission: { true },
+            requestScreenRecordingPermission: { true },
             launchAtLoginState: { .disabled },
             setLaunchAtLogin: { $0 ? .enabled : .disabled },
             openLoginItemsSettings: {}

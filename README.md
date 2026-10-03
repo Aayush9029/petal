@@ -42,8 +42,10 @@
 Petal can also clean up your dictation with a cloud model. Use your own OpenAI, Anthropic, or OpenRouter key, or any OpenAI-compatible server such as Ollama or LM Studio. Open Settings > Intelligence and choose Cloud Model.
 
 - Start from a preset (Clean Up, Email, Notes, Professional, AI Prompt, or Assistant) or write your own system prompt, then test it in Try It.
+- Insert variables that Petal fills in on your Mac each time: `{{name}}`, `{{first_name}}`, `{{app}}`, `{{window}}`, `{{language}}`, `{{region}}`, and `{{time_zone}}`.
 - Turn on Date and Time to turn words like "next Friday" into exact dates. Turn on Web Search to let the model look up facts that you ask for.
-- Petal keeps your keys in the macOS keychain and sends the transcript only to the provider that you choose.
+- Turn on Screen to send a screenshot of your screen with each dictation, so the model can spell the names it sees and know what "this" means. Screen needs Screen Recording access and is not available for custom servers.
+- Petal keeps your keys in the macOS keychain and sends the transcript, and the screenshot when Screen is on, only to the provider that you choose.
 
   
 <a aria-label="Download iOS Version" href="https://apps.apple.com/ml/app/petal-ai-voice-recorder/id6759932376">

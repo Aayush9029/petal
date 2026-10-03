@@ -5,13 +5,29 @@ struct ChatCompletionsAPI: CloudChatAPI {
     static let openRouterEndpoint = URL(string: "https://openrouter.ai/api/v1/chat/completions")!
 
     var configuration: CloudCleanupConfiguration
+    var transcript: String
+    var screenshot: Data?
     var messages: [JSONValue]
 
-    init(configuration: CloudCleanupConfiguration, system: String, transcript: String) {
+    init(configuration: CloudCleanupConfiguration, system: String, transcript: String, screenshot: Data? = nil) {
         self.configuration = configuration
+        self.transcript = transcript
+        self.screenshot = screenshot
         messages = [
             ["role": "system", "content": .string(system)],
-            ["role": "user", "content": .string(CloudCleanupPrompt.user(transcript))],
+            Self.userMessage(transcript, screenshot: screenshot),
+        ]
+    }
+
+    static func userMessage(_ transcript: String, screenshot: Data?) -> JSONValue {
+        let text = CloudCleanupPrompt.user(transcript)
+        guard let screenshot else { return ["role": "user", "content": .string(text)] }
+        return [
+            "role": "user",
+            "content": [
+                ["type": "image_url", "image_url": ["url": .string(CloudCleanupPrompt.screenshotURL(screenshot))]],
+                ["type": "text", "text": .string(text)],
+            ],
         ]
     }
 
@@ -113,6 +129,14 @@ struct ChatCompletionsAPI: CloudChatAPI {
         return (content?.arrayValue ?? [])
             .compactMap { $0["text"]?.stringValue }
             .joined()
+    }
+
+    /// A model that cannot read images rejects the screenshot, so the request goes again without it.
+    mutating func adapt(to error: CloudCleanupError) -> Bool {
+        guard screenshot != nil, error.rejectsImages else { return false }
+        screenshot = nil
+        messages[1] = Self.userMessage(transcript, screenshot: nil)
+        return true
     }
 
     mutating func appendToolResults(_ results: [CloudToolResult]) {

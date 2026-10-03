@@ -49,14 +49,6 @@ struct CleanupPage: View {
     private var localModelDetails: some View {
         if let download = model.cleanupDownloads[model.cleanupModel] {
             HStack(spacing: 16) {
-                if model.cleanupModel == .s1Mini {
-                    Picker("Style", selection: Binding(model.$s1MiniStyling)) {
-                        ForEach(S1MiniStyling.allCases) { Text($0.displayName).tag($0) }
-                    }
-                    .pickerStyle(.segmented)
-                    .frame(width: 320)
-                }
-
                 Text(status(download))
                     .font(.callout)
                     .foregroundStyle(.secondary)
@@ -81,13 +73,12 @@ struct CleanupPage: View {
         case .off: "text.alignleft"
         case .appleIntelligence: "apple.intelligence"
         case .cloud: "cloud"
-        case .s1Mini, .petalW1: "wand.and.sparkles"
+        case .petalW1: "wand.and.sparkles"
         }
     }
 
     private func image(for cleanup: CleanupModel) -> Image? {
         switch cleanup {
-        case .s1Mini: .superwhisper
         case .petalW1: .appIcon
         case .off, .appleIntelligence, .cloud: nil
         }
@@ -98,7 +89,6 @@ struct CleanupPage: View {
         case .off: "Paste what you said as is."
         case .appleIntelligence: "Rewrites with your own instructions."
         case .cloud: "Uses a cloud model with your own API key."
-        case .s1Mini: "Removes fillers and formats numbers and dates."
         case .petalW1: "Condenses rambles and repeats, keeps your voice."
         }
     }
@@ -110,8 +100,3 @@ struct CleanupPage: View {
     })
 }
 
-#Preview("Cleanup - S1-mini") {
-    OnboardingView(model: .makePreview(page: .cleanup) { model in
-        model.$cleanupModel.withLock { $0 = .s1Mini }
-    })
-}

@@ -36,4 +36,9 @@ public enum CloudCleanupError: LocalizedError, Equatable, Sendable {
         guard case let .http(status, _) = self else { return false }
         return status == 401 || status == 403
     }
+
+    var rejectsImages: Bool {
+        guard case let .http(status, message) = self, (400 ..< 500).contains(status) else { return false }
+        return message?.localizedCaseInsensitiveContains("image") == true
+    }
 }

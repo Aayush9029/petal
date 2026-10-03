@@ -10,7 +10,7 @@ struct PetalW1IntegrationTests {
     static let runtime = LocalCleanupRuntime()
 
     private func clean(_ text: String) async throws -> LocalCleanupResult {
-        try await Self.runtime.clean(text, model: .petalW1, controls: S1MiniControls(), directory: directory)
+        try await Self.runtime.clean(text, model: .petalW1, directory: directory)
     }
 
     @Test
@@ -81,7 +81,7 @@ func petalW1DownloadsAndCleansThroughLiveClient() async throws {
         try await client.download(.petalW1) { _ in }
     }
     #expect(client.isDownloaded(.petalW1))
-    let result = try await client.clean("um so like can you uh send me the deck by friday", .petalW1, S1MiniControls())
+    let result = try await client.clean("um so like can you uh send me the deck by friday", .petalW1)
     print("PETAL_W1_LIVE \(result.text)")
     #expect(result.text.contains("?"))
     #expect(!result.text.lowercased().contains("um"))

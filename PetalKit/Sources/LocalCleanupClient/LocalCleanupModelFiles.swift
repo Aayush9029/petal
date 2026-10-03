@@ -5,16 +5,6 @@ import VoxtralCore
 enum LocalCleanupModelFiles {
     static func info(for model: CleanupModel) -> VoxtralModelInfo? {
         switch model {
-        case .s1Mini:
-            VoxtralModelInfo(
-                id: "s1-mini-mlx-8bit",
-                repoId: "Aayush9029/s1-mini-mlx-8bit",
-                name: "S1-mini by Superwhisper",
-                description: "Transcript cleanup model",
-                size: "619 MB",
-                quantization: "MLX 8-bit",
-                parameters: "0.6B"
-            )
         case .petalW1:
             VoxtralModelInfo(
                 id: "petal-w1",
@@ -42,6 +32,15 @@ enum LocalCleanupModelFiles {
             size: "782 MB", quantization: "MLX 8-bit", parameters: "0.8B"
         )
         return [v12].compactMap(ModelDownloader.findModelPath(for:))
+    }
+
+    /// Downloads of cleanup models that Petal no longer offers.
+    static func retiredDirectories() -> [URL] {
+        let s1Mini = VoxtralModelInfo(
+            id: "s1-mini-mlx-8bit", repoId: "Aayush9029/s1-mini-mlx-8bit", name: "S1-mini", description: "",
+            size: "619 MB", quantization: "MLX 8-bit", parameters: "0.6B"
+        )
+        return [s1Mini].compactMap(ModelDownloader.findModelPath(for:))
     }
 
     /// The Hugging Face tag that the app expects. A local copy without it is replaced in the background.

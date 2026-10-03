@@ -1,12 +1,11 @@
 import Foundation
 import NaturalLanguage
 
-/// Splits long transcripts into passes that stay inside S1-mini's ~1,000-token input window.
+/// Splits long transcripts into passes of about 1,000 tokens.
 /// Chunks break at sentence ends first, then at word boundaries for unpunctuated ASR output.
 public struct CleanupChunker: Sendable {
     public var maxTokens: Int
 
-    /// 768 transcript tokens plus the ~70-token prompt stays under the model card's 1,000-token guidance.
     public init(maxTokens: Int = 768) {
         self.maxTokens = maxTokens
     }
@@ -36,7 +35,7 @@ public struct CleanupChunker: Sendable {
         return chunks
     }
 
-    /// S1-mini returns an empty string for filler-only input. For longer input, an empty result is a failure, and the
+    /// The model returns an empty string for filler-only input. For longer input, an empty result is a failure, and the
     /// raw chunk is safer than dropped dictation.
     public static func canBeFillerOnly(_ chunk: String) -> Bool {
         chunk.split(whereSeparator: \.isWhitespace).count <= 12

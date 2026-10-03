@@ -21,6 +21,7 @@ enum CloudCleanupPrompt {
         case .clipboard: "Returns the text that the speaker copied to the clipboard."
         case .selectedText: "Returns the text that the speaker selected in their current app."
         case .webSearch: "Searches the web."
+        case .screen: "Attaches a screenshot of the speaker's screen."
         }
     }
 
@@ -42,13 +43,23 @@ enum CloudCleanupPrompt {
             """
             You can call get_selected_text to read the text the speaker selected in their current app. Call it when the speaker refers to the selection, such as "reply to this" or "make this shorter". Your reply replaces the selected text.
             """
+        case .screen:
+            """
+            When a screenshot of the speaker's screen comes with the transcript, use it only as context: spell names and terms the way they appear on screen, match the tone of the app, and work out what "this" or "that" refers to. Never describe the screenshot or mention it in your reply.
+            """
         }
     }
 
     static func system(_ prompt: String, tools: Set<CloudTool>, variables: [CloudPromptVariable: String]) -> String {
-        let sections = [render(prompt, variables: variables).trimmingCharacters(in: .whitespacesAndNewlines)]
+        let rendered = render(prompt, variables: variables).trimmingCharacters(in: .whitespacesAndNewlines)
+        let sections = [rendered]
+            + (CloudPromptTranscript.isMentioned(in: prompt) ? [] : [CloudPromptTranscript.sentence])
             + CloudTool.allCases.filter(tools.contains).map(instructions(for:))
         return sections.filter { !$0.isEmpty }.joined(separator: "\n\n")
+    }
+
+    static func usedVariables(in prompt: String) -> Set<CloudPromptVariable> {
+        Set(CloudPromptVariable.allCases.filter { prompt.contains($0.token) })
     }
 
     static func render(_ prompt: String, variables: [CloudPromptVariable: String]) -> String {
@@ -58,30 +69,37 @@ enum CloudCleanupPrompt {
     }
 
     static func variables(
-        now: Date,
         timeZone: TimeZone,
         locale: Locale,
         appName: String?,
+        windowTitle: String?,
         userName: String
     ) -> [CloudPromptVariable: String] {
-        var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = timeZone
-        let date = Date.FormatStyle(date: .complete, time: .omitted, locale: locale, calendar: calendar, timeZone: timeZone)
-        let time = Date.FormatStyle(date: .omitted, time: .shortened, locale: locale, calendar: calendar, timeZone: timeZone)
+        let english = Locale(identifier: "en")
         let languageCode = locale.language.languageCode?.identifier ?? "en"
+        let name = userName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let firstName = PersonNameComponentsFormatter().personNameComponents(from: name)?.givenName
+            ?? name.split(separator: " ").first.map(String.init)
         return [
-            .date: now.formatted(date),
-            .time: now.formatted(time),
-            .timeZone: timeZone.identifier,
+            .name: name.isEmpty ? "the speaker" : name,
+            .firstName: firstName ?? "the speaker",
             .app: appName ?? "the current app",
-            .name: userName.isEmpty ? "the speaker" : userName,
-            .language: Locale(identifier: "en").localizedString(forLanguageCode: languageCode) ?? "English",
+            .window: windowTitle ?? "the current window",
+            .language: english.localizedString(forLanguageCode: languageCode) ?? "English",
+            .region: locale.region.flatMap { english.localizedString(forRegionCode: $0.identifier) } ?? "unknown",
+            .timeZone: timeZone.identifier,
         ]
     }
 
     /// Without the tags, chat models answer questions in the transcript instead of cleaning them.
     static func user(_ transcript: String) -> String {
         "<transcript>\n\(transcript.trimmingCharacters(in: .whitespacesAndNewlines))\n</transcript>"
+    }
+
+    static let screenshotMediaType = "image/jpeg"
+
+    static func screenshotURL(_ jpeg: Data) -> String {
+        "data:\(screenshotMediaType);base64,\(jpeg.base64EncodedString())"
     }
 
     static let emptyParameters: JSONValue = [

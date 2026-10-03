@@ -193,6 +193,92 @@ struct CloudCleanupRequestTests {
             try ChatCompletionsAPI(configuration: configuration, system: "System.", transcript: "hi").request()
         }
     }
+
+    @Test
+    func openAIRequestSendsTheScreenshotBeforeTheTranscript() throws {
+        let configuration = Fixtures.configuration(.openAI, model: "gpt-6-luna", tools: [.screen])
+        let body = try Fixtures.body(
+            OpenAIResponsesAPI(configuration: configuration, system: "System.", transcript: "hi", screenshot: Fixtures.screenshot).request()
+        )
+
+        expectNoDifference(body["input"], [
+            [
+                "role": "user",
+                "content": [
+                    ["type": "input_image", "image_url": "data:image/jpeg;base64,/9j/", "detail": "auto"],
+                    ["type": "input_text", "text": "<transcript>\nhi\n</transcript>"],
+                ],
+            ],
+        ])
+        #expect(body["tools"] == nil)
+    }
+
+    @Test
+    func anthropicRequestSendsTheScreenshotAsABase64ImageBlock() throws {
+        let configuration = Fixtures.configuration(.anthropic, model: "claude-opus-5-5", tools: [.screen])
+        let body = try Fixtures.body(
+            AnthropicMessagesAPI(configuration: configuration, system: "System.", transcript: "hi", screenshot: Fixtures.screenshot).request()
+        )
+
+        expectNoDifference(body["messages"], [
+            [
+                "role": "user",
+                "content": [
+                    ["type": "image", "source": ["type": "base64", "media_type": "image/jpeg", "data": "/9j/"]],
+                    ["type": "text", "text": "<transcript>\nhi\n</transcript>"],
+                ],
+            ],
+        ])
+        #expect(body["tools"] == nil)
+    }
+
+    @Test
+    func chatCompletionsRequestSendsTheScreenshotAsAnImageURLPart() throws {
+        let configuration = Fixtures.configuration(.openRouter, model: "google/gemini-3.8-flash", tools: [.screen])
+        let body = try Fixtures.body(
+            ChatCompletionsAPI(configuration: configuration, system: "System.", transcript: "hi", screenshot: Fixtures.screenshot).request()
+        )
+
+        expectNoDifference(body["messages"], [
+            ["role": "system", "content": "System."],
+            [
+                "role": "user",
+                "content": [
+                    ["type": "image_url", "image_url": ["url": "data:image/jpeg;base64,/9j/"]],
+                    ["type": "text", "text": "<transcript>\nhi\n</transcript>"],
+                ],
+            ],
+        ])
+        #expect(body["tools"] == nil)
+    }
+
+    @Test(arguments: CloudProvider.allCases)
+    func requestsWithoutAScreenshotSendOnlyTheTranscript(provider: CloudProvider) throws {
+        var configuration = Fixtures.configuration(provider, model: "model", tools: [.screen])
+        configuration.connection.baseURL = "localhost:11434/v1"
+        let body = try Fixtures.body(CloudCleanupRuntime.api(for: configuration, system: "System.", transcript: "hi").request())
+
+        expectNoDifference(Fixtures.userMessage(in: body), ["role": "user", "content": "<transcript>\nhi\n</transcript>"])
+    }
+
+    @Test(arguments: [CloudProvider.openAI, .anthropic, .openRouter])
+    func aRejectedScreenshotIsDroppedOnce(provider: CloudProvider) throws {
+        let configuration = Fixtures.configuration(provider, model: "model", tools: [.screen])
+        var api = CloudCleanupRuntime.api(for: configuration, system: "System.", transcript: "hi", screenshot: Fixtures.screenshot)
+
+        let retries = [
+            api.adapt(to: .http(status: 400, message: "max_tokens: too large")),
+            api.adapt(to: .http(status: 500, message: "Image service is down.")),
+            api.adapt(to: .http(status: 400, message: "This model does not support image input.")),
+            api.adapt(to: .http(status: 400, message: "This model does not support image input.")),
+        ]
+
+        #expect(retries == [false, false, true, false])
+        expectNoDifference(
+            Fixtures.userMessage(in: try Fixtures.body(api.request())),
+            ["role": "user", "content": "<transcript>\nhi\n</transcript>"]
+        )
+    }
 }
 
 @Suite
@@ -307,15 +393,15 @@ struct CloudCleanupResponseTests {
 struct CloudCleanupPromptTests {
     @Test
     func systemPromptAppendsToolGuidanceForEnabledTools() {
-        #expect(CloudCleanupPrompt.system("  Clean it.\n", tools: [], variables: [:]) == "Clean it.")
+        #expect(CloudCleanupPrompt.system("  Clean the <transcript>.\n", tools: [], variables: [:]) == "Clean the <transcript>.")
         #expect(
-            CloudCleanupPrompt.system("Clean it.", tools: [.webSearch], variables: [:])
-                == "Clean it.\n\n\(CloudCleanupPrompt.instructions(for: .webSearch))"
+            CloudCleanupPrompt.system("Clean the <transcript>.", tools: [.webSearch], variables: [:])
+                == "Clean the <transcript>.\n\n\(CloudCleanupPrompt.instructions(for: .webSearch))"
         )
         #expect(
-            CloudCleanupPrompt.system("Clean it.", tools: [.selectedText, .dateTime, .clipboard], variables: [:])
+            CloudCleanupPrompt.system("Clean the <transcript>.", tools: [.selectedText, .dateTime, .clipboard], variables: [:])
                 == [
-                    "Clean it.",
+                    "Clean the <transcript>.",
                     CloudCleanupPrompt.instructions(for: .dateTime),
                     CloudCleanupPrompt.instructions(for: .clipboard),
                     CloudCleanupPrompt.instructions(for: .selectedText),
@@ -324,26 +410,49 @@ struct CloudCleanupPromptTests {
     }
 
     @Test
+    func screenToolAddsGuidanceButNoFunction() {
+        #expect(CloudTool.screen.functionName == nil)
+        #expect(CloudCleanupPrompt.functionTools(for: [.screen, .dateTime]).map(\.name) == ["get_current_date_time"])
+        #expect(
+            CloudCleanupPrompt.system("Clean the <transcript>.", tools: [.screen], variables: [:])
+                == "Clean the <transcript>.\n\n\(CloudCleanupPrompt.instructions(for: .screen))"
+        )
+    }
+
+    @Test
     func variablesFillTheirTokens() throws {
         let variables = CloudCleanupPrompt.variables(
-            now: Date(timeIntervalSince1970: 1_791_056_340),
             timeZone: try #require(TimeZone(identifier: "America/New_York")),
             locale: Locale(identifier: "en_US"),
             appName: "Slack",
+            windowTitle: "#launch",
             userName: "Alex Kim"
         )
         expectNoDifference(
-            CloudCleanupPrompt.render("Today is {{date}} at {{time}} ({{time_zone}}). {{name}} writes in {{app}} in {{language}}. {{unknown}}", variables: variables),
-            "Today is Saturday, October 3, 2026 at 3:39\u{202F}PM (America/New_York). Alex Kim writes in Slack in English. {{unknown}}"
+            CloudCleanupPrompt.render(
+                "{{name}} ({{first_name}}) writes in {{app}}, {{window}}, in {{language}} from the {{region}} ({{time_zone}}). {{date}}",
+                variables: variables
+            ),
+            "Alex Kim (Alex) writes in Slack, #launch, in English from the United States (America/New_York). {{date}}"
         )
     }
 
     @Test
     func missingContextUsesNeutralWords() {
-        let variables = CloudCleanupPrompt.variables(now: Date(), timeZone: .gmt, locale: Locale(identifier: "es_MX"), appName: nil, userName: "")
+        let variables = CloudCleanupPrompt.variables(timeZone: .gmt, locale: Locale(identifier: "es_MX"), appName: nil, windowTitle: nil, userName: "")
         #expect(variables[.app] == "the current app")
+        #expect(variables[.window] == "the current window")
         #expect(variables[.name] == "the speaker")
+        #expect(variables[.firstName] == "the speaker")
         #expect(variables[.language] == "Spanish")
+        #expect(variables[.region] == "Mexico")
+    }
+
+    @Test
+    func aPromptWithoutTheTranscriptTagGetsTheTranscriptSentence() {
+        #expect(CloudCleanupPrompt.system("Fix my words.", tools: [], variables: [:]) == "Fix my words.\n\n\(CloudPromptTranscript.sentence)")
+        #expect(CloudCleanupPrompt.system("", tools: [], variables: [:]) == CloudPromptTranscript.sentence)
+        #expect(CloudCleanupPrompt.system("Fix the <transcript>.", tools: [], variables: [:]) == "Fix the <transcript>.")
     }
 
     @Test
@@ -475,11 +584,33 @@ struct CloudCleanupRuntimeTests {
             context: CloudRuntimeContext(timeZone: .gmt, appName: { "Mail" }, userName: { "Alex Kim" })
         )
         var configuration = Fixtures.configuration(.openAI, model: "gpt-6-luna")
-        configuration.systemPrompt = "Write for {{app}} as {{name}}."
+        configuration.systemPrompt = "Write the <transcript> for {{app}} as {{name}}."
 
         _ = try await runtime.clean("hi", configuration: configuration)
 
-        #expect(try Fixtures.body(transport.requests.value[0])["instructions"] == "Write for Mail as Alex Kim.")
+        #expect(try Fixtures.body(transport.requests.value[0])["instructions"] == "Write the <transcript> for Mail as Alex Kim.")
+    }
+
+    @Test
+    func contextIsReadOnlyForVariablesThePromptUses() async throws {
+        let transport = FakeTransport([(200, ["output": [["type": "message", "content": [["type": "output_text", "text": "Hi."]]]]])])
+        let runtime = CloudCleanupRuntime(
+            send: transport.send,
+            context: CloudRuntimeContext(
+                timeZone: .gmt,
+                appName: {
+                    Issue.record("Read the app name for a prompt without {{app}}")
+                    return "Mail"
+                },
+                windowTitle: { "Re: Launch" }
+            )
+        )
+        var configuration = Fixtures.configuration(.openAI, model: "gpt-6-luna")
+        configuration.systemPrompt = "Reply to {{window}} with the <transcript>."
+
+        _ = try await runtime.clean("hi", configuration: configuration)
+
+        #expect(try Fixtures.body(transport.requests.value[0])["instructions"] == "Reply to Re: Launch with the <transcript>.")
     }
 
     @Test
@@ -555,6 +686,75 @@ struct CloudCleanupRuntimeTests {
     }
 
     @Test
+    func screenToolSendsTheScreenshotWithItsGuidance() async throws {
+        let transport = FakeTransport([(200, ["type": "message", "stop_reason": "end_turn", "content": [["type": "text", "text": "Hi."]]])])
+        let runtime = CloudCleanupRuntime(
+            send: transport.send,
+            context: CloudRuntimeContext(timeZone: .gmt, screenshot: { Fixtures.screenshot })
+        )
+
+        _ = try await runtime.clean("hi", configuration: Fixtures.configuration(.anthropic, model: "claude-opus-5-5", tools: [.screen]))
+
+        let body = try Fixtures.body(transport.requests.value[0])
+        #expect(body["system"] == .string("Clean the <transcript>.\n\n\(CloudCleanupPrompt.instructions(for: .screen))"))
+        #expect(body["messages"]?[0]?["content"]?[0]?["type"] == "image")
+    }
+
+    @Test
+    func screenToolWithoutACaptureSendsOnlyTheTranscript() async throws {
+        let transport = FakeTransport([(200, ["type": "message", "stop_reason": "end_turn", "content": [["type": "text", "text": "Hi."]]])])
+        let runtime = CloudCleanupRuntime(send: transport.send, context: CloudRuntimeContext(timeZone: .gmt))
+
+        _ = try await runtime.clean("hi", configuration: Fixtures.configuration(.anthropic, model: "claude-opus-5-5", tools: [.screen]))
+
+        let body = try Fixtures.body(transport.requests.value[0])
+        #expect(body["system"] == "Clean the <transcript>.")
+        expectNoDifference(body["messages"], [["role": "user", "content": "<transcript>\nhi\n</transcript>"]])
+    }
+
+    @Test
+    func screenIsCapturedOnlyWhenTheToolIsOn() async throws {
+        let captures = LockIsolated(0)
+        let transport = FakeTransport([(200, ["choices": [["message": ["role": "assistant", "content": "Hi."]]]])])
+        let runtime = CloudCleanupRuntime(
+            send: transport.send,
+            context: CloudRuntimeContext(timeZone: .gmt, screenshot: {
+                captures.withValue { $0 += 1 }
+                return Fixtures.screenshot
+            })
+        )
+
+        _ = try await runtime.clean("hi", configuration: Fixtures.configuration(.openRouter, model: "openai/gpt-6-luna", tools: [.dateTime]))
+
+        #expect(captures.value == 0)
+        #expect(try Fixtures.body(transport.requests.value[0])["messages"]?[1]?["content"] == "<transcript>\nhi\n</transcript>")
+    }
+
+    @Test
+    func aModelThatCannotReadImagesGetsTheTranscriptWithoutTheScreenshot() async throws {
+        let transport = FakeTransport([
+            (404, ["error": ["message": "No endpoints found that support image input"]]),
+            (200, ["model": "deepseek/deepseek-v4.1-flash", "choices": [["message": ["role": "assistant", "content": "Hi."]]]]),
+        ])
+        let runtime = CloudCleanupRuntime(
+            send: transport.send,
+            context: CloudRuntimeContext(timeZone: .gmt, screenshot: { Fixtures.screenshot })
+        )
+
+        let result = try await runtime.clean(
+            "hi",
+            configuration: Fixtures.configuration(.openRouter, model: "deepseek/deepseek-v4.1-flash", tools: [.screen])
+        )
+
+        #expect(result.text == "Hi.")
+        #expect(result.requestCount == 2)
+        expectNoDifference(
+            try Fixtures.body(transport.requests.value[1])["messages"]?[1],
+            ["role": "user", "content": "<transcript>\nhi\n</transcript>"]
+        )
+    }
+
+    @Test
     func modelCheckSendsATinyRequestWithoutTools() async throws {
         let transport = FakeTransport([(200, ["model": "gpt-6-luna", "output": []])])
         let runtime = CloudCleanupRuntime(send: transport.send, context: CloudRuntimeContext(timeZone: .gmt))
@@ -618,13 +818,19 @@ enum Fixtures {
         CloudCleanupConfiguration(
             connection: CloudConnection(provider: provider, apiKey: "sk-test"),
             model: model,
-            systemPrompt: "Clean it.",
+            systemPrompt: "Clean the <transcript>.",
             tools: tools
         )
     }
 
+    static let screenshot = Data([0xFF, 0xD8, 0xFF])
+
     static func body(_ request: URLRequest) throws -> JSONValue {
         try JSONValue.decode(try #require(request.httpBody))
+    }
+
+    static func userMessage(in body: JSONValue) -> JSONValue? {
+        body["input"]?[0] ?? body["messages"]?.arrayValue?.last
     }
 }
 

@@ -19,7 +19,7 @@ struct PromptVariableChip: View {
         }
         .buttonStyle(.plain)
         .onHover { isHovering = $0 }
-        .help("Inserts \(variable.token), for example “\(variable.example)”.")
+        .help("\(variable.source). Inserts \(variable.token), for example “\(variable.example)”.")
         .accessibilityLabel("Insert \(variable.title)")
     }
 }

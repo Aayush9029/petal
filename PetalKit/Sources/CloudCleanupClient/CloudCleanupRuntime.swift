@@ -12,15 +12,18 @@ struct CloudCleanupRuntime: Sendable {
     var context: CloudRuntimeContext
 
     func clean(_ transcript: String, configuration: CloudCleanupConfiguration) async throws -> CloudCleanupResult {
+        let screenshot = configuration.tools.contains(.screen) ? await context.screenshot() : nil
+        let used = CloudCleanupPrompt.usedVariables(in: configuration.systemPrompt)
         let variables = CloudCleanupPrompt.variables(
-            now: context.now(),
             timeZone: context.timeZone,
             locale: context.locale,
-            appName: await context.appName(),
+            appName: used.contains(.app) ? await context.appName() : nil,
+            windowTitle: used.contains(.window) ? await context.windowTitle() : nil,
             userName: context.userName()
         )
-        let system = CloudCleanupPrompt.system(configuration.systemPrompt, tools: configuration.tools, variables: variables)
-        var api = Self.api(for: configuration, system: system, transcript: transcript)
+        let promptTools = screenshot == nil ? configuration.tools.subtracting([.screen]) : configuration.tools
+        let system = CloudCleanupPrompt.system(configuration.systemPrompt, tools: promptTools, variables: variables)
+        var api = Self.api(for: configuration, system: system, transcript: transcript, screenshot: screenshot)
         var toolCalls: [String] = []
 
         for requestNumber in 1 ... Self.maxRequests {
@@ -65,11 +68,16 @@ struct CloudCleanupRuntime: Sendable {
         }
     }
 
-    static func api(for configuration: CloudCleanupConfiguration, system: String, transcript: String) -> any CloudChatAPI {
+    static func api(
+        for configuration: CloudCleanupConfiguration,
+        system: String,
+        transcript: String,
+        screenshot: Data? = nil
+    ) -> any CloudChatAPI {
         switch configuration.connection.provider {
-        case .openAI: OpenAIResponsesAPI(configuration: configuration, system: system, transcript: transcript)
-        case .anthropic: AnthropicMessagesAPI(configuration: configuration, system: system, transcript: transcript)
-        case .openRouter, .custom: ChatCompletionsAPI(configuration: configuration, system: system, transcript: transcript)
+        case .openAI: OpenAIResponsesAPI(configuration: configuration, system: system, transcript: transcript, screenshot: screenshot)
+        case .anthropic: AnthropicMessagesAPI(configuration: configuration, system: system, transcript: transcript, screenshot: screenshot)
+        case .openRouter, .custom: ChatCompletionsAPI(configuration: configuration, system: system, transcript: transcript, screenshot: screenshot)
         }
     }
 

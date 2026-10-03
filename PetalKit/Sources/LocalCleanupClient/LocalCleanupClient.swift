@@ -5,7 +5,7 @@ import Foundation
 import Shared
 import VoxtralCore
 
-/// On-device transcript cleanup models (S1-mini and Petal W1) that run through MLX.
+/// On-device transcript cleanup with Petal W1 through MLX.
 @DependencyClient
 public struct LocalCleanupClient: Sendable {
     public var isDownloaded: @Sendable (_ model: CleanupModel) -> Bool = { _ in false }
@@ -17,7 +17,8 @@ public struct LocalCleanupClient: Sendable {
     public var deleteModel: @Sendable (_ model: CleanupModel) async throws -> Void
     /// Loads the weights so the first cleanup after a recording skips the load.
     public var prepare: @Sendable (_ model: CleanupModel) async throws -> Void
-    public var clean: @Sendable (_ transcript: String, _ model: CleanupModel, _ controls: S1MiniControls) async throws -> LocalCleanupResult
+    public var clean: @Sendable (_ transcript: String, _ model: CleanupModel) async throws -> LocalCleanupResult
+    public var removeRetiredModels: @Sendable () async -> Void = {}
     public var unload: @Sendable () async -> Void = {}
 }
 
@@ -62,8 +63,13 @@ extension LocalCleanupClient: DependencyKey {
                 }
             },
             prepare: { model in _ = try await runtime.prepare(directory: LocalCleanupModelFiles.directory(for: model)) },
-            clean: { transcript, model, controls in
-                try await runtime.clean(transcript, model: model, controls: controls, directory: LocalCleanupModelFiles.directory(for: model))
+            clean: { transcript, model in
+                try await runtime.clean(transcript, model: model, directory: LocalCleanupModelFiles.directory(for: model))
+            },
+            removeRetiredModels: {
+                for directory in LocalCleanupModelFiles.retiredDirectories() {
+                    try? FileManager.default.removeItem(at: directory)
+                }
             },
             unload: { await runtime.unload() }
         )

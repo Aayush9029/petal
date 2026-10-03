@@ -28,9 +28,11 @@ extension CloudCleanupClient: DependencyKey {
                     timeZone: timeZone,
                     locale: locale,
                     appName: systemContext.frontmostAppName,
+                    windowTitle: systemContext.frontmostWindowTitle,
                     userName: systemContext.userFullName,
                     clipboardText: systemContext.clipboardText,
-                    selectedText: systemContext.selectedText
+                    selectedText: systemContext.selectedText,
+                    screenshot: systemContext.screenshot
                 )
             )
         }

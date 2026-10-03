@@ -39,9 +39,9 @@ actor LocalCleanupRuntime {
         return loaded
     }
 
-    func clean(_ transcript: String, model: CleanupModel, controls: S1MiniControls, directory: URL?) async throws -> LocalCleanupResult {
+    func clean(_ transcript: String, model: CleanupModel, directory: URL?) async throws -> LocalCleanupResult {
         let container = try await prepare(directory: directory)
-        let request = Request(transcript: transcript, model: model, controls: controls)
+        let request = Request(transcript: transcript, model: model)
         return try await container.perform(values: request) { context, request in
             try Self.generate(request, context: context)
         }
@@ -59,7 +59,6 @@ actor LocalCleanupRuntime {
     private struct Request: Sendable {
         var transcript: String
         var model: CleanupModel
-        var controls: S1MiniControls
     }
 
     private static func generate(_ request: Request, context: ModelContext) throws -> LocalCleanupResult {
@@ -79,7 +78,7 @@ actor LocalCleanupRuntime {
         for chunk in chunks {
             try Task.checkCancellation()
             let prompt = tokenizer.encode(
-                text: LocalCleanupPrompt.text(model: request.model, transcript: chunk, controls: request.controls),
+                text: LocalCleanupPrompt.text(transcript: chunk),
                 addSpecialTokens: false
             )
             let decoded = try PromptLookupDecoder(model: context.model, stopTokens: stopTokens)

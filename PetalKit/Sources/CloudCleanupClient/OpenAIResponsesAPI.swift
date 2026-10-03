@@ -6,12 +6,28 @@ struct OpenAIResponsesAPI: CloudChatAPI {
 
     var configuration: CloudCleanupConfiguration
     var system: String
+    var transcript: String
+    var screenshot: Data?
     var input: [JSONValue]
 
-    init(configuration: CloudCleanupConfiguration, system: String, transcript: String) {
+    init(configuration: CloudCleanupConfiguration, system: String, transcript: String, screenshot: Data? = nil) {
         self.configuration = configuration
         self.system = system
-        input = [["role": "user", "content": .string(CloudCleanupPrompt.user(transcript))]]
+        self.transcript = transcript
+        self.screenshot = screenshot
+        input = [Self.userMessage(transcript, screenshot: screenshot)]
+    }
+
+    static func userMessage(_ transcript: String, screenshot: Data?) -> JSONValue {
+        let text = CloudCleanupPrompt.user(transcript)
+        guard let screenshot else { return ["role": "user", "content": .string(text)] }
+        return [
+            "role": "user",
+            "content": [
+                ["type": "input_image", "image_url": .string(CloudCleanupPrompt.screenshotURL(screenshot)), "detail": "auto"],
+                ["type": "input_text", "text": .string(text)],
+            ],
+        ]
     }
 
     /// GPT-6 Astra and GPT-6.1 Sol reject `none`, and the first GPT-5 models accept only `minimal`.
@@ -90,6 +106,14 @@ struct OpenAIResponsesAPI: CloudChatAPI {
             .compactMap { $0["text"]?.stringValue }
             .joined()
         return .finished(text: text, model: response["model"]?.stringValue.map { CloudModel.ID(rawValue: $0) })
+    }
+
+    /// A model that cannot read images rejects the screenshot, so the request goes again without it.
+    mutating func adapt(to error: CloudCleanupError) -> Bool {
+        guard screenshot != nil, error.rejectsImages else { return false }
+        screenshot = nil
+        input[0] = Self.userMessage(transcript, screenshot: nil)
+        return true
     }
 
     mutating func appendToolResults(_ results: [CloudToolResult]) {

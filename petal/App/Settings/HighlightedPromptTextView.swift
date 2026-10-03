@@ -5,6 +5,7 @@ import SwiftUI
 struct HighlightedPromptTextView: NSViewRepresentable {
     @Binding var text: String
     var insertion: PromptInsertion?
+    var isEditable = true
 
     func makeCoordinator() -> Coordinator {
         Coordinator(text: $text)
@@ -18,6 +19,8 @@ struct HighlightedPromptTextView: NSViewRepresentable {
         textView.delegate = context.coordinator
         textView.drawsBackground = false
         textView.isRichText = false
+        textView.isEditable = isEditable
+        textView.isSelectable = isEditable
         textView.allowsUndo = true
         textView.isAutomaticQuoteSubstitutionEnabled = false
         textView.isAutomaticDashSubstitutionEnabled = false

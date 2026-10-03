@@ -5,20 +5,33 @@ import Foundation
 import Testing
 
 @Test
-func s1MiniControlLineUsesTrainedTokens() {
-    #expect(S1MiniControls().controlLine == "[Styling: semi-formal] [Structure: prose] [Context: general]")
-    #expect(
-        S1MiniControls(styling: .semiCasual, structure: .lists, context: .email).controlLine
-            == "[Styling: semi-casual] [Structure: lists] [Context: email]"
-    )
+func petalW1PromptMatchesQwen3NonThinkingLayout() {
+    let text = LocalCleanupPrompt.text(transcript: "um hi")
+    #expect(text.hasPrefix("<|im_start|>system\n\(LocalCleanupPrompt.petalW1System)<|im_end|>"))
+    #expect(text.hasSuffix("<|im_start|>user\num hi<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n"))
+    #expect(LocalCleanupPrompt.maxOutputTokens(promptTokens: 100) == 162)
 }
 
 @Test
-func s1MiniPromptMatchesQwen3NonThinkingLayout() {
-    let text = LocalCleanupPrompt.text(model: .s1Mini, transcript: "um hi", controls: S1MiniControls())
-    #expect(text.hasPrefix("<|im_start|>system\nYou are a text normalizer"))
-    #expect(text.hasSuffix("[Context: general]\num hi<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n"))
-    #expect(LocalCleanupPrompt.maxOutputTokens(promptTokens: 100) == 162)
+func retiredS1MiniSettingsAreRemoved() {
+    let store = UserDefaults(suiteName: UUID().uuidString)!
+    store.set("formal", forKey: "s1_mini_styling")
+    store.set("Prompt", forKey: "s1_mini_system_prompt")
+    store.set("cloud", forKey: "cleanup_model")
+    withDependencies {
+        $0.defaultAppStorage = store
+    } operation: {
+        CleanupModel.removeRetiredSettings()
+    }
+    #expect(store.string(forKey: "s1_mini_styling") == nil)
+    #expect(store.string(forKey: "s1_mini_system_prompt") == nil)
+    #expect(store.string(forKey: "cleanup_model") == "cloud")
+}
+
+@Test
+func retiredS1MiniSelectionMovesToPetalW1() {
+    #expect(CleanupModel(rawValue: "s1-mini") == .petalW1)
+    #expect(CleanupModel.allCases.map(\.rawValue) == ["off", "apple-intelligence", "petal-w1", "cloud"])
 }
 
 @Test(arguments: [

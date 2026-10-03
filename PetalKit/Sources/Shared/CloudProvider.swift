@@ -80,6 +80,8 @@ public enum CloudProvider: String, CaseIterable, Identifiable, Sendable, Codable
 
     public var supportsWebSearch: Bool { self != .custom }
 
+    public var supportsScreenshots: Bool { self != .custom }
+
     public static func owner(ofAPIKey key: String) -> Self? {
         if key.hasPrefix("sk-ant-") { return .anthropic }
         if key.hasPrefix("sk-or-") { return .openRouter }

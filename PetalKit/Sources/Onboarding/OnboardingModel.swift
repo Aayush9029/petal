@@ -186,7 +186,6 @@ public final class OnboardingModel {
     public var accessibilityAuthorized = false
     @ObservationIgnored @Shared(.historyRetentionMode) public var historyRetentionMode: HistoryRetentionMode = .both
     @ObservationIgnored @Shared(.cleanupModel) public var cleanupModel: CleanupModel = .off
-    @ObservationIgnored @Shared(.s1MiniStyling) public var s1MiniStyling: S1MiniStyling = .semiFormal
     @ObservationIgnored @Shared(.shortcutTriggerMode) var shortcutTriggerMode: ShortcutTriggerMode = .combo
     @ObservationIgnored @Shared(.doubleTapKey) var doubleTapKey: DoubleTapKey = .unconfigured
     @ObservationIgnored @Shared(.doubleTapInterval) var doubleTapInterval: Double = 0.4

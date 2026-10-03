@@ -10,13 +10,36 @@ struct AnthropicMessagesAPI: CloudChatAPI {
 
     var configuration: CloudCleanupConfiguration
     var system: String
+    var transcript: String
+    var screenshot: Data?
     var messages: [JSONValue]
     var usesFallbacks = true
 
-    init(configuration: CloudCleanupConfiguration, system: String, transcript: String) {
+    init(configuration: CloudCleanupConfiguration, system: String, transcript: String, screenshot: Data? = nil) {
         self.configuration = configuration
         self.system = system
-        messages = [["role": "user", "content": .string(CloudCleanupPrompt.user(transcript))]]
+        self.transcript = transcript
+        self.screenshot = screenshot
+        messages = [Self.userMessage(transcript, screenshot: screenshot)]
+    }
+
+    static func userMessage(_ transcript: String, screenshot: Data?) -> JSONValue {
+        let text = CloudCleanupPrompt.user(transcript)
+        guard let screenshot else { return ["role": "user", "content": .string(text)] }
+        return [
+            "role": "user",
+            "content": [
+                [
+                    "type": "image",
+                    "source": [
+                        "type": "base64",
+                        "media_type": .string(CloudCleanupPrompt.screenshotMediaType),
+                        "data": .string(screenshot.base64EncodedString()),
+                    ],
+                ],
+                ["type": "text", "text": .string(text)],
+            ],
+        ]
     }
 
     static func isCurrentGeneration(_ model: CloudModel.ID) -> Bool {
@@ -118,13 +141,15 @@ struct AnthropicMessagesAPI: CloudChatAPI {
             .joined()
     }
 
-    /// Server-side fallback is a beta, so a request that the API rejects for it goes again without it.
+    /// Server-side fallback is a beta, and some models cannot read images, so a request that the API rejects for either goes again without it.
     mutating func adapt(to error: CloudCleanupError) -> Bool {
-        guard usesFallbacks,
-              case let .http(400, message) = error,
-              message?.localizedCaseInsensitiveContains("fallback") == true
-        else { return false }
-        usesFallbacks = false
+        if usesFallbacks, case let .http(400, message) = error, message?.localizedCaseInsensitiveContains("fallback") == true {
+            usesFallbacks = false
+            return true
+        }
+        guard screenshot != nil, error.rejectsImages else { return false }
+        screenshot = nil
+        messages[0] = Self.userMessage(transcript, screenshot: nil)
         return true
     }
 

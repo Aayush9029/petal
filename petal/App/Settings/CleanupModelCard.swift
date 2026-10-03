@@ -85,10 +85,6 @@ struct CleanupModelCard: View {
             Image.appleIntelligence
                 .resizable()
                 .aspectRatio(contentMode: .fill)
-        case .s1Mini:
-            Image.superwhisper
-                .resizable()
-                .aspectRatio(contentMode: .fill)
         case .petalW1:
             Image.appIcon
                 .resizable()
@@ -161,9 +157,9 @@ struct CleanupModelCard: View {
     VStack(spacing: 0) {
         CleanupModelCard(model: .off, isSelected: false) {}
         CleanupModelCard(model: .appleIntelligence, isSelected: true) {}
-        CleanupModelCard(model: .s1Mini, isSelected: false, downloadState: .notDownloaded, sizeLabel: "619 MB") {}
-        CleanupModelCard(model: .s1Mini, isSelected: true, downloadState: .downloading(.init(fraction: 0.42, statusText: "")), sizeLabel: "619 MB") {}
-        CleanupModelCard(model: .s1Mini, isSelected: true, downloadState: .downloaded, sizeLabel: "619 MB") {}
+        CleanupModelCard(model: .petalW1, isSelected: false, downloadState: .notDownloaded, sizeLabel: "1.0 GB") {}
+        CleanupModelCard(model: .petalW1, isSelected: true, downloadState: .downloading(.init(fraction: 0.42, statusText: "")), sizeLabel: "1.0 GB") {}
+        CleanupModelCard(model: .petalW1, isSelected: true, downloadState: .downloaded, sizeLabel: "1.0 GB") {}
         CleanupModelCard(model: .cloud, isSelected: false, detail: "Add an API key to set up", needsSetup: true) {}
         CleanupModelCard(model: .cloud, isSelected: true, detail: "OpenAI · gpt-6-luna") {}
     }

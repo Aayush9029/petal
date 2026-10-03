@@ -24,10 +24,6 @@ final class SettingsViewModel {
     @ObservationIgnored @Shared(.floatingCapsuleBackgroundStyle) var floatingCapsuleBackgroundStyle: FloatingCapsuleBackgroundStyle = .liquidGlass
     @ObservationIgnored @Shared(.compressHistoryAudio) var compressHistoryAudio = true
     @ObservationIgnored @Shared(.cleanupModel) var cleanupModel: CleanupModel = .off
-    @ObservationIgnored @Shared(.s1MiniStyling) var s1MiniStyling: S1MiniStyling = .semiFormal
-    @ObservationIgnored @Shared(.s1MiniStructure) var s1MiniStructure: S1MiniStructure = .prose
-    @ObservationIgnored @Shared(.s1MiniContext) var s1MiniContext: S1MiniContext = .general
-    @ObservationIgnored @Shared(.s1MiniSystemPrompt) var s1MiniSystemPrompt = S1MiniControls.defaultSystemPrompt
     @ObservationIgnored @Shared(.logsEnabled) var logsEnabled = false
     @ObservationIgnored @Shared(.restoreClipboardAfterPaste) var restoreClipboardAfterPaste = true
     @ObservationIgnored @Shared(.showLiveTranscript) var showLiveTranscript = true
@@ -187,7 +183,7 @@ final class SettingsViewModel {
     func cleanupModelTapped(_ model: CleanupModel) async {
         $cleanupModel.withLock { $0 = model }
         appModel.cleanupModelDidChange()
-        // Speech and S1-mini downloads share one aria2 session.
+        // Speech and cleanup model downloads share one aria2 session.
         if let download = cleanupDownloads[model], !downloadModel.state.isActive, !downloadModel.state.isPaused, !cleanupDownloads.isAnyActive {
             await download.downloadButtonTapped()
         }

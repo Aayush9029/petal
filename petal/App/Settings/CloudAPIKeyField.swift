@@ -39,7 +39,7 @@ struct CloudAPIKeyField: View {
                         .controlSize(.small)
                         .frame(width: 58)
                 } else if hasSavedKey && !isUnsaved {
-                    SettingsActionButton(title: "Delete", tint: .red, action: onRemove)
+                    SettingsActionButton(title: "Remove", tint: .red, action: onRemove)
                 } else {
                     SettingsActionButton(title: "Verify", action: onVerify)
                         .disabled(!canVerify)
@@ -60,16 +60,13 @@ struct CloudAPIKeyField: View {
     @ViewBuilder
     private var status: some View {
         switch verification {
-        case .verified:
-            Label("Verified", systemImage: "checkmark.circle.fill")
-                .foregroundStyle(.green)
         case .failed:
             Label("Not Verified", systemImage: "xmark.circle.fill")
                 .foregroundStyle(.red)
         case .idle where isUnsaved:
             Label("Not Saved", systemImage: "exclamationmark.circle.fill")
                 .foregroundStyle(.orange)
-        case .idle, .verifying:
+        case .idle, .verifying, .verified:
             EmptyView()
         }
     }

@@ -3,6 +3,7 @@ import DebugSnapshots
 import Foundation
 import KeychainClient
 import Observation
+import PermissionsClient
 import Shared
 
 @DebugSnapshot
@@ -26,6 +27,13 @@ public final class CloudCleanupModel {
     }
 
     @CasePathable
+    public enum Destination: Hashable, Identifiable, Sendable {
+        case promptEditor
+
+        public var id: Self { self }
+    }
+
+    @CasePathable
     public enum TestRun: Equatable, Sendable {
         case idle
         case running
@@ -40,6 +48,7 @@ public final class CloudCleanupModel {
     @ObservationIgnored @Shared(.cloudWebSearchEnabled) public var webSearchEnabled: Bool = false
     @ObservationIgnored @Shared(.cloudClipboardToolEnabled) public var clipboardToolEnabled: Bool = false
     @ObservationIgnored @Shared(.cloudSelectedTextToolEnabled) public var selectedTextToolEnabled: Bool = false
+    @ObservationIgnored @Shared(.cloudScreenToolEnabled) public var screenToolEnabled: Bool = false
     @ObservationIgnored @Shared(.cloudModel(.openAI)) private var openAIModelID: CloudModel.ID
     @ObservationIgnored @Shared(.cloudModel(.anthropic)) private var anthropicModelID: CloudModel.ID
     @ObservationIgnored @Shared(.cloudModel(.openRouter)) private var openRouterModelID: CloudModel.ID
@@ -55,12 +64,15 @@ public final class CloudCleanupModel {
     public var verification: Verification = .idle
     public var sampleTranscript: String = CloudPromptPreset.cleanUp.sampleTranscript
     public var testRun: TestRun = .idle
+    public var destination: Destination?
     public private(set) var savedKeys: [CloudProvider: String] = [:]
     public private(set) var modelLists: [CloudProvider: ModelList] = [:]
     public private(set) var basePreset: CloudPromptPreset?
+    public private(set) var hasScreenRecordingPermission = false
 
     @ObservationIgnored @Dependency(\.cloudCleanupClient) private var cloudCleanupClient
     @ObservationIgnored @Dependency(\.keychainClient) private var keychainClient
+    @ObservationIgnored @Dependency(\.permissionsClient) private var permissionsClient
 
     public init() {}
 
@@ -102,6 +114,10 @@ public final class CloudCleanupModel {
 
     public var resetPreset: CloudPromptPreset {
         selectedPreset ?? basePreset ?? .cleanUp
+    }
+
+    public var isTranscriptTagMissing: Bool {
+        !CloudPromptTranscript.isMentioned(in: systemPrompt)
     }
 
     public func models(matching query: String) -> CloudModelSearchResults {
@@ -150,11 +166,20 @@ public final class CloudCleanupModel {
         case .webSearch: webSearchEnabled
         case .clipboard: clipboardToolEnabled
         case .selectedText: selectedTextToolEnabled
+        case .screen: screenToolEnabled
         }
     }
 
     public func isToolAvailable(_ tool: CloudTool) -> Bool {
-        tool != .webSearch || provider.supportsWebSearch
+        switch tool {
+        case .webSearch: provider.supportsWebSearch
+        case .screen: provider.supportsScreenshots
+        case .dateTime, .clipboard, .selectedText: true
+        }
+    }
+
+    public func isToolMissingPermission(_ tool: CloudTool) -> Bool {
+        tool == .screen && screenToolEnabled && !hasScreenRecordingPermission
     }
 
     public var configuration: CloudCleanupConfiguration? {
@@ -166,6 +191,7 @@ public final class CloudCleanupModel {
             keychainClient.string(provider.keychainAccount).map { (provider, $0) }
         })
         apiKey = savedKeys[provider] ?? ""
+        hasScreenRecordingPermission = permissionsClient.hasScreenRecordingPermission()
     }
 
     public func providerTapped(_ provider: CloudProvider) {
@@ -253,12 +279,37 @@ public final class CloudCleanupModel {
         testRun = .idle
     }
 
+    public func promptEditorTapped() {
+        destination = .promptEditor
+    }
+
+    public func promptEditorDoneButtonTapped() {
+        destination = nil
+    }
+
+    public func resetPromptButtonTapped() {
+        $systemPrompt.withLock { $0 = resetPreset.prompt }
+    }
+
+    public func addTranscriptTagButtonTapped() {
+        guard isTranscriptTagMissing else { return }
+        $systemPrompt.withLock { prompt in
+            let trimmed = prompt.trimmingCharacters(in: .whitespacesAndNewlines)
+            prompt = trimmed.isEmpty ? CloudPromptTranscript.sentence : "\(trimmed)\n\n\(CloudPromptTranscript.sentence)"
+        }
+    }
+
     public func toolToggled(_ tool: CloudTool, isOn: Bool) {
         switch tool {
         case .dateTime: $dateTimeToolEnabled.withLock { $0 = isOn }
         case .webSearch: $webSearchEnabled.withLock { $0 = isOn }
         case .clipboard: $clipboardToolEnabled.withLock { $0 = isOn }
         case .selectedText: $selectedTextToolEnabled.withLock { $0 = isOn }
+        case .screen:
+            $screenToolEnabled.withLock { $0 = isOn }
+            if isOn, !hasScreenRecordingPermission {
+                hasScreenRecordingPermission = permissionsClient.requestScreenRecordingPermission()
+            }
         }
     }
 

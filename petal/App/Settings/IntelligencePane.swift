@@ -33,32 +33,6 @@ struct IntelligencePane: View {
                 Text("Cleanup turns off until you download \(model.displayName) again.")
             }
 
-            if viewModel.cleanupModel == .s1Mini {
-                SettingsPanelSection(title: "S1-mini Output") {
-                    S1MiniControlsForm(
-                        controls: S1MiniControls(
-                            styling: viewModel.s1MiniStyling,
-                            structure: viewModel.s1MiniStructure,
-                            context: viewModel.s1MiniContext
-                        ),
-                        onStylingChange: { value in viewModel.$s1MiniStyling.withLock { $0 = value } },
-                        onStructureChange: { value in viewModel.$s1MiniStructure.withLock { $0 = value } },
-                        onContextChange: { value in viewModel.$s1MiniContext.withLock { $0 = value } }
-                    )
-                }
-                .transition(.opacity.combined(with: .move(edge: .bottom)))
-
-                SettingsPanelSection(title: "S1-mini System Prompt") {
-                    PromptEditor(
-                        text: Binding(viewModel.$s1MiniSystemPrompt),
-                        defaultText: S1MiniControls.defaultSystemPrompt,
-                        minHeight: 90,
-                        note: "S1-mini was trained on the default prompt. Other wording can garble the output."
-                    )
-                }
-                .transition(.opacity.combined(with: .move(edge: .bottom)))
-            }
-
             if viewModel.cleanupModel == .cloud {
                 CloudCleanupSections(cloud: viewModel.cloudCleanup)
                     .transition(.opacity.combined(with: .move(edge: .bottom)))

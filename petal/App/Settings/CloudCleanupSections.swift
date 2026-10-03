@@ -51,9 +51,34 @@ struct CloudCleanupSections: View {
 
             SettingsCardDivider()
 
-            PromptTemplateEditor(
+            VStack(alignment: .leading, spacing: 10) {
+                PromptPreview(text: cloud.systemPrompt) { cloud.promptEditorTapped() }
+
+                if cloud.isTranscriptTagMissing {
+                    TranscriptTagWarning { cloud.addTranscriptTagButtonTapped() }
+                }
+
+                HStack(alignment: .firstTextBaseline) {
+                    Text("Click the prompt to edit it and insert variables, such as your name or the current app.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Spacer(minLength: 8)
+                    if canResetPrompt {
+                        SettingsActionButton(title: "Reset") { cloud.resetPromptButtonTapped() }
+                    }
+                }
+            }
+            .padding(14)
+        }
+        .sheet(item: $cloud.destination) { _ in
+            PromptEditorSheet(
                 text: Binding(cloud.$systemPrompt),
-                defaultText: cloud.resetPreset.prompt
+                isTranscriptTagMissing: cloud.isTranscriptTagMissing,
+                canReset: canResetPrompt,
+                onAddTranscriptTag: { cloud.addTranscriptTagButtonTapped() },
+                onReset: { cloud.resetPromptButtonTapped() },
+                onDone: { cloud.promptEditorDoneButtonTapped() }
             )
         }
 
@@ -64,7 +89,7 @@ struct CloudCleanupSections: View {
                 }
                 SettingsToggleRow(
                     title: tool.title,
-                    description: cloud.isToolAvailable(tool) ? tool.summary : "Not available for custom servers.",
+                    description: description(of: tool),
                     symbol: tool.symbol,
                     isOn: cloud.isToolEnabled(tool) && cloud.isToolAvailable(tool)
                 ) { cloud.toolToggled(tool, isOn: $0) }
@@ -78,5 +103,17 @@ struct CloudCleanupSections: View {
                 Task { await cloud.runTestButtonTapped() }
             }
         }
+    }
+
+    private var canResetPrompt: Bool {
+        cloud.systemPrompt != cloud.resetPreset.prompt
+    }
+
+    private func description(of tool: CloudTool) -> String {
+        if !cloud.isToolAvailable(tool) { return "Not available for custom servers." }
+        if cloud.isToolMissingPermission(tool) {
+            return "Needs Screen Recording access. Allow Petal in Privacy & Security > Screen & System Audio Recording."
+        }
+        return tool.summary
     }
 }

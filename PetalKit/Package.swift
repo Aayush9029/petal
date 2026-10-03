@@ -147,6 +147,7 @@ let package = Package(
                 .shared,
                 .keychainClient,
                 .cloudCleanupClient,
+                .permissionsClient,
                 .debugSnapshots,
             ]
         ),
@@ -264,6 +265,7 @@ let package = Package(
             dependencies: [
                 .dependencies,
                 .dependenciesMacros,
+                .logClient,
             ]
         ),
         .target(
