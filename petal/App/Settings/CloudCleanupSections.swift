@@ -97,6 +97,7 @@ struct CloudCleanupSections: View {
                 .opacity(cloud.isToolAvailable(tool) ? 1 : 0.5)
             }
         }
+        .task(id: cloud.screenToolEnabled) { await cloud.screenRecordingPermissionTask() }
 
         SettingsPanelSection(title: "Try It") {
             CloudTestPanel(sample: $cloud.sampleTranscript, testRun: cloud.testRun) {

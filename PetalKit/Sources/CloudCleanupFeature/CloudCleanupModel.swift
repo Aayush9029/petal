@@ -73,6 +73,7 @@ public final class CloudCleanupModel {
     @ObservationIgnored @Dependency(\.cloudCleanupClient) private var cloudCleanupClient
     @ObservationIgnored @Dependency(\.keychainClient) private var keychainClient
     @ObservationIgnored @Dependency(\.permissionsClient) private var permissionsClient
+    @ObservationIgnored @Dependency(\.continuousClock) private var clock
 
     public init() {}
 
@@ -191,7 +192,20 @@ public final class CloudCleanupModel {
             keychainClient.string(provider.keychainAccount).map { (provider, $0) }
         })
         apiKey = savedKeys[provider] ?? ""
-        hasScreenRecordingPermission = permissionsClient.hasScreenRecordingPermission()
+    }
+
+    /// Checks again each second while Screen is on without access, so the row updates as soon as the user allows Petal in System Settings.
+    public func screenRecordingPermissionTask() async {
+        guard screenToolEnabled else { return }
+        hasScreenRecordingPermission = await permissionsClient.hasScreenRecordingPermission()
+        while screenToolEnabled, !hasScreenRecordingPermission {
+            do {
+                try await clock.sleep(for: .seconds(1))
+            } catch {
+                return
+            }
+            hasScreenRecordingPermission = await permissionsClient.hasScreenRecordingPermission()
+        }
     }
 
     public func providerTapped(_ provider: CloudProvider) {

@@ -5,7 +5,6 @@ import UniformTypeIdentifiers
 
 enum ScreenCapture {
     enum Failure: Error {
-        case noAccess
         case noDisplay
         case encodingFailed
     }
@@ -14,7 +13,6 @@ enum ScreenCapture {
     static let jpegQuality: CGFloat = 0.7
 
     static func frontmostDisplayJPEG() async throws -> Data {
-        guard CGPreflightScreenCaptureAccess() else { throw Failure.noAccess }
         let content = try await SCShareableContent.excludingDesktopWindows(true, onScreenWindowsOnly: true)
         let frontmostID = await MainActor.run { NSWorkspace.shared.frontmostApplication?.processIdentifier }
         guard let display = display(in: content, frontmostID: frontmostID) else { throw Failure.noDisplay }

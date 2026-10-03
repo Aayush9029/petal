@@ -4,6 +4,7 @@ import AVFoundation
 import Dependencies
 import DependenciesMacros
 import Foundation
+import ScreenCaptureKit
 import ServiceManagement
 
 public enum MicrophonePermissionState: Sendable {
@@ -21,7 +22,7 @@ public struct PermissionsClient: Sendable {
     public var openMicrophonePrivacySettings: @Sendable () async -> Void = {}
     public var openAccessibilityPrivacySettings: @Sendable () async -> Void = {}
     public var openGuidedAccessibilityPrivacySettings: @Sendable () async -> Void = {}
-    public var hasScreenRecordingPermission: @Sendable () -> Bool = { false }
+    public var hasScreenRecordingPermission: @Sendable () async -> Bool = { false }
     public var requestScreenRecordingPermission: @Sendable () -> Bool = { false }
     public var launchAtLoginState: @Sendable () async -> LaunchAtLoginState = { .disabled }
     public var setLaunchAtLogin: @Sendable (Bool) async throws -> LaunchAtLoginState
@@ -62,7 +63,11 @@ extension PermissionsClient: DependencyKey {
             openGuidedAccessibilityPrivacySettings: {
                 await MainActor.run { AccessibilitySettingsGuide.shared.present() }
             },
-            hasScreenRecordingPermission: { CGPreflightScreenCaptureAccess() },
+            hasScreenRecordingPermission: {
+                // The preflight result can stay stale after the user allows access in System Settings, but ScreenCaptureKit sees the change.
+                if CGPreflightScreenCaptureAccess() { return true }
+                return (try? await SCShareableContent.excludingDesktopWindows(true, onScreenWindowsOnly: true)) != nil
+            },
             requestScreenRecordingPermission: { CGRequestScreenCaptureAccess() },
             launchAtLoginState: {
                 LaunchAtLoginState(SMAppService.mainApp.status)

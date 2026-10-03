@@ -359,6 +359,43 @@ struct CloudCleanupModelTests {
     }
 
     @Test(.dependencies {
+        $0.continuousClock = ImmediateClock()
+    })
+    func `allowing access in System Settings clears the warning without a restart`() async {
+        let checks = LockIsolated(0)
+        let model = withDependencies {
+            $0.permissionsClient.hasScreenRecordingPermission = {
+                checks.withValue { $0 += 1 }
+                return checks.value >= 3
+            }
+            $0.permissionsClient.requestScreenRecordingPermission = { false }
+        } operation: {
+            CloudCleanupModel()
+        }
+        model.toolToggled(.screen, isOn: true)
+        #expect(model.isToolMissingPermission(.screen))
+
+        await model.screenRecordingPermissionTask()
+
+        #expect(checks.value == 3)
+        #expect(!model.isToolMissingPermission(.screen))
+    }
+
+    @Test(.dependencies {
+        $0.permissionsClient.hasScreenRecordingPermission = {
+            Issue.record("Checked Screen Recording access while Screen is off")
+            return false
+        }
+    })
+    func `the permission check waits until Screen is on`() async {
+        let model = CloudCleanupModel()
+
+        await model.screenRecordingPermissionTask()
+
+        #expect(!model.hasScreenRecordingPermission)
+    }
+
+    @Test(.dependencies {
         $0.permissionsClient.hasScreenRecordingPermission = { false }
         $0.permissionsClient.requestScreenRecordingPermission = { false }
     })
