@@ -23,6 +23,7 @@ final class SettingsViewModel {
     @ObservationIgnored @Shared(.historyRetentionMode) var historyRetentionMode: HistoryRetentionMode = .both
     @ObservationIgnored @Shared(.floatingCapsuleBackgroundStyle) var floatingCapsuleBackgroundStyle: FloatingCapsuleBackgroundStyle = .liquidGlass
     @ObservationIgnored @Shared(.compressHistoryAudio) var compressHistoryAudio = true
+    @ObservationIgnored @Shared(.cleanupMinimumWords) var cleanupMinimumWords: CleanupMinimumWords = .three
     @ObservationIgnored @Shared(.cleanupModel) var cleanupModel: CleanupModel = .off
     @ObservationIgnored @Shared(.logsEnabled) var logsEnabled = false
     @ObservationIgnored @Shared(.restoreClipboardAfterPaste) var restoreClipboardAfterPaste = true

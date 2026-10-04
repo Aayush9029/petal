@@ -16,6 +16,11 @@ struct IntelligencePane: View {
                     }
                     card(for: model)
                 }
+
+                if viewModel.cleanupModel != .off {
+                    SettingsCardDivider()
+                    minimumWordsRow
+                }
             }
             .task {
                 viewModel.cleanupDownloads.task()
@@ -69,6 +74,22 @@ struct IntelligencePane: View {
         }
         .animation(.smooth(duration: 0.25), value: viewModel.transcriptionMode)
         .animation(.smooth(duration: 0.25), value: viewModel.cleanupModel)
+    }
+
+    private var minimumWordsRow: some View {
+        SettingsControlRow(
+            title: "Minimum Words",
+            description: "Shorter dictations, like “OK” or “wow”, paste as you said them."
+        ) {
+            SettingsSegmentedPicker(
+                values: CleanupMinimumWords.allCases,
+                selection: viewModel.cleanupMinimumWords,
+                title: \.displayName
+            ) { value in
+                viewModel.$cleanupMinimumWords.withLock { $0 = value }
+            }
+            .frame(width: 205)
+        }
     }
 
     private func card(for model: CleanupModel) -> some View {

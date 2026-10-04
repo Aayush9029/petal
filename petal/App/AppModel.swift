@@ -48,6 +48,7 @@ final class AppModel {
     @ObservationIgnored @Shared(.transcriptionMode) var transcriptionMode: TranscriptionMode = .verbatim
     @ObservationIgnored @Shared(.smartPrompt) var smartPrompt = TranscriptionMode.defaultSmartPrompt
     @ObservationIgnored @Shared(.cleanupModel) var cleanupModel: CleanupModel = .off
+    @ObservationIgnored @Shared(.cleanupMinimumWords) var cleanupMinimumWords: CleanupMinimumWords = .three
     @ObservationIgnored @Shared(.compressHistoryAudio) var compressHistoryAudio = true
     @ObservationIgnored @Shared(.historyRetentionMode) var historyRetentionMode: HistoryRetentionMode = .both
     @ObservationIgnored @Shared(.pushToTalkThreshold) var pushToTalkThreshold: PushToTalkThreshold = .long
@@ -985,8 +986,10 @@ final class AppModel {
                 )
             )
 
-            let cleanup = activeCleanupModel(mode: mode, model: selectedModelOption)
-            logger.info("Cleanup decision: mode=\(mode.rawValue, privacy: .public), selected=\(self.cleanupModel.rawValue, privacy: .public), resolved=\(cleanup?.rawValue ?? "none", privacy: .public)")
+            let cleanup = cleanupMinimumWords.allowsCleanup(of: transcript)
+                ? activeCleanupModel(mode: mode, model: selectedModelOption)
+                : nil
+            logger.info("Cleanup decision: mode=\(mode.rawValue, privacy: .public), selected=\(self.cleanupModel.rawValue, privacy: .public), resolved=\(cleanup?.rawValue ?? "none", privacy: .public), words=\(CleanupMinimumWords.wordCount(transcript), privacy: .public)")
 
             if let cleanup, !transcript.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 pipelineStage = "refining"

@@ -61,6 +61,12 @@ public extension SharedKey where Self == AppStorageKey<CleanupModel>.Default {
     }
 }
 
+public extension SharedKey where Self == AppStorageKey<CleanupMinimumWords>.Default {
+    static var cleanupMinimumWords: Self {
+        Self[.appStorage("cleanup_minimum_words"), default: .three]
+    }
+}
+
 public extension SharedKey where Self == AppStorageKey<PushToTalkThreshold>.Default {
     static var pushToTalkThreshold: Self {
         Self[.appStorage("push_to_talk_threshold"), default: .long]

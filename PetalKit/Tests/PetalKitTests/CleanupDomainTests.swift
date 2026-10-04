@@ -12,6 +12,25 @@ func petalW1PromptMatchesQwen3NonThinkingLayout() {
     #expect(LocalCleanupPrompt.maxOutputTokens(promptTokens: 100) == 162)
 }
 
+@Test(arguments: [
+    ("OK", CleanupMinimumWords.three, false),
+    ("wow", .two, false),
+    ("sounds good", .three, false),
+    ("send it to sam", .three, true),
+    ("OK", .any, true),
+    ("um", .five, true),
+    ("明天下午三点开会", .three, true),
+])
+func shortDictationsSkipCleanup(transcript: String, minimum: CleanupMinimumWords, allowsCleanup: Bool) {
+    #expect(minimum.allowsCleanup(of: transcript) == allowsCleanup)
+}
+
+@Test
+func wordCountIgnoresPunctuation() {
+    #expect(CleanupMinimumWords.wordCount("  Wait — what?!  ") == 2)
+    #expect(CleanupMinimumWords.wordCount("") == 0)
+}
+
 @Test
 func retiredS1MiniSettingsAreRemoved() {
     let store = UserDefaults(suiteName: UUID().uuidString)!
