@@ -127,6 +127,20 @@ final class MenuBarContentViewModel {
         }
     }
 
+    func chooseAudioFile() {
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = AudioFileDropValidator.supportedContentTypes
+        panel.allowsMultipleSelection = false
+        panel.canChooseDirectories = false
+        panel.canChooseFiles = true
+        panel.begin { [weak self] response in
+            guard response == .OK, let url = panel.url else { return }
+            Task { @MainActor [weak self] in
+                await self?.audioFilesDropped([url])
+            }
+        }
+    }
+
     func startRecording() {
         Task { await appModel.handleDeepLink(.start) }
     }

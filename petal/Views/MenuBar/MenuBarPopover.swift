@@ -177,6 +177,11 @@ struct MenuBarPopover: View {
             }
         }
 
+        PopupMenuRow(title: "Transcribe Audio File…", systemImage: "waveform") {
+            viewModel.chooseAudioFile()
+            dismiss()
+        }
+
         PopupMenuRow(title: "Petal Settings…", systemImage: "gearshape", shortcut: "⌘,") {
             viewModel.openSettings()
             dismiss()

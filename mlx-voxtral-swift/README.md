@@ -10,7 +10,7 @@ Minimal vendored package used by `petal`.
 ## Build
 
 ```bash
-swift build --package-path Vendor/mlx-voxtral-swift
+swift build --package-path mlx-voxtral-swift
 ```
 
 ## Notes

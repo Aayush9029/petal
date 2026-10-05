@@ -30,6 +30,13 @@ public enum AudioFileDropValidator {
         "wav",
     ]
 
+    /// Content types for file pickers; `validate(_:)` remains the source of truth.
+    public static var supportedContentTypes: [UTType] {
+        [.audio, .mpeg4Audio, .mp3, .wav, .aiff] + supportedExtensions.compactMap {
+            UTType(filenameExtension: $0)
+        }
+    }
+
     public static func validate(_ urls: [URL]) -> AudioFileDropValidationResult {
         guard !urls.isEmpty else { return .rejected(.noFile) }
         guard urls.count == 1 else { return .rejected(.multipleFiles) }
