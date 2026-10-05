@@ -1,6 +1,7 @@
 import AppKit
 import AudioClient
 import CloudCleanupFeature
+import Combine
 import Dependencies
 import FoundationModelClient
 import HistoryClient
@@ -46,8 +47,12 @@ final class SettingsViewModel {
     var audioInputDevices: [AudioInputDevice] = [
         AudioInputDevice(id: AudioInputDevice.systemDefaultID, name: "System Default", isSystemDefault: true),
     ]
-    private(set) var historyTextCache: [UUID: HistoryEntryText] = [:]
+    private(set) var loadedHistory: [UUID: LoadedHistoryEntry] = [:]
+    /// `false` until the newest recordings load, so History does not flash its empty state.
+    private(set) var hasLoadedHistory = false
     private(set) var reprocessingHistoryEntryID: UUID?
+    @ObservationIgnored private var staleHistoryEntryIDs: Set<UUID> = []
+    private static let firstHistoryPageSize = 24
 
     var selectedModelID: String {
         get { downloadModel.selectedModelID }
@@ -232,31 +237,31 @@ final class SettingsViewModel {
         }
     }
 
-    func refreshHistory() {
-        historyTextCache = Dictionary(uniqueKeysWithValues: historyDays.flatMap { day in
-            day.entries.map { entry in (entry.id, loadText(for: entry)) }
-        })
+    /// Reads History's files away from the main actor, newest first, and again whenever history changes.
+    func historyTask() async {
+        // `Observations` needs macOS 26, so this follows the shared value through its publisher.
+        for await _ in $transcriptHistoryDays.publisher.values {
+            await loadHistory()
+        }
     }
 
+    /// Entries show once their files load, so a card never renders without its text.
     func historyDays(matching query: String) -> [TranscriptHistoryDay] {
         let search = query.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        guard !search.isEmpty else { return historyDays }
-
+        let isShown = { (entry: TranscriptHistoryEntry) -> Bool in
+            guard let loaded = self.loadedHistory[entry.id] else { return false }
+            return search.isEmpty || loaded.searchText.contains(search)
+        }
         return historyDays.compactMap { day in
+            guard !day.entries.allSatisfy(isShown) else { return day }
             var filteredDay = day
-            filteredDay.entries.removeAll { entry in
-                let text = historyTextCache[entry.id] ?? HistoryEntryText()
-                let searchableText = [text.transcript, text.cleanup ?? "", entry.app?.app.name ?? "", entry.app?.website ?? "", entry.modelID, entry.modeSummary, day.day]
-                    .joined(separator: " ")
-                    .lowercased()
-                return !searchableText.contains(search)
-            }
+            filteredDay.entries.removeAll { !isShown($0) }
             return filteredDay.entries.isEmpty ? nil : filteredDay
         }
     }
 
     func historyAudioURL(for entry: TranscriptHistoryEntry) -> URL? {
-        historyClient.historyAudioURL(entry.audioRelativePath)
+        loadedHistory[entry.id]?.audioURL
     }
 
     func historyEntryFailed(_ entry: TranscriptHistoryEntry) -> Bool {
@@ -264,17 +269,17 @@ final class SettingsViewModel {
     }
 
     func reprocessHistoryEntry(_ entry: TranscriptHistoryEntry, cleansUp: Bool) async {
-        guard historyAudioURL(for: entry) != nil else {
+        guard historyClient.historyAudioURL(entry.audioRelativePath) != nil else {
             permissionMessage = "The original recording is no longer available."
             return
         }
 
         reprocessingHistoryEntryID = entry.id
-        defer {
-            reprocessingHistoryEntryID = nil
-            refreshHistory()
-        }
+        defer { reprocessingHistoryEntryID = nil }
         await appModel.reprocessTranscriptHistoryButtonTapped(entry.id, cleansUp: cleansUp)
+        // The new transcript can reuse the old file name, so an unchanged entry still reads its files again.
+        staleHistoryEntryIDs.insert(entry.id)
+        await loadHistory()
     }
 
     func grantMicrophonePermissionButtonTapped() async {
@@ -391,31 +396,70 @@ final class SettingsViewModel {
     }
 
     func historyText(for entry: TranscriptHistoryEntry) -> HistoryEntryText {
-        historyTextCache[entry.id] ?? loadText(for: entry)
+        loadedHistory[entry.id]?.text ?? HistoryEntryText()
     }
 
     func deleteHistoryEntry(_ entry: TranscriptHistoryEntry) {
         appModel.deleteTranscriptHistoryButtonTapped(entry.id)
-        historyTextCache[entry.id] = nil
+        loadedHistory[entry.id] = nil
     }
 
-    private func loadText(for entry: TranscriptHistoryEntry) -> HistoryEntryText {
-        HistoryEntryText(
-            transcript: historyClient.transcriptText(entry.transcriptVariant?.transcriptRelativePath) ?? "",
-            cleanup: entry.cleanupVariant.flatMap { historyClient.transcriptText($0.transcriptRelativePath) }
-        )
+    private func loadHistory() async {
+        while !Task.isCancelled {
+            var entryIDs = Set<UUID>()
+            var stale: [(day: String, entry: TranscriptHistoryEntry)] = []
+            for day in historyDays {
+                for entry in day.entries {
+                    entryIDs.insert(entry.id)
+                    if loadedHistory[entry.id]?.entry != entry || staleHistoryEntryIDs.contains(entry.id) {
+                        stale.append((day.day, entry))
+                    }
+                }
+            }
+            if loadedHistory.keys.contains(where: { !entryIDs.contains($0) }) {
+                loadedHistory = loadedHistory.filter { entryIDs.contains($0.key) }
+            }
+            guard !stale.isEmpty else { break }
+
+            // The newest recordings fill the first screen, so they load before the rest.
+            let batch = hasLoadedHistory ? stale : Array(stale.prefix(Self.firstHistoryPageSize))
+            let loaded = await Self.loadHistoryEntries(batch, historyClient: historyClient)
+            guard !Task.isCancelled else { return }
+            loadedHistory.merge(loaded) { $1 }
+            staleHistoryEntryIDs.subtract(loaded.keys)
+            hasLoadedHistory = true
+        }
+        if !Task.isCancelled {
+            hasLoadedHistory = true
+        }
+    }
+
+    @concurrent
+    nonisolated private static func loadHistoryEntries(
+        _ requests: [(day: String, entry: TranscriptHistoryEntry)],
+        historyClient: HistoryClient
+    ) async -> [UUID: LoadedHistoryEntry] {
+        let contents = await historyClient.entryContents(requests.map { $0.entry })
+        var loaded: [UUID: LoadedHistoryEntry] = [:]
+        loaded.reserveCapacity(requests.count)
+        for request in requests {
+            loaded[request.entry.id] = LoadedHistoryEntry(
+                day: request.day,
+                entry: request.entry,
+                contents: contents[request.entry.id] ?? HistoryEntryContents()
+            )
+        }
+        return loaded
     }
 
     func deleteAllHistory() {
         let cleared = historyClient.applyRetention(.none, transcriptHistoryDays)
         $transcriptHistoryDays.withLock { $0 = cleared }
-        refreshHistory()
     }
 
     func deleteMediaOnly() {
         let updated = historyClient.deleteMediaOnly(transcriptHistoryDays)
         $transcriptHistoryDays.withLock { $0 = updated }
-        refreshHistory()
     }
 
     func shortcutRecorded(_ result: RecordedShortcut) {

@@ -15,6 +15,8 @@ public struct HistoryClient: Sendable {
     public var openHistoryFolder: @Sendable (HistoryRetentionMode) -> Bool = { _ in false }
     public var historyAudioURL: @Sendable (String?) -> URL? = { _ in nil }
     public var transcriptText: @Sendable (String?) -> String? = { _ in nil }
+    /// Reads each entry's texts and checks its audio file in one batch, away from the main actor.
+    public var entryContents: @Sendable ([TranscriptHistoryEntry]) async -> [UUID: HistoryEntryContents] = { _ in [:] }
     public var modelsDirectoryPath: @Sendable () -> String = { "" }
     public var historyDirectoryPath: @Sendable () -> String = { "" }
     public var deleteEntry: @Sendable ([TranscriptHistoryDay], UUID) -> [TranscriptHistoryDay] = { days, _ in days }
@@ -139,6 +141,9 @@ extension HistoryClient: DependencyKey {
             },
             transcriptText: { relativePath in
                 runtime.transcriptText(relativePath: relativePath)
+            },
+            entryContents: { entries in
+                await runtime.entryContents(entries)
             },
             modelsDirectoryPath: {
                 runtime.modelsDirectoryPath
@@ -349,6 +354,35 @@ private final class HistoryRuntime: @unchecked Sendable {
         guard let transcriptURL = historyURL(relativePath: relativePath) else { return nil }
         guard FileManager.default.fileExists(atPath: transcriptURL.path) else { return nil }
         return try? String(contentsOf: transcriptURL, encoding: .utf8)
+    }
+
+    func entryContents(_ entries: [TranscriptHistoryEntry]) async -> [UUID: HistoryEntryContents] {
+        // Parallel reads hide disk latency when the transcripts are not in the file cache yet.
+        let chunkSize = 64
+        return await withTaskGroup(of: [(UUID, HistoryEntryContents)].self) { group in
+            for start in stride(from: 0, to: entries.count, by: chunkSize) {
+                let chunk = entries[start ..< min(start + chunkSize, entries.count)]
+                group.addTask {
+                    chunk.map { ($0.id, self.contents(of: $0)) }
+                }
+            }
+            var contents: [UUID: HistoryEntryContents] = [:]
+            contents.reserveCapacity(entries.count)
+            for await pairs in group {
+                for (id, entryContents) in pairs {
+                    contents[id] = entryContents
+                }
+            }
+            return contents
+        }
+    }
+
+    private func contents(of entry: TranscriptHistoryEntry) -> HistoryEntryContents {
+        HistoryEntryContents(
+            transcript: transcriptText(relativePath: entry.transcriptVariant?.transcriptRelativePath) ?? "",
+            cleanup: entry.cleanupVariant.flatMap { transcriptText(relativePath: $0.transcriptRelativePath) },
+            audioURL: historyAudioURL(relativePath: entry.audioRelativePath)
+        )
     }
 
     func deleteMediaOnly(days: [TranscriptHistoryDay]) -> [TranscriptHistoryDay] {

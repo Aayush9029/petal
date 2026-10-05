@@ -372,15 +372,18 @@ struct HistoryPane: View {
 
     var body: some View {
         let canCleanUp = viewModel.canCleanUpHistory
+        let days = viewModel.historyDays(matching: searchText)
         ZStack(alignment: .bottom) {
             VStack(alignment: .leading, spacing: 0) {
-                if filteredDays.isEmpty {
+                if !viewModel.hasLoadedHistory {
+                    Color.clear
+                } else if days.isEmpty {
                     emptyState
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else {
                     ScrollView {
                         LazyVStack(alignment: .leading, spacing: 12) {
-                            ForEach(filteredDays) { day in
+                            ForEach(days) { day in
                                 Section {
                                     ForEach(day.entries) { entry in
                                         HistoryRecordingCard(
@@ -429,12 +432,8 @@ struct HistoryPane: View {
         }
         .background(Color(nsColor: .windowBackgroundColor))
         .task {
-            viewModel.refreshHistory()
+            await viewModel.historyTask()
         }
-    }
-
-    private var filteredDays: [TranscriptHistoryDay] {
-        viewModel.historyDays(matching: searchText)
     }
 
     @ViewBuilder

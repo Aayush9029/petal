@@ -188,7 +188,7 @@ final class AppModel {
             }
         }
 
-        $transcriptHistoryDays.withLock { $0 = historyClient.bootstrap(historyRetentionMode, $0) }
+        Task { await bootstrapHistory() }
 
         registerShortcutHandlers()
         registerKeyboardMonitor()
@@ -456,6 +456,24 @@ final class AppModel {
             guard await transcribeDroppedAudioFile(audioURL, origin: .recovered) else { return }
             try? FileManager.default.removeItem(at: audioURL)
         }
+    }
+
+    /// Healing checks every history file on disk, so it runs away from the main actor during launch.
+    private func bootstrapHistory() async {
+        let days = transcriptHistoryDays
+        let healed = await Self.bootstrapHistory(days, retentionMode: historyRetentionMode, historyClient: historyClient)
+        // A recording that finished meanwhile is newer than this copy, so healing waits for the next launch.
+        guard healed != days, transcriptHistoryDays == days else { return }
+        $transcriptHistoryDays.withLock { $0 = healed }
+    }
+
+    @concurrent
+    nonisolated private static func bootstrapHistory(
+        _ days: [TranscriptHistoryDay],
+        retentionMode: HistoryRetentionMode,
+        historyClient: HistoryClient
+    ) async -> [TranscriptHistoryDay] {
+        historyClient.bootstrap(retentionMode, days)
     }
 
     func refreshModelCatalog() {

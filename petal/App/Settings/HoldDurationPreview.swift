@@ -7,46 +7,23 @@ struct HoldDurationPreview: View {
     let longestSeconds: Double
     let tint: Color
 
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
     private static let holdDuration: Double = 0.55
     private static let gapDuration: Double = 0.45
 
     var body: some View {
-        TimelineView(.animation(minimumInterval: 1.0 / 30.0, paused: reduceMotion)) { timeline in
-            Canvas(opaque: false, rendersAsynchronously: false) { context, size in
-                let radius = size.height / 2
-                context.fill(
-                    Path(roundedRect: CGRect(origin: .zero, size: size), cornerRadius: radius),
-                    with: .color(tint.opacity(0.18))
-                )
-
-                let width = size.width * fillFraction(at: timeline.date)
-                guard width > 0 else { return }
-                context.fill(
-                    Path(roundedRect: CGRect(x: 0, y: 0, width: max(size.height, width), height: size.height), cornerRadius: radius),
-                    with: .color(tint)
-                )
-            }
-        }
+        HoldDurationTrack(
+            span: span,
+            fillDuration: seconds,
+            holdDuration: Self.holdDuration,
+            cycle: longestSeconds + Self.holdDuration + Self.gapDuration,
+            tint: tint
+        )
         .frame(height: 6)
-    }
-
-    private var cycle: Double {
-        longestSeconds + Self.holdDuration + Self.gapDuration
+        .allowsHitTesting(false)
     }
 
     private var span: Double {
         longestSeconds > 0 ? min(1, seconds / longestSeconds) : 1
-    }
-
-    private func fillFraction(at date: Date) -> Double {
-        guard !reduceMotion else { return span }
-        let elapsed = date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: cycle)
-        if elapsed <= seconds {
-            return span * (seconds > 0 ? elapsed / seconds : 1)
-        }
-        return elapsed <= seconds + Self.holdDuration ? span : 0
     }
 }
 

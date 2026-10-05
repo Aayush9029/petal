@@ -34,4 +34,27 @@ enum RouterFlowLayout {
     static func columnWidth(in width: CGFloat) -> CGFloat {
         (width - spineGap) / 2
     }
+
+    /// Where a branch meets its card.
+    static func edge(slot: Int, width: CGFloat) -> CGPoint {
+        let column = columnWidth(in: width)
+        let x = isLeft(slot: slot) ? column : column + spineGap
+        return CGPoint(x: x, y: midY(slot: slot))
+    }
+
+    /// Voice to router, down the spine, then a rounded turn into the card.
+    static func activePath(slot: Int, width: CGFloat) -> CGPath {
+        let spineX = width / 2
+        let end = edge(slot: slot, width: width)
+        let radius = min(cornerRadius, abs(end.x - spineX))
+        let direction: CGFloat = end.x < spineX ? -1 : 1
+        let path = CGMutablePath()
+        path.move(to: CGPoint(x: spineX, y: hubSize))
+        path.addLine(to: CGPoint(x: spineX, y: routerTop))
+        path.move(to: CGPoint(x: spineX, y: routerBottom))
+        path.addLine(to: CGPoint(x: spineX, y: end.y - radius))
+        path.addQuadCurve(to: CGPoint(x: spineX + direction * radius, y: end.y), control: CGPoint(x: spineX, y: end.y))
+        path.addLine(to: end)
+        return path
+    }
 }

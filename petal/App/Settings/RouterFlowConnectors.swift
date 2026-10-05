@@ -11,9 +11,12 @@ struct RouterFlowConnectors: View {
     @Environment(\.controlActiveState) private var controlActiveState
 
     var body: some View {
-        TimelineView(.animation(minimumInterval: 1 / 30, paused: !isAnimating)) { timeline in
-            Canvas { context, size in
-                draw(in: &context, width: size.width, time: isAnimating ? timeline.date.timeIntervalSinceReferenceDate : nil)
+        Canvas { context, size in
+            draw(in: &context, width: size.width)
+        }
+        .overlay {
+            if isFlowing, let activeSlot {
+                RouterFlowHighlight(slot: activeSlot, isAnimating: isAnimating)
             }
         }
         .frame(height: RouterFlowLayout.height(slots: slotCount))
@@ -21,12 +24,12 @@ struct RouterFlowConnectors: View {
         .accessibilityHidden(true)
     }
 
-    /// Stops redrawing while Settings is in the background, so an idle window costs no CPU.
+    /// Stops the highlight while Settings is in the background.
     private var isAnimating: Bool {
-        isFlowing && activeSlot != nil && !reduceMotion && controlActiveState != .inactive
+        !reduceMotion && controlActiveState != .inactive
     }
 
-    private func draw(in context: inout GraphicsContext, width: CGFloat, time: TimeInterval?) {
+    private func draw(in context: inout GraphicsContext, width: CGFloat) {
         let spineX = width / 2
         let idle = GraphicsContext.Shading.color(.primary.opacity(0.14))
         let thin = StrokeStyle(lineWidth: 1.25, lineCap: .round)
@@ -50,54 +53,19 @@ struct RouterFlowConnectors: View {
 
         guard let activeSlot, isFlowing else { return }
 
-        let active = activePath(slot: activeSlot, spineX: spineX, width: width)
         let accent = Color.accentColor
-        context.stroke(active, with: .color(accent.opacity(0.85)), style: StrokeStyle(lineWidth: 1.75, lineCap: .round))
-        context.fill(port(at: edge(slot: activeSlot, spineX: spineX, width: width)), with: .color(accent))
-
-        guard let time else { return }
-        let period = 2.0
-        let head = (time.truncatingRemainder(dividingBy: period) / period) * 1.3
-        context.drawLayer { layer in
-            layer.addFilter(.shadow(color: accent.opacity(0.8), radius: 3))
-            for step in 0 ..< 4 {
-                let to = head - Double(step) * 0.035
-                let from = to - 0.035
-                guard to > 0, from < 1 else { continue }
-                layer.stroke(
-                    active.trimmedPath(from: max(from, 0), to: min(to, 1)),
-                    with: .color(.white.opacity(0.85 - Double(step) * 0.2)),
-                    style: StrokeStyle(lineWidth: 2, lineCap: .round)
-                )
-            }
-        }
-    }
-
-    private func edge(slot: Int, spineX: CGFloat, width: CGFloat) -> CGPoint {
-        let column = RouterFlowLayout.columnWidth(in: width)
-        let x = RouterFlowLayout.isLeft(slot: slot) ? column : column + RouterFlowLayout.spineGap
-        return CGPoint(x: x, y: RouterFlowLayout.midY(slot: slot))
+        context.stroke(
+            Path(RouterFlowLayout.activePath(slot: activeSlot, width: width)),
+            with: .color(accent.opacity(0.85)),
+            style: StrokeStyle(lineWidth: 1.75, lineCap: .round)
+        )
+        context.fill(port(at: RouterFlowLayout.edge(slot: activeSlot, width: width)), with: .color(accent))
     }
 
     private func stub(slot: Int, spineX: CGFloat, width: CGFloat) -> Path {
-        let end = edge(slot: slot, spineX: spineX, width: width)
+        let end = RouterFlowLayout.edge(slot: slot, width: width)
         return Path { path in
             path.move(to: CGPoint(x: spineX, y: end.y))
-            path.addLine(to: end)
-        }
-    }
-
-    /// Voice to router, down the spine, then a rounded turn into the card.
-    private func activePath(slot: Int, spineX: CGFloat, width: CGFloat) -> Path {
-        let end = edge(slot: slot, spineX: spineX, width: width)
-        let radius = min(RouterFlowLayout.cornerRadius, abs(end.x - spineX))
-        let direction: CGFloat = end.x < spineX ? -1 : 1
-        return Path { path in
-            path.move(to: CGPoint(x: spineX, y: RouterFlowLayout.hubSize))
-            path.addLine(to: CGPoint(x: spineX, y: RouterFlowLayout.routerTop))
-            path.move(to: CGPoint(x: spineX, y: RouterFlowLayout.routerBottom))
-            path.addLine(to: CGPoint(x: spineX, y: end.y - radius))
-            path.addQuadCurve(to: CGPoint(x: spineX + direction * radius, y: end.y), control: CGPoint(x: spineX, y: end.y))
             path.addLine(to: end)
         }
     }
