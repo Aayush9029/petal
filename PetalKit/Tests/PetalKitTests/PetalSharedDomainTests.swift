@@ -23,13 +23,23 @@ func qwenModelIDsMapToQwen17B() {
 }
 
 @Test
-func parakeetTDTModelIDsMapToParakeetUnified() {
+func parakeetModelIDsMapToTheirCurrentModels() {
     #expect(ModelOption.from(modelID: "parakeet") == .parakeetUnified06B)
-    #expect(ModelOption.from(modelID: "parakeet-tdt-0.6b-v3") == .parakeetUnified06B)
     #expect(ModelOption.from(modelID: "parakeet-tdt-0.6b-v2") == .parakeetUnified06B)
-    #expect(ModelOption.from(modelID: "FluidInference/parakeet-tdt-0.6b-v3-coreml") == .parakeetUnified06B)
     #expect(ModelOption.from(modelID: "mlx-community/parakeet-ctc-0.6b") == .parakeetUnified06B)
+    #expect(ModelOption.from(modelID: "parakeet-tdt-0.6b-v3") == .parakeetTDT06BV3)
+    #expect(ModelOption.from(modelID: "FluidInference/parakeet-tdt-0.6b-v3-coreml") == .parakeetTDT06BV3)
+    #expect(ModelOption.from(modelID: "mlx-community/parakeet-tdt-0.6b-v3") == .parakeetTDT06BV3)
     #expect(ModelOption.from(modelID: "parakeet-tdt-ctc-110m") == .parakeetTDTCTC110M)
+}
+
+@Test
+func parakeetV3IsAMultilingualDownloadableNVIDIAModel() {
+    let descriptor = ModelOption.parakeetTDT06BV3.descriptor
+    #expect(descriptor.repoID == "FluidInference/parakeet-tdt-0.6b-v3-coreml")
+    #expect(descriptor.provider == .nvidia)
+    #expect(ModelOption.parakeetTDT06BV3.requiresDownload)
+    #expect(!ModelOption.parakeetTDT06BV3.supportsStreamingTranscription)
 }
 
 @Test
@@ -62,6 +72,7 @@ func modelOptionDisplayNamesUseCleanProductNames() {
             ModelOption.appleSpeech.displayName,
             ModelOption.qwen3ASR17B8bit.displayName,
             ModelOption.parakeetUnified06B.displayName,
+            ModelOption.parakeetTDT06BV3.displayName,
             ModelOption.parakeetTDTCTC110M.displayName,
             ModelOption.whisperLargeV3Turbo.displayName,
             ModelOption.mini3b8bit.displayName,
@@ -70,6 +81,7 @@ func modelOptionDisplayNamesUseCleanProductNames() {
             "Apple Speech",
             "Qwen3 ASR 1.7B",
             "Parakeet Unified 0.6B",
+            "Parakeet 0.6B V3",
             "Parakeet 110M",
             "Whisper Large V3 Turbo",
             "Voxtral Realtime 4B",
@@ -78,11 +90,12 @@ func modelOptionDisplayNamesUseCleanProductNames() {
 }
 
 @Test
-func modelCatalogHasOneModelPerFamily() {
+func modelCatalogListsEachSpeechModel() {
     #expect(ModelOption.allCases.filter { $0 != .appleSpeech } == [
         .parakeetTDTCTC110M,
         .qwen3ASR17B8bit,
         .parakeetUnified06B,
+        .parakeetTDT06BV3,
         .whisperLargeV3Turbo,
         .mini3b8bit,
     ])
@@ -137,6 +150,7 @@ func modelProviderGroupsPreserveProviderAndCatalogOrder() {
         .parakeetTDTCTC110M,
         .qwen3ASR17B8bit,
         .parakeetUnified06B,
+        .parakeetTDT06BV3,
         .whisperLargeV3Turbo,
         .mini3b8bit,
     ])
@@ -144,7 +158,7 @@ func modelProviderGroupsPreserveProviderAndCatalogOrder() {
     expectNoDifference(
         groups.map(ProviderGroupSnapshot.init),
         [
-            ProviderGroupSnapshot(provider: .nvidia, title: "NVIDIA", options: [.parakeetTDTCTC110M, .parakeetUnified06B]),
+            ProviderGroupSnapshot(provider: .nvidia, title: "NVIDIA", options: [.parakeetTDTCTC110M, .parakeetUnified06B, .parakeetTDT06BV3]),
             ProviderGroupSnapshot(provider: .mlxAudio, title: "Qwen", options: [.qwen3ASR17B8bit]),
             ProviderGroupSnapshot(provider: .whisperKit, title: "Whisper", options: [.whisperLargeV3Turbo]),
             ProviderGroupSnapshot(provider: .voxtralCore, title: "Voxtral", options: [.mini3b8bit]),

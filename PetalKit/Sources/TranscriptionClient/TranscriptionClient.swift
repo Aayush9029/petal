@@ -271,6 +271,8 @@ private extension ModelOption {
             return .qwen3ASR17B8bit
         case .parakeetUnified06B:
             return .parakeetUnified06B
+        case .parakeetTDT06BV3:
+            return .parakeetTDT06BV3
         case .parakeetTDTCTC110M:
             return .parakeetTDTCTC110M
         case .whisperLargeV3Turbo:

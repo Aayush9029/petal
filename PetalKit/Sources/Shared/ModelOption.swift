@@ -57,6 +57,7 @@ public enum ModelOption: String, CaseIterable, Identifiable, Sendable {
     case appleSpeech = "apple-speech"
     case qwen3ASR17B8bit = "qwen3-asr-1.7b-8bit"
     case parakeetUnified06B = "parakeet-unified-en-0.6b"
+    case parakeetTDT06BV3 = "parakeet-tdt-0.6b-v3"
     case parakeetTDTCTC110M = "parakeet-tdt-ctc-110m"
     case whisperLargeV3Turbo = "whisper-large-v3-turbo"
     case mini3b8bit = "voxtral-realtime-4b-2602-4bit"
@@ -66,6 +67,7 @@ public enum ModelOption: String, CaseIterable, Identifiable, Sendable {
             .parakeetTDTCTC110M,
             .qwen3ASR17B8bit,
             .parakeetUnified06B,
+            .parakeetTDT06BV3,
             .whisperLargeV3Turbo,
             .mini3b8bit,
         ]
@@ -132,6 +134,20 @@ public enum ModelOption: String, CaseIterable, Identifiable, Sendable {
                 recommended: false,
                 speedScore: 5,
                 smartScore: 3
+            )
+        case .parakeetTDT06BV3:
+            return ModelDescriptor(
+                id: rawValue,
+                repoID: "FluidInference/parakeet-tdt-0.6b-v3-coreml",
+                name: "Parakeet 0.6B V3",
+                summary: "Fast multilingual transcription in 25 European languages, such as German, French, and Spanish, with automatic language detection.",
+                size: "~485 MB",
+                quantization: "INT8 CoreML",
+                parameters: "0.6B",
+                provider: .nvidia,
+                recommended: false,
+                speedScore: 5,
+                smartScore: 4
             )
         case .parakeetTDTCTC110M:
             return ModelDescriptor(
@@ -206,7 +222,7 @@ public enum ModelOption: String, CaseIterable, Identifiable, Sendable {
         switch self {
         case .appleSpeech:
             return false
-        case .parakeetUnified06B, .qwen3ASR17B8bit, .parakeetTDTCTC110M,
+        case .parakeetUnified06B, .parakeetTDT06BV3, .qwen3ASR17B8bit, .parakeetTDTCTC110M,
              .whisperLargeV3Turbo, .mini3b8bit:
             return true
         }
@@ -249,14 +265,15 @@ public enum ModelOption: String, CaseIterable, Identifiable, Sendable {
         case Self.parakeetUnified06B.rawValue,
              "fluidinference/parakeet-unified-en-0.6b-coreml":
             return .parakeetUnified06B
-        // Parakeet TDT v2 and v3 were replaced by Parakeet Unified.
-        case "parakeet-tdt-0.6b-v3",
-             "parakeet",
+        case Self.parakeetTDT06BV3.rawValue,
+             "mlx-community/parakeet-tdt-0.6b-v3",
+             "fluidinference/parakeet-tdt-0.6b-v3-coreml":
+            return .parakeetTDT06BV3
+        // Parakeet TDT v2 was replaced by Parakeet Unified.
+        case "parakeet",
              "paracrete",
              "parakeet-tdt",
              "parakeet-tdt-0.6b",
-             "mlx-community/parakeet-tdt-0.6b-v3",
-             "fluidinference/parakeet-tdt-0.6b-v3-coreml",
              "parakeet-tdt-0.6b-v2",
              "fluidinference/parakeet-tdt-0.6b-v2-coreml",
              "parakeet-ctc",

@@ -2285,7 +2285,7 @@ final class AppModel {
         switch model {
         case .qwen3ASR17B8bit:
             return 1.5
-        case .parakeetUnified06B:
+        case .parakeetUnified06B, .parakeetTDT06BV3:
             return 2.0
         case .parakeetTDTCTC110M:
             return 2.5
