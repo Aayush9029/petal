@@ -1512,6 +1512,8 @@ final class AppModel {
     /// Stops like the capsule's Transcribe button, then presses Return after the paste to send the message.
     private func sendNowShortcutPressed() async {
         guard case .recording = sessionState, await audioClient.isRecording() else { return }
+        // A stop that is already in flight would not consume the flag, and the next dictation would press Return.
+        guard !isStoppingRecording else { return }
         logger.info("Send now shortcut pressed")
         pendingSendAfterPaste = true
         pushToTalkIsActive = false

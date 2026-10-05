@@ -173,7 +173,10 @@ public final class RouterModel {
     /// Polls because the add menu has no open event, and launches and quits should show without reopening Settings.
     public func task() async {
         while !Task.isCancelled {
-            runningApps = applicationsClient.runningApplications()
+            let apps = applicationsClient.runningApplications()
+            if apps != runningApps {
+                runningApps = apps
+            }
             do {
                 try await clock.sleep(for: .seconds(3))
             } catch {
