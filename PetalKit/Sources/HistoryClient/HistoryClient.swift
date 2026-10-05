@@ -34,6 +34,9 @@ public struct AppendEntryRequest: Sendable {
     public var retentionMode: HistoryRetentionMode
     public var timestamp: Date
     public var sessionID: UUID
+    public var app: FocusedApp?
+    /// Drops the entry's other variants and their files, so a new transcription does not show next to stale text.
+    public var replacesVariants: Bool
 
     public init(
         currentDays: [TranscriptHistoryDay],
@@ -47,7 +50,9 @@ public struct AppendEntryRequest: Sendable {
         transcriptRelativePath: String?,
         retentionMode: HistoryRetentionMode,
         timestamp: Date,
-        sessionID: UUID
+        sessionID: UUID,
+        app: FocusedApp? = nil,
+        replacesVariants: Bool = false
     ) {
         self.currentDays = currentDays
         self.transcript = transcript
@@ -61,6 +66,8 @@ public struct AppendEntryRequest: Sendable {
         self.retentionMode = retentionMode
         self.timestamp = timestamp
         self.sessionID = sessionID
+        self.app = app
+        self.replacesVariants = replacesVariants
     }
 }
 
@@ -200,6 +207,17 @@ private final class HistoryRuntime: @unchecked Sendable {
                 if let audioRelativePath = request.audioRelativePath {
                     existingEntry.audioRelativePath = audioRelativePath
                 }
+                if let app = request.app {
+                    existingEntry.app = app
+                }
+                if request.replacesVariants {
+                    for stale in existingEntry.variants {
+                        if let path = stale.transcriptRelativePath, path != variant.transcriptRelativePath {
+                            removeHistoryFile(relativePath: path)
+                        }
+                    }
+                    existingEntry.variants = []
+                }
                 existingEntry.variants[id: variant.id] = variant
                 updatedDays[dayIndex].entries[id: existingEntry.id] = existingEntry
             } else {
@@ -209,6 +227,7 @@ private final class HistoryRuntime: @unchecked Sendable {
                     modelID: request.modelID,
                     audioDurationSeconds: request.audioDuration,
                     audioRelativePath: request.audioRelativePath,
+                    app: request.app,
                     variants: [variant]
                 )
                 updatedDays[dayIndex].entries.insert(entry, at: 0)
@@ -221,6 +240,7 @@ private final class HistoryRuntime: @unchecked Sendable {
                 modelID: request.modelID,
                 audioDurationSeconds: request.audioDuration,
                 audioRelativePath: request.audioRelativePath,
+                app: request.app,
                 variants: [variant]
             )
             updatedDays.append(TranscriptHistoryDay(day: day, entries: [entry]))

@@ -173,3 +173,23 @@ public extension SharedKey where Self == FileStorageKey<IdentifiedArrayOf<ModelC
         ]
     }
 }
+
+public extension SharedKey where Self == FileStorageKey<IdentifiedArrayOf<CleanupRoute>>.Default {
+    static var cleanupRoutes: Self {
+        Self[
+            .fileStorage(
+                .documentsDirectory
+                    .appending(component: "petal")
+                    .appending(component: "cleanup-routes.json")
+            ),
+            default: []
+        ]
+    }
+}
+
+public extension SharedKey where Self == AppStorageKey<CleanupRoute.Action>.Default {
+    /// What happens in apps and websites without their own route.
+    static var cleanupFallbackAction: Self {
+        Self[.appStorage("cleanup_fallback_action"), default: .cleanUp]
+    }
+}

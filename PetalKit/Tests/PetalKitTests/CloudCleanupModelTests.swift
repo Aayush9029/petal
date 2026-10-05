@@ -26,7 +26,7 @@ struct CloudCleanupModelTests {
         model.task()
 
         #expect(model.modelID == "gpt-6-luna")
-        #expect(model.selectedPreset == .cleanUp)
+        #expect(model.systemPrompt == CloudPromptPreset.cleanUp.prompt)
         #expect(!model.isConfigured)
         #expect(model.configuration == nil)
     }
@@ -151,14 +151,12 @@ struct CloudCleanupModelTests {
         let model = CloudCleanupModel()
         model.task()
         model.apiKey = "sk-proj-typed"
-        model.testRun = .failed("Old")
 
         expect(model) {
             model.providerTapped(.anthropic)
         } changes: {
             $0.provider = .anthropic
             $0.apiKey = "sk-ant-saved"
-            $0.testRun = .idle
         }
         #expect(model.modelID == "claude-opus-5-5")
         #expect(model.isConfigured)
@@ -264,69 +262,6 @@ struct CloudCleanupModelTests {
     }
 
     @Test
-    func `presets replace the prompt and the sample`() {
-        let model = CloudCleanupModel()
-
-        expect(model) {
-            model.presetTapped(.email)
-        } changes: {
-            $0.systemPrompt = CloudPromptPreset.email.prompt
-            $0.sampleTranscript = CloudPromptPreset.email.sampleTranscript
-            $0.basePreset = .email
-        }
-        #expect(model.selectedPreset == .email)
-
-        model.$systemPrompt.withLock { $0 += "\nSign every email as Jo." }
-        #expect(model.selectedPreset == nil)
-        #expect(model.resetPreset == .email)
-    }
-
-    @Test
-    func `removing the transcript tag shows the warning until the sentence comes back`() {
-        let model = CloudCleanupModel()
-        #expect(!model.isTranscriptTagMissing)
-
-        model.$systemPrompt.withLock { $0 = "Fix my words.  \n" }
-        #expect(model.isTranscriptTagMissing)
-
-        expect(model) {
-            model.addTranscriptTagButtonTapped()
-        } changes: {
-            $0.systemPrompt = "Fix my words.\n\n\(CloudPromptTranscript.sentence)"
-        }
-        #expect(!model.isTranscriptTagMissing)
-    }
-
-    @Test
-    func `the prompt editor opens and closes`() {
-        let model = CloudCleanupModel()
-
-        expect(model) {
-            model.promptEditorTapped()
-        } changes: {
-            $0.destination = .promptEditor
-        }
-        expect(model) {
-            model.promptEditorDoneButtonTapped()
-        } changes: {
-            $0.destination = nil
-        }
-    }
-
-    @Test
-    func `reset brings back the preset the prompt started from`() {
-        let model = CloudCleanupModel()
-        model.presetTapped(.notes)
-        model.$systemPrompt.withLock { $0 += " Use bullets." }
-
-        expect(model) {
-            model.resetPromptButtonTapped()
-        } changes: {
-            $0.systemPrompt = CloudPromptPreset.notes.prompt
-        }
-    }
-
-    @Test
     func `tools follow the toggles and the provider`() {
         let model = CloudCleanupModel()
         for tool in CloudTool.allCases {
@@ -409,47 +344,5 @@ struct CloudCleanupModelTests {
 
         model.toolToggled(.screen, isOn: false)
         #expect(!model.isToolMissingPermission(.screen))
-    }
-
-    @Test(.dependencies {
-        $0.keychainClient = .inMemory([CloudProvider.openAI.keychainAccount: "sk-proj-live"])
-        $0.cloudCleanupClient.clean = { transcript, configuration in
-            CloudCleanupResult(text: "Cleaned: \(transcript)", model: configuration.model, elapsed: .milliseconds(900))
-        }
-    })
-    func `a test run shows the cleaned sample`() async {
-        let model = CloudCleanupModel()
-        model.sampleTranscript = "um hi"
-
-        await expect(model) {
-            await model.runTestButtonTapped()
-        } changes: {
-            $0.testRun = .finished(CloudCleanupResult(text: "Cleaned: um hi", model: "gpt-6-luna", elapsed: .milliseconds(900)))
-        }
-    }
-
-    @Test
-    func `a test run without a key explains what is missing`() async {
-        let model = CloudCleanupModel()
-
-        await expect(model) {
-            await model.runTestButtonTapped()
-        } changes: {
-            $0.testRun = .failed("Verify an API key first.")
-        }
-    }
-
-    @Test(.dependencies {
-        $0.keychainClient = .inMemory([CloudProvider.openAI.keychainAccount: "sk-proj-live"])
-        $0.cloudCleanupClient.clean = { _, _ in throw CloudCleanupError.emptyResponse }
-    })
-    func `a failed test run shows the error`() async {
-        let model = CloudCleanupModel()
-
-        await expect(model) {
-            await model.runTestButtonTapped()
-        } changes: {
-            $0.testRun = .failed("The model returned no text.")
-        }
     }
 }

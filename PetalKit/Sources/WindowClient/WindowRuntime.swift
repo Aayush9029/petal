@@ -163,7 +163,12 @@ final class WindowRuntimeImpl {
         window.animationBehavior = config.animationBehavior
         window.collectionBehavior = config.collectionBehavior
         window.contentView = contentView
-        window.minSize = config.size
+        if let minHeight = options.minHeightWithFixedWidth {
+            window.contentMinSize = CGSize(width: config.size.width, height: minHeight)
+            window.contentMaxSize = CGSize(width: config.size.width, height: .greatestFiniteMagnitude)
+        } else {
+            window.minSize = config.size
+        }
 
         if let toolbarStyle = options.toolbarStyle {
             window.toolbarStyle = toolbarStyle

@@ -26,21 +26,6 @@ public final class CloudCleanupModel {
         case failed(String)
     }
 
-    @CasePathable
-    public enum Destination: Hashable, Identifiable, Sendable {
-        case promptEditor
-
-        public var id: Self { self }
-    }
-
-    @CasePathable
-    public enum TestRun: Equatable, Sendable {
-        case idle
-        case running
-        case finished(CloudCleanupResult)
-        case failed(String)
-    }
-
     @ObservationIgnored @Shared(.cloudProvider) public var provider: CloudProvider = .openAI
     @ObservationIgnored @Shared(.cloudCustomBaseURL) public var customBaseURL: String = ""
     @ObservationIgnored @Shared(.cloudSystemPrompt) public var systemPrompt: String = CloudPromptPreset.cleanUp.prompt
@@ -62,12 +47,8 @@ public final class CloudCleanupModel {
     }
 
     public var verification: Verification = .idle
-    public var sampleTranscript: String = CloudPromptPreset.cleanUp.sampleTranscript
-    public var testRun: TestRun = .idle
-    public var destination: Destination?
     public private(set) var savedKeys: [CloudProvider: String] = [:]
     public private(set) var modelLists: [CloudProvider: ModelList] = [:]
-    public private(set) var basePreset: CloudPromptPreset?
     public private(set) var hasScreenRecordingPermission = false
 
     @ObservationIgnored @Dependency(\.cloudCleanupClient) private var cloudCleanupClient
@@ -107,18 +88,6 @@ public final class CloudCleanupModel {
             verification = .idle
             modelLists[.custom] = nil
         }
-    }
-
-    public var selectedPreset: CloudPromptPreset? {
-        CloudPromptPreset.matching(systemPrompt)
-    }
-
-    public var resetPreset: CloudPromptPreset {
-        selectedPreset ?? basePreset ?? .cleanUp
-    }
-
-    public var isTranscriptTagMissing: Bool {
-        !CloudPromptTranscript.isMentioned(in: systemPrompt)
     }
 
     public func models(matching query: String) -> CloudModelSearchResults {
@@ -213,7 +182,6 @@ public final class CloudCleanupModel {
         $provider.withLock { $0 = provider }
         apiKey = savedKeys[provider] ?? ""
         verification = .idle
-        testRun = .idle
     }
 
     public func verifyButtonTapped() async {
@@ -283,34 +251,6 @@ public final class CloudCleanupModel {
         guard !id.rawValue.isEmpty else { return }
         setModelID(id, for: provider)
         verification = .idle
-        testRun = .idle
-    }
-
-    public func presetTapped(_ preset: CloudPromptPreset) {
-        $systemPrompt.withLock { $0 = preset.prompt }
-        basePreset = preset
-        sampleTranscript = preset.sampleTranscript
-        testRun = .idle
-    }
-
-    public func promptEditorTapped() {
-        destination = .promptEditor
-    }
-
-    public func promptEditorDoneButtonTapped() {
-        destination = nil
-    }
-
-    public func resetPromptButtonTapped() {
-        $systemPrompt.withLock { $0 = resetPreset.prompt }
-    }
-
-    public func addTranscriptTagButtonTapped() {
-        guard isTranscriptTagMissing else { return }
-        $systemPrompt.withLock { prompt in
-            let trimmed = prompt.trimmingCharacters(in: .whitespacesAndNewlines)
-            prompt = trimmed.isEmpty ? CloudPromptTranscript.sentence : "\(trimmed)\n\n\(CloudPromptTranscript.sentence)"
-        }
     }
 
     public func toolToggled(_ tool: CloudTool, isOn: Bool) {
@@ -324,21 +264,6 @@ public final class CloudCleanupModel {
             if isOn, !hasScreenRecordingPermission {
                 hasScreenRecordingPermission = permissionsClient.requestScreenRecordingPermission()
             }
-        }
-    }
-
-    public func runTestButtonTapped() async {
-        let transcript = sampleTranscript.trimmed
-        guard !transcript.isEmpty else { return }
-        guard let configuration else {
-            testRun = .failed(provider.requiresAPIKey ? "Verify an API key first." : "Enter a server URL and a model first.")
-            return
-        }
-        testRun = .running
-        do {
-            testRun = .finished(try await cloudCleanupClient.clean(transcript, configuration))
-        } catch {
-            testRun = .failed(error.localizedDescription)
         }
     }
 

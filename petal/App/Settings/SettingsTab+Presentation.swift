@@ -7,6 +7,7 @@ extension SettingsTab {
         case .general: "General"
         case .transcription: "Models"
         case .intelligence: "Intelligence"
+        case .router: "Router"
         case .recording: "Recording"
         case .history: "History"
         case .advanced: "Advanced"
@@ -18,6 +19,7 @@ extension SettingsTab {
         case .general: "gearshape"
         case .transcription: "cube"
         case .intelligence: "sparkles"
+        case .router: "arrow.triangle.branch"
         case .recording: "mic"
         case .history: "clock"
         case .advanced: "slider.horizontal.3"
@@ -29,6 +31,7 @@ extension SettingsTab {
         case .general: .indigo
         case .transcription: .purple
         case .intelligence: .blue
+        case .router: .teal
         case .recording: .pink
         case .history: .orange
         case .advanced: .gray

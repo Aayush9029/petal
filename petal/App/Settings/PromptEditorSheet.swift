@@ -1,7 +1,9 @@
 import SwiftUI
 
 struct PromptEditorSheet: View {
+    var title = "System Prompt"
     @Binding var text: String
+    var showsVariables = true
     let isTranscriptTagMissing: Bool
     let canReset: Bool
     let onAddTranscriptTag: () -> Void
@@ -11,7 +13,7 @@ struct PromptEditorSheet: View {
     var body: some View {
         VStack(spacing: 0) {
             HStack {
-                Text("System Prompt")
+                Text(title)
                     .font(.headline)
                 Spacer()
                 Button("Done", action: onDone)
@@ -24,6 +26,7 @@ struct PromptEditorSheet: View {
 
             PromptTemplateEditor(
                 text: $text,
+                showsVariables: showsVariables,
                 isTranscriptTagMissing: isTranscriptTagMissing,
                 canReset: canReset,
                 onAddTranscriptTag: onAddTranscriptTag,

@@ -13,6 +13,9 @@ final class MenuBarContentViewModel {
         let title: String
     }
 
+    /// The popup's hosting view outlives `orderOut`, so animations check this to stop while it is hidden.
+    var isPopupVisible = false
+
     private let appModel: AppModel
     private var updatesModel: CheckForUpdatesModel?
     @ObservationIgnored @Dependency(\.historyClient) private var historyClient

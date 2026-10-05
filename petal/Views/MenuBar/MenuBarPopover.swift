@@ -70,7 +70,7 @@ struct MenuBarPopover: View {
             Color.clear
                 .frame(maxWidth: .infinity)
                 .frame(height: Self.waveformHeight)
-                .overlay { waveform }
+                .overlay { MenuBarStatusWaveform(viewModel: viewModel) }
                 .clipped()
 
             HStack(spacing: 6) {
@@ -95,25 +95,6 @@ struct MenuBarPopover: View {
         case .working: .orange
         case .error: .red
         case .idle: .green
-        }
-    }
-
-    /// Idle draws Conway's Game of Life; the active states draw the pixel waveform.
-    @ViewBuilder
-    private var waveform: some View {
-        switch viewModel.iconState {
-        case .idle, .error:
-            GameOfLifeView(tint: .accentColor)
-        case .recording:
-            LiveWaveform(
-                level: viewModel.audioLevel,
-                bars: 72,
-                rows: 17,
-                tint: .red,
-                sampleInterval: .milliseconds(66)
-            )
-        case .working:
-            ProcessingWaveform(bars: 72, rows: 17, tint: .accentColor)
         }
     }
 

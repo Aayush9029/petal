@@ -3,10 +3,12 @@ import ApplicationServices
 import Dependencies
 import DependenciesMacros
 import LogClient
+import Shared
 
 @DependencyClient
 public struct SystemContextClient: Sendable {
     public var frontmostAppName: @Sendable () async -> String? = { nil }
+    public var focusedApp: @Sendable () async -> FocusedApp? = { nil }
     public var frontmostWindowTitle: @Sendable () async -> String? = { nil }
     public var userFullName: @Sendable () -> String = { "" }
     public var clipboardText: @Sendable () async -> String? = { nil }
@@ -19,6 +21,17 @@ extension SystemContextClient: DependencyKey {
         Self(
             frontmostAppName: {
                 await MainActor.run { NSWorkspace.shared.frontmostApplication?.localizedName }
+            },
+            focusedApp: {
+                let front = await MainActor.run { () -> (pid: pid_t, app: MacApp)? in
+                    guard let app = NSWorkspace.shared.frontmostApplication, let bundleID = app.bundleIdentifier else { return nil }
+                    return (app.processIdentifier, MacApp(bundleID: bundleID, name: app.localizedName ?? bundleID))
+                }
+                guard let front else { return nil }
+                let website = BrowserTab.bundleIDs.contains(front.app.bundleID)
+                    ? BrowserTab.host(processIdentifier: front.pid)
+                    : nil
+                return FocusedApp(app: front.app, website: website)
             },
             frontmostWindowTitle: {
                 guard let pid = await MainActor.run(body: { NSWorkspace.shared.frontmostApplication?.processIdentifier }) else {
@@ -81,6 +94,7 @@ extension SystemContextClient: DependencyKey {
     public static var previewValue: Self {
         Self(
             frontmostAppName: { "Notes" },
+            focusedApp: { FocusedApp(app: MacApp(bundleID: "com.apple.Notes", name: "Notes")) },
             frontmostWindowTitle: { "Q4 launch plan" },
             userFullName: { "Alex Kim" },
             clipboardText: { "The launch moved to Tuesday." },

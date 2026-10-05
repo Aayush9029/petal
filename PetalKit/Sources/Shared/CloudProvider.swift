@@ -17,7 +17,7 @@ public enum CloudProvider: String, CaseIterable, Identifiable, Sendable, Codable
         case .openAI: "OpenAI"
         case .anthropic: "Anthropic"
         case .openRouter: "OpenRouter"
-        case .custom: "Custom"
+        case .custom: "Custom Server"
         }
     }
 

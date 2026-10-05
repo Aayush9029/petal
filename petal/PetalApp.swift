@@ -125,7 +125,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         registerDeepLinkAppleEventHandler()
         logger.info("Registered deep link AppleEvent handler")
         enforceSingleInstance()
+        #if !DEBUG
+        // Debug builds have build number 1, so Sparkle would install the release over them when they quit.
         updaterController.startUpdater()
+        #endif
         flushPendingUpdateCheckIfReady()
     }
 

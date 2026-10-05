@@ -9,6 +9,7 @@ import LogClient
 import ModelDownloadFeature
 import Observation
 import PermissionsClient
+import RouterFeature
 import Shared
 import SwiftUI
 import UniformTypeIdentifiers
@@ -45,7 +46,7 @@ final class SettingsViewModel {
     var audioInputDevices: [AudioInputDevice] = [
         AudioInputDevice(id: AudioInputDevice.systemDefaultID, name: "System Default", isSystemDefault: true),
     ]
-    private(set) var historyTranscriptCache: [UUID: String] = [:]
+    private(set) var historyTextCache: [UUID: HistoryEntryText] = [:]
     private(set) var reprocessingHistoryEntryID: UUID?
 
     var selectedModelID: String {
@@ -146,18 +147,26 @@ final class SettingsViewModel {
         downloadModel.selectedModelOption?.supportsSmartTranscription == true
     }
 
-    var showsInstructions: Bool {
-        (cleanupModel == .appleIntelligence && appleIntelligenceAvailable)
-            || (smartModeAvailable && transcriptionMode == .smart)
+    var usesSmartTranscription: Bool {
+        smartModeAvailable && transcriptionMode == .smart
     }
 
-    var cleanupModels: [CleanupModel] {
-        CleanupModel.allCases.filter { $0 != .appleIntelligence || appleIntelligenceAvailable }
+    var routerNotice: RouterNotice? {
+        if usesSmartTranscription { return .smartTranscription }
+        switch cleanupModel {
+        case .off: return .cleanupOff
+        case .petalW1: return .petalW1
+        case .appleIntelligence, .cloud: return nil
+        }
+    }
+
+    var canCleanUpHistory: Bool {
+        appModel.readyCleanupModel != nil
     }
 
     var cloudCleanupDetail: String? {
         guard cloudCleanup.isConfigured else { return nil }
-        return "\(cloudCleanup.provider.displayName) · \(cloudCleanup.selectedModel.title)"
+        return cloudCleanup.selectedModel.title
     }
 
     var modelProviderGroups: IdentifiedArrayOf<ModelOptionProviderGroup> {
@@ -167,6 +176,7 @@ final class SettingsViewModel {
     let downloadModel: ModelDownloadModel
     let cleanupDownloads: LocalCleanupDownloads
     let cloudCleanup: CloudCleanupModel
+    let router: RouterModel
     private let appModel: AppModel
     @ObservationIgnored @Dependency(\.permissionsClient) private var permissionsClient
     @ObservationIgnored @Dependency(\.audioClient) private var audioClient
@@ -178,6 +188,7 @@ final class SettingsViewModel {
         downloadModel = appModel.modelDownloadViewModel
         cleanupDownloads = appModel.cleanupDownloads
         cloudCleanup = appModel.cloudCleanup
+        router = appModel.router
         self.appModel = appModel
     }
 
@@ -222,10 +233,8 @@ final class SettingsViewModel {
     }
 
     func refreshHistory() {
-        historyTranscriptCache = Dictionary(uniqueKeysWithValues: historyDays.flatMap { day in
-            day.entries.map { entry in
-                (entry.id, historyClient.transcriptText(entry.preferredTranscriptRelativePath) ?? "")
-            }
+        historyTextCache = Dictionary(uniqueKeysWithValues: historyDays.flatMap { day in
+            day.entries.map { entry in (entry.id, loadText(for: entry)) }
         })
     }
 
@@ -236,8 +245,8 @@ final class SettingsViewModel {
         return historyDays.compactMap { day in
             var filteredDay = day
             filteredDay.entries.removeAll { entry in
-                let transcript = historyTranscriptCache[entry.id, default: ""]
-                let searchableText = [transcript, entry.modelID, entry.modeSummary, day.day]
+                let text = historyTextCache[entry.id] ?? HistoryEntryText()
+                let searchableText = [text.transcript, text.cleanup ?? "", entry.app?.app.name ?? "", entry.app?.website ?? "", entry.modelID, entry.modeSummary, day.day]
                     .joined(separator: " ")
                     .lowercased()
                 return !searchableText.contains(search)
@@ -254,7 +263,7 @@ final class SettingsViewModel {
         entry.variants[id: "failed"] != nil && entry.variants.count == 1
     }
 
-    func reprocessHistoryEntry(_ entry: TranscriptHistoryEntry) async {
+    func reprocessHistoryEntry(_ entry: TranscriptHistoryEntry, cleansUp: Bool) async {
         guard historyAudioURL(for: entry) != nil else {
             permissionMessage = "The original recording is no longer available."
             return
@@ -265,7 +274,7 @@ final class SettingsViewModel {
             reprocessingHistoryEntryID = nil
             refreshHistory()
         }
-        await appModel.reprocessTranscriptHistoryButtonTapped(entry.id)
+        await appModel.reprocessTranscriptHistoryButtonTapped(entry.id, cleansUp: cleansUp)
     }
 
     func grantMicrophonePermissionButtonTapped() async {
@@ -375,22 +384,26 @@ final class SettingsViewModel {
         _ = historyClient.openHistoryFolder(historyRetentionMode)
     }
 
-    func copyHistoryEntry(_ entry: TranscriptHistoryEntry) {
-        let transcript = transcriptText(for: entry)
-        guard transcript.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false else { return }
+    func copyButtonTapped(_ text: String) {
+        guard text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false else { return }
         NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString(transcript, forType: .string)
+        NSPasteboard.general.setString(text, forType: .string)
     }
 
-    func transcriptText(for entry: TranscriptHistoryEntry) -> String {
-        historyTranscriptCache[entry.id]
-            ?? historyClient.transcriptText(entry.preferredTranscriptRelativePath)
-            ?? ""
+    func historyText(for entry: TranscriptHistoryEntry) -> HistoryEntryText {
+        historyTextCache[entry.id] ?? loadText(for: entry)
     }
 
     func deleteHistoryEntry(_ entry: TranscriptHistoryEntry) {
         appModel.deleteTranscriptHistoryButtonTapped(entry.id)
-        historyTranscriptCache[entry.id] = nil
+        historyTextCache[entry.id] = nil
+    }
+
+    private func loadText(for entry: TranscriptHistoryEntry) -> HistoryEntryText {
+        HistoryEntryText(
+            transcript: historyClient.transcriptText(entry.transcriptVariant?.transcriptRelativePath) ?? "",
+            cleanup: entry.cleanupVariant.flatMap { historyClient.transcriptText($0.transcriptRelativePath) }
+        )
     }
 
     func deleteAllHistory() {

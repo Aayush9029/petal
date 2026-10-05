@@ -45,43 +45,6 @@ struct CloudCleanupSections: View {
             )
         }
 
-        SettingsPanelSection(title: "System Prompt") {
-            CloudPromptPresetPicker(selection: cloud.selectedPreset) { cloud.presetTapped($0) }
-                .padding(14)
-
-            SettingsCardDivider()
-
-            VStack(alignment: .leading, spacing: 10) {
-                PromptPreview(text: cloud.systemPrompt) { cloud.promptEditorTapped() }
-
-                if cloud.isTranscriptTagMissing {
-                    TranscriptTagWarning { cloud.addTranscriptTagButtonTapped() }
-                }
-
-                HStack(alignment: .firstTextBaseline) {
-                    Text("Click the prompt to edit it and insert variables, such as your name or the current app.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                    Spacer(minLength: 8)
-                    if canResetPrompt {
-                        SettingsActionButton(title: "Reset") { cloud.resetPromptButtonTapped() }
-                    }
-                }
-            }
-            .padding(14)
-        }
-        .sheet(item: $cloud.destination) { _ in
-            PromptEditorSheet(
-                text: Binding(cloud.$systemPrompt),
-                isTranscriptTagMissing: cloud.isTranscriptTagMissing,
-                canReset: canResetPrompt,
-                onAddTranscriptTag: { cloud.addTranscriptTagButtonTapped() },
-                onReset: { cloud.resetPromptButtonTapped() },
-                onDone: { cloud.promptEditorDoneButtonTapped() }
-            )
-        }
-
         SettingsPanelSection(title: "Tools") {
             ForEach(CloudTool.allCases, id: \.self) { tool in
                 if tool != CloudTool.allCases.first {
@@ -98,16 +61,6 @@ struct CloudCleanupSections: View {
             }
         }
         .task(id: cloud.screenToolEnabled) { await cloud.screenRecordingPermissionTask() }
-
-        SettingsPanelSection(title: "Try It") {
-            CloudTestPanel(sample: $cloud.sampleTranscript, testRun: cloud.testRun) {
-                Task { await cloud.runTestButtonTapped() }
-            }
-        }
-    }
-
-    private var canResetPrompt: Bool {
-        cloud.systemPrompt != cloud.resetPreset.prompt
     }
 
     private func description(of tool: CloudTool) -> String {

@@ -40,6 +40,7 @@ final class StatusItemController: NSObject {
             })
         ) { [weak self] in
             self?.statusItem.button?.highlight(false)
+            self?.viewModel.isPopupVisible = false
         }
 
         observeViewModel()
@@ -54,6 +55,7 @@ final class StatusItemController: NSObject {
             return
         }
         guard let anchor = buttonFrame else { return }
+        viewModel.isPopupVisible = true
         popup.show(below: anchor)
         statusItem.button?.highlight(true)
     }

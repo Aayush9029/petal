@@ -6,11 +6,12 @@ public enum CleanupMinimumWords: Int, CaseIterable, Identifiable, Sendable, Coda
     case two = 2
     case three = 3
     case five = 5
+    case ten = 10
 
     public var id: Int { rawValue }
 
     public var displayName: String {
-        self == .any ? "Any" : "\(rawValue)+"
+        self == .any ? "Off" : "< \(rawValue) words"
     }
 
     public func allowsCleanup(of transcript: String) -> Bool {

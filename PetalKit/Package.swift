@@ -24,6 +24,8 @@ extension Target.Dependency {
     static let keychainClient: Self = "KeychainClient"
     static let cloudCleanupClient: Self = "CloudCleanupClient"
     static let systemContextClient: Self = "SystemContextClient"
+    static let applicationsClient: Self = "ApplicationsClient"
+    static let cloudCleanupFeature: Self = "CloudCleanupFeature"
 
     static let dependencies: Self = .product(name: "Dependencies", package: "swift-dependencies")
     static let dependenciesMacros: Self = .product(name: "DependenciesMacros", package: "swift-dependencies")
@@ -82,6 +84,8 @@ let package = Package(
         .library(name: "CloudCleanupClient", targets: ["CloudCleanupClient"]),
         .library(name: "SystemContextClient", targets: ["SystemContextClient"]),
         .library(name: "CloudCleanupFeature", targets: ["CloudCleanupFeature"]),
+        .library(name: "ApplicationsClient", targets: ["ApplicationsClient"]),
+        .library(name: "RouterFeature", targets: ["RouterFeature"]),
     ],
     dependencies: [
         .package(url: "https://github.com/FluidInference/FluidAudio.git", exact: "0.17.1"),
@@ -148,6 +152,17 @@ let package = Package(
                 .keychainClient,
                 .cloudCleanupClient,
                 .permissionsClient,
+                .debugSnapshots,
+            ]
+        ),
+        .target(
+            name: "RouterFeature",
+            dependencies: [
+                .shared,
+                .applicationsClient,
+                .cloudCleanupClient,
+                .cloudCleanupFeature,
+                .foundationModelClient,
                 .debugSnapshots,
             ]
         ),
@@ -263,9 +278,14 @@ let package = Package(
         .target(
             name: "SystemContextClient",
             dependencies: [
-                .dependencies,
-                .dependenciesMacros,
+                .shared,
                 .logClient,
+            ]
+        ),
+        .target(
+            name: "ApplicationsClient",
+            dependencies: [
+                .shared,
             ]
         ),
         .target(
@@ -349,6 +369,9 @@ let package = Package(
                 "KeychainClient",
                 "CloudCleanupClient",
                 "CloudCleanupFeature",
+                "ApplicationsClient",
+                "RouterFeature",
+                "SystemContextClient",
                 "DownloadClient",
                 "HistoryClient",
                 "SoundClient",

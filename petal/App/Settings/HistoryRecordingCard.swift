@@ -4,13 +4,15 @@ import UI
 
 struct HistoryRecordingCard: View {
     let entry: TranscriptHistoryEntry
-    let transcript: String
+    let text: HistoryEntryText
     let audioURL: URL?
     let isFailed: Bool
     let isReprocessing: Bool
+    let canCleanUp: Bool
     let playback: HistoryPlaybackModel
-    let onCopy: () -> Void
-    let onReprocess: () -> Void
+    let onCopy: (String) -> Void
+    let onTranscribeAgain: () -> Void
+    let onTranscribeAndCleanUp: () -> Void
     let onDelete: () -> Void
     @State private var isShowingCopyConfirmation = false
 
@@ -26,10 +28,14 @@ struct HistoryRecordingCard: View {
                     .font(.caption.monospacedDigit())
                     .foregroundStyle(.secondary)
 
+                if let app = entry.app {
+                    appLabel(app)
+                }
+
                 Spacer()
 
                 Button {
-                    onCopy()
+                    onCopy(text.output)
                     withAnimation(.snappy(duration: 0.18)) {
                         isShowingCopyConfirmation = true
                     }
@@ -38,27 +44,27 @@ struct HistoryRecordingCard: View {
                         .contentTransition(.symbolEffect(.replace))
                         .foregroundStyle(isShowingCopyConfirmation ? .green : .primary)
                 }
-                .disabled(transcript.isEmpty)
-                .help("Copy transcript")
+                .disabled(text.output.isEmpty)
+                .help(text.cleanup == nil ? "Copy transcript" : "Copy cleaned-up text")
 
-                Button(action: onReprocess) {
-                    if isReprocessing {
-                        ProgressView()
-                            .controlSize(.small)
-                    } else {
-                        Image(systemName: "arrow.clockwise")
-                    }
-                }
-                .disabled(audioURL == nil || isReprocessing)
-                .help("Transcribe this recording again")
+                reprocessMenu
             }
             .buttonStyle(.borderless)
 
-            Text(displayTranscript)
-                .font(.subheadline)
-                .foregroundStyle(transcript.isEmpty ? .secondary : .primary)
-                .lineLimit(4)
-                .frame(maxWidth: .infinity, alignment: .leading)
+            if let cleanup = text.cleanup {
+                VStack(spacing: 0) {
+                    HistoryTextBlock(title: "Cleaned Up", text: cleanup, isCleanup: true) { onCopy(cleanup) }
+                    SettingsCardDivider()
+                    HistoryTextBlock(title: "Transcript", text: text.transcript) { onCopy(text.transcript) }
+                }
+                .background(.quaternary.opacity(0.4), in: .rect(cornerRadius: 10))
+            } else {
+                Text(displayTranscript)
+                    .font(.subheadline)
+                    .foregroundStyle(text.transcript.isEmpty ? .secondary : .primary)
+                    .lineLimit(4)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
 
             if let audioURL {
                 HStack(spacing: 10) {
@@ -94,6 +100,12 @@ struct HistoryRecordingCard: View {
         }
         .contentShape(.rect(cornerRadius: 14))
         .contextMenu {
+            if let cleanup = text.cleanup {
+                Button("Copy Cleaned-Up Text", systemImage: "sparkles") { onCopy(cleanup) }
+            }
+            Button("Copy Transcript", systemImage: "doc.on.doc") { onCopy(text.transcript) }
+                .disabled(text.transcript.isEmpty)
+            Divider()
             Button("Delete from History", systemImage: "trash", role: .destructive, action: onDelete)
         }
         .task {
@@ -109,6 +121,38 @@ struct HistoryRecordingCard: View {
                 isShowingCopyConfirmation = false
             }
         }
+    }
+
+    @ViewBuilder
+    private var reprocessMenu: some View {
+        if isReprocessing {
+            ProgressView()
+                .controlSize(.small)
+        } else {
+            Menu {
+                Button("Transcribe Again", systemImage: "arrow.clockwise", action: onTranscribeAgain)
+                Button("Transcribe and Clean Up", systemImage: "sparkles", action: onTranscribeAndCleanUp)
+                    .disabled(!canCleanUp)
+            } label: {
+                Image(systemName: "arrow.clockwise")
+            }
+            .menuStyle(.borderlessButton)
+            .menuIndicator(.hidden)
+            .fixedSize()
+            .disabled(audioURL == nil)
+            .help(canCleanUp ? "Transcribe this recording again" : "Transcribe this recording again. Turn on text cleanup in Intelligence to clean it up too.")
+        }
+    }
+
+    private func appLabel(_ app: FocusedApp) -> some View {
+        HStack(spacing: 4) {
+            RouteIcon(trigger: .app(app.app), size: 14)
+            Text(app.website ?? app.app.name)
+                .lineLimit(1)
+        }
+        .font(.caption)
+        .foregroundStyle(.secondary)
+        .help(app.website.map { "\(app.app.name) · \($0)" } ?? app.app.name)
     }
 
     private var modelIcon: some View {
@@ -130,8 +174,8 @@ struct HistoryRecordingCard: View {
     }
 
     private var displayTranscript: String {
-        if !transcript.isEmpty {
-            return transcript
+        if !text.transcript.isEmpty {
+            return text.transcript
         }
         return isFailed ? "Transcription failed — the recording was saved." : "No speech was detected."
     }

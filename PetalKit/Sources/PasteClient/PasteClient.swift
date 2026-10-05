@@ -21,6 +21,8 @@ public enum PasteResult: Equatable, Sendable {
 @DependencyClient
 public struct PasteClient: Sendable {
     public var paste: @Sendable (_ text: String, _ restoreClipboard: Bool) async -> PasteResult = { _, _ in .copiedOnly }
+    /// Presses Return in the front app, which sends the message in chat apps and runs the command in terminals.
+    public var pressReturn: @Sendable () async -> Void = {}
 }
 
 extension PasteClient: DependencyKey {
@@ -28,6 +30,9 @@ extension PasteClient: DependencyKey {
         return Self(
             paste: { text, restoreClipboard in
                 await LivePasteRuntimeContainer.shared.paste(text: text, restoreClipboard: restoreClipboard)
+            },
+            pressReturn: {
+                await LivePasteRuntimeContainer.shared.pressReturn()
             }
         )
     }
@@ -36,7 +41,8 @@ extension PasteClient: DependencyKey {
 extension PasteClient: TestDependencyKey {
     public static var testValue: Self {
         Self(
-            paste: { _, _ in .pasted }
+            paste: { _, _ in .pasted },
+            pressReturn: {}
         )
     }
 }
@@ -71,6 +77,13 @@ private final class LivePasteRuntime {
         }
 
         return .pasted
+    }
+
+    func pressReturn() {
+        guard AXIsProcessTrusted(), let source = CGEventSource(stateID: .hidSystemState) else { return }
+        let returnKey = Sauce.shared.keyCode(for: .return)
+        CGEvent(keyboardEventSource: source, virtualKey: returnKey, keyDown: true)?.post(tap: .cghidEventTap)
+        CGEvent(keyboardEventSource: source, virtualKey: returnKey, keyDown: false)?.post(tap: .cghidEventTap)
     }
 
     private func postCommandV() -> Bool {

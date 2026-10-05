@@ -1,12 +1,12 @@
 import CloudCleanupClient
-import CloudCleanupFeature
+import RouterFeature
 import Shared
 import SwiftUI
 import UI
 
 struct CloudTestPanel: View {
     @Binding var sample: String
-    let testRun: CloudCleanupModel.TestRun
+    let testRun: RouterModel.TestRun
     let onRun: () -> Void
 
     var body: some View {
@@ -48,7 +48,7 @@ struct CloudTestPanel: View {
     private var output: some View {
         switch testRun {
         case .idle:
-            Text("Press Run to clean up this sample with your prompt and tools.")
+            Text("Press Run to clean up this sample with these instructions.")
                 .foregroundStyle(.tertiary)
         case .running:
             Text("Writing…")
@@ -68,7 +68,7 @@ struct CloudTestPanel: View {
     }
 
     private var footnote: String {
-        guard case let .finished(result) = testRun else { return "Uses the same model, prompt, and tools as dictation." }
+        guard case let .finished(result) = testRun else { return "Uses the same model and tools as dictation." }
         let seconds = Double(result.elapsed.components.seconds) + Double(result.elapsed.components.attoseconds) / 1e18
         var parts = ["\(seconds.formatted(.number.precision(.fractionLength(1)))) s"]
         if let model = result.model {

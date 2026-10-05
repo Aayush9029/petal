@@ -1,22 +1,22 @@
 import SwiftUI
 
+public extension Gradient {
+    static let intelligence = Gradient(stops: [
+        Gradient.Stop(color: Color(red: 1, green: 0.67, blue: 0.31), location: 0.00),
+        Gradient.Stop(color: Color(red: 1, green: 0.44, blue: 0.11), location: 0.15),
+        Gradient.Stop(color: Color(red: 1, green: 0.34, blue: 0.29), location: 0.30),
+        Gradient.Stop(color: Color(red: 0.98, green: 0.15, blue: 0.48), location: 0.45),
+        Gradient.Stop(color: Color(red: 0.84, green: 0.29, blue: 0.82), location: 0.60),
+        Gradient.Stop(color: Color(red: 0.63, green: 0.52, blue: 0.9), location: 0.75),
+        Gradient.Stop(color: Color(red: 0.27, green: 0.71, blue: 1), location: 0.90),
+        Gradient.Stop(color: Color(red: 0.27, green: 0.94, blue: 1), location: 1.00),
+    ])
+}
+
 struct IntelligenceGradient: View {
     init() {}
 
-    static let gradient = LinearGradient(
-        stops: [
-            Gradient.Stop(color: Color(red: 1, green: 0.67, blue: 0.31), location: 0.00),
-            Gradient.Stop(color: Color(red: 1, green: 0.44, blue: 0.11), location: 0.15),
-            Gradient.Stop(color: Color(red: 1, green: 0.34, blue: 0.29), location: 0.30),
-            Gradient.Stop(color: Color(red: 0.98, green: 0.15, blue: 0.48), location: 0.45),
-            Gradient.Stop(color: Color(red: 0.84, green: 0.29, blue: 0.82), location: 0.60),
-            Gradient.Stop(color: Color(red: 0.63, green: 0.52, blue: 0.9), location: 0.75),
-            Gradient.Stop(color: Color(red: 0.27, green: 0.71, blue: 1), location: 0.90),
-            Gradient.Stop(color: Color(red: 0.27, green: 0.94, blue: 1), location: 1.00),
-        ],
-        startPoint: .leading,
-        endPoint: .trailing
-    )
+    static let gradient = LinearGradient(gradient: .intelligence, startPoint: .leading, endPoint: .trailing)
 
     var body: some View {
         Rectangle()

@@ -9,6 +9,8 @@ public struct GameOfLifeView: View {
     var columns: Int = 64
     var rows: Int = 15
     var tint: Color = .accentColor
+    /// A hidden window keeps its SwiftUI views alive, so the host pauses the simulation while it is off screen.
+    var isPaused = false
 
     @State private var cells: [Bool]
     @State private var display: [Double]
@@ -19,18 +21,19 @@ public struct GameOfLifeView: View {
 
     private let stepEvery = 3          // simulate ~6.7 generations/sec at 20Hz
     private let patternLifetime = 80   // ~12s before moving to the next pattern
+    private static let frameInterval = Duration.milliseconds(50)
 
-    private let ticker = Timer.publish(every: 1.0 / 20.0, on: .main, in: .common).autoconnect()
-
-    public init(columns: Int = 64, rows: Int = 15, tint: Color = .accentColor) {
+    public init(columns: Int = 64, rows: Int = 15, tint: Color = .accentColor, isPaused: Bool = false) {
         self.columns = columns
         self.rows = rows
         self.tint = tint
+        self.isPaused = isPaused
         _cells = State(initialValue: Array(repeating: false, count: columns * rows))
         _display = State(initialValue: Array(repeating: 0, count: columns * rows))
     }
 
     public var body: some View {
+        let display = display
         GeometryReader { geo in
             let layout = layout(for: geo.size)
             Canvas { context, _ in
@@ -55,11 +58,23 @@ public struct GameOfLifeView: View {
         .onAppear {
             if !seeded { reseed(); seeded = true }
         }
-        .onReceive(ticker) { _ in advance() }
+        .task(id: isPaused) {
+            guard !isPaused else { return }
+            let clock = ContinuousClock()
+            while !Task.isCancelled {
+                do {
+                    try await clock.sleep(for: Self.frameInterval)
+                } catch {
+                    return
+                }
+                advance()
+            }
+        }
     }
 
     // MARK: - Simulation
 
+    /// Reads each `@State` array once per tick: per-cell reads go through SwiftUI's state lookup and dominate the cost.
     private func advance() {
         tick &+= 1
         if tick % stepEvery == 0 {
@@ -70,18 +85,22 @@ public struct GameOfLifeView: View {
             }
         }
         // Ease each cell toward its live/dead target for smooth fades.
-        display = (0..<display.count).map { i in
+        let cells = cells
+        var display = display
+        for i in display.indices {
             let target: Double = cells[i] ? 1 : 0
-            return display[i] + (target - display[i]) * 0.32
+            display[i] += (target - display[i]) * 0.32
         }
+        self.display = display
     }
 
     private func step() {
-        var next = cells
+        let current = cells
+        var next = current
         for row in 0..<rows {
             for col in 0..<columns {
-                let n = neighbours(col, row)
-                let alive = cells[row * columns + col]
+                let n = Self.neighbours(col, row, in: current, columns: columns, rows: rows)
+                let alive = current[row * columns + col]
                 next[row * columns + col] = alive ? (n == 2 || n == 3) : (n == 3)
             }
         }
@@ -90,7 +109,7 @@ public struct GameOfLifeView: View {
 
     /// Bounded (non-wrapping) neighbour count — movers fly off the edge and the
     /// board clears, which triggers the next pattern.
-    private func neighbours(_ col: Int, _ row: Int) -> Int {
+    private static func neighbours(_ col: Int, _ row: Int, in cells: [Bool], columns: Int, rows: Int) -> Int {
         var count = 0
         for dy in -1...1 {
             for dx in -1...1 where !(dx == 0 && dy == 0) {

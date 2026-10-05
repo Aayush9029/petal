@@ -18,7 +18,8 @@ extension WindowConfig {
         title: "Petal Settings",
         style: .titled(.init(
             showsCloseButton: true,
-            toolbarStyle: .unified
+            toolbarStyle: .unified,
+            minHeightWithFixedWidth: 540
         )),
         size: CGSize(width: 720, height: 680)
     )

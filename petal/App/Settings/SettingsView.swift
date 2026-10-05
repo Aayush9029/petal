@@ -19,6 +19,7 @@ struct SettingsView: View {
                     sidebarRow(.recording)
                     sidebarRow(.transcription)
                     sidebarRow(.intelligence)
+                    sidebarRow(.router)
                 }
 
                 Section("Library") {
@@ -30,7 +31,8 @@ struct SettingsView: View {
                 }
             }
             .listStyle(.sidebar)
-            .navigationSplitViewColumnWidth(min: 190, ideal: 205, max: 220)
+            .navigationSplitViewColumnWidth(205)
+            .toolbar(removing: .sidebarToggle)
         } detail: {
             pane
                 .id(selectedTab)
@@ -63,7 +65,9 @@ struct SettingsView: View {
         case .transcription:
             TranscriptionPane(viewModel: viewModel)
         case .intelligence:
-            IntelligencePane(viewModel: viewModel)
+            IntelligencePane(viewModel: viewModel) { selectedTab = .router }
+        case .router:
+            RouterPane(viewModel: viewModel) { selectedTab = .intelligence }
         case .recording:
             RecordingPane(viewModel: viewModel)
         case .history:
@@ -96,6 +100,15 @@ struct GeneralPane: View {
                         viewModel.$pushToTalkThreshold.withLock { $0 = threshold }
                     }
                     .frame(width: 300)
+                }
+
+                SettingsCardDivider()
+
+                SettingsControlRow(
+                    title: "Send Now",
+                    description: "While recording, press ⌃X then ⌃S to stop, paste, and press Return."
+                ) {
+                    KeyCapsLabel(keys: ["⌃X", "⌃S"])
                 }
             }
 
@@ -358,6 +371,7 @@ struct HistoryPane: View {
     @State private var playback = HistoryPlaybackModel()
 
     var body: some View {
+        let canCleanUp = viewModel.canCleanUpHistory
         ZStack(alignment: .bottom) {
             VStack(alignment: .leading, spacing: 0) {
                 if filteredDays.isEmpty {
@@ -371,14 +385,18 @@ struct HistoryPane: View {
                                     ForEach(day.entries) { entry in
                                         HistoryRecordingCard(
                                             entry: entry,
-                                            transcript: viewModel.transcriptText(for: entry),
+                                            text: viewModel.historyText(for: entry),
                                             audioURL: viewModel.historyAudioURL(for: entry),
                                             isFailed: viewModel.historyEntryFailed(entry),
                                             isReprocessing: viewModel.reprocessingHistoryEntryID == entry.id,
+                                            canCleanUp: canCleanUp,
                                             playback: playback,
-                                            onCopy: { viewModel.copyHistoryEntry(entry) },
-                                            onReprocess: {
-                                                Task { await viewModel.reprocessHistoryEntry(entry) }
+                                            onCopy: { viewModel.copyButtonTapped($0) },
+                                            onTranscribeAgain: {
+                                                Task { await viewModel.reprocessHistoryEntry(entry, cleansUp: false) }
+                                            },
+                                            onTranscribeAndCleanUp: {
+                                                Task { await viewModel.reprocessHistoryEntry(entry, cleansUp: true) }
                                             },
                                             onDelete: {
                                                 playback.historyEntryDeleted(entry.id)

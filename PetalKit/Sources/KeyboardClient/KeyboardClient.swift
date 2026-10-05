@@ -10,6 +10,8 @@ public enum KeyPress: Equatable, Sendable {
     case escape
     case `return`
     case character(Character)
+    /// A letter pressed with Control and no Command or Option, such as Control-X.
+    case control(Character)
     case other
 }
 
@@ -172,6 +174,10 @@ private final class LiveKeyboardRuntime {
             return .other
         }
 
+        let modifiers = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+        if modifiers.contains(.control), modifiers.isDisjoint(with: [.command, .option]) {
+            return .control(character)
+        }
         return .character(character)
     }
 }

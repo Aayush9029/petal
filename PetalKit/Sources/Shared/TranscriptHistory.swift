@@ -14,6 +14,9 @@ public struct TranscriptHistoryDay: Codable, Identifiable, Equatable, Sendable {
 }
 
 public struct TranscriptHistoryVariant: Codable, Identifiable, Equatable, Sendable {
+    /// The speech model's text, saved next to the main variant when cleanup changed it.
+    public static let originalMode = "original"
+
     public var mode: String
     public var transcriptionElapsedSeconds: Double
     public var characterCount: Int
@@ -43,10 +46,24 @@ public struct TranscriptHistoryEntry: Codable, Identifiable, Equatable, Sendable
     public var modelID: String
     public var audioDurationSeconds: Double
     public var audioRelativePath: String?
+    public var app: FocusedApp?
     public var variants: IdentifiedArrayOf<TranscriptHistoryVariant>
 
+    /// The text Petal pasted: the cleanup when one ran, otherwise the transcript.
     public var preferredVariant: TranscriptHistoryVariant? {
-        variants[id: "smart"] ?? variants[id: "verbatim"] ?? variants[id: "original"] ?? variants.first
+        variants[id: "smart"] ?? variants[id: "verbatim"] ?? variants[id: TranscriptHistoryVariant.originalMode] ?? variants.first
+    }
+
+    public var transcriptVariant: TranscriptHistoryVariant? {
+        variants[id: TranscriptHistoryVariant.originalMode] ?? preferredVariant
+    }
+
+    public var cleanupVariant: TranscriptHistoryVariant? {
+        guard variants[id: TranscriptHistoryVariant.originalMode] != nil,
+              let preferredVariant,
+              preferredVariant.id != TranscriptHistoryVariant.originalMode
+        else { return nil }
+        return preferredVariant
     }
 
     public var preferredTranscriptRelativePath: String? {
@@ -70,6 +87,7 @@ public struct TranscriptHistoryEntry: Codable, Identifiable, Equatable, Sendable
         modelID: String,
         audioDurationSeconds: Double,
         audioRelativePath: String? = nil,
+        app: FocusedApp? = nil,
         variants: IdentifiedArrayOf<TranscriptHistoryVariant> = []
     ) {
         self.id = id
@@ -77,6 +95,7 @@ public struct TranscriptHistoryEntry: Codable, Identifiable, Equatable, Sendable
         self.modelID = modelID
         self.audioDurationSeconds = audioDurationSeconds
         self.audioRelativePath = audioRelativePath
+        self.app = app
         self.variants = variants
     }
 
@@ -86,6 +105,7 @@ public struct TranscriptHistoryEntry: Codable, Identifiable, Equatable, Sendable
         case modelID
         case audioDurationSeconds
         case audioRelativePath
+        case app
         case variants
 
         // Legacy keys (kept for migration of existing history.json)
@@ -105,6 +125,7 @@ public struct TranscriptHistoryEntry: Codable, Identifiable, Equatable, Sendable
         modelID = try container.decode(String.self, forKey: .modelID)
         audioDurationSeconds = try container.decodeIfPresent(Double.self, forKey: .audioDurationSeconds) ?? 0
         audioRelativePath = try container.decodeIfPresent(String.self, forKey: .audioRelativePath)
+        app = try container.decodeIfPresent(FocusedApp.self, forKey: .app)
 
         if let decodedVariants = try container.decodeIfPresent(IdentifiedArrayOf<TranscriptHistoryVariant>.self, forKey: .variants),
            !decodedVariants.isEmpty
@@ -138,6 +159,7 @@ public struct TranscriptHistoryEntry: Codable, Identifiable, Equatable, Sendable
         try container.encode(modelID, forKey: .modelID)
         try container.encode(audioDurationSeconds, forKey: .audioDurationSeconds)
         try container.encodeIfPresent(audioRelativePath, forKey: .audioRelativePath)
+        try container.encodeIfPresent(app, forKey: .app)
         try container.encode(variants, forKey: .variants)
     }
 }

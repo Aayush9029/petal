@@ -32,13 +32,17 @@ public struct ChromelessOptions: Sendable {
 public struct TitledOptions: Sendable {
     public var showsCloseButton: Bool
     public var toolbarStyle: NSWindow.ToolbarStyle?
+    /// When set, the window keeps its width and only its height resizes, down to this value.
+    public var minHeightWithFixedWidth: CGFloat?
 
     public init(
         showsCloseButton: Bool = true,
-        toolbarStyle: NSWindow.ToolbarStyle? = nil
+        toolbarStyle: NSWindow.ToolbarStyle? = nil,
+        minHeightWithFixedWidth: CGFloat? = nil
     ) {
         self.showsCloseButton = showsCloseButton
         self.toolbarStyle = toolbarStyle
+        self.minHeightWithFixedWidth = minHeightWithFixedWidth
     }
 }
 

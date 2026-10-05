@@ -20,9 +20,11 @@ import os
 import PasteClient
 import PermissionsClient
 import PlaybackDuckingClient
+import RouterFeature
 import LocalCleanupClient
 import Shared
 import SoundClient
+import SystemContextClient
 import TranscriptionClient
 import UserNotifications
 import WindowClient
@@ -60,10 +62,13 @@ final class AppModel {
     @ObservationIgnored @Shared(.doubleTapInterval) var doubleTapInterval: Double = 0.4
     @ObservationIgnored @Shared(.transcriptHistoryDays) var transcriptHistoryDays: [TranscriptHistoryDay] = []
     @ObservationIgnored @Shared(.modelCatalog) var modelCatalog: IdentifiedArrayOf<ModelCatalogEntry> = []
+    @ObservationIgnored @Shared(.cleanupRoutes) var cleanupRoutes: IdentifiedArrayOf<CleanupRoute> = []
+    @ObservationIgnored @Shared(.cleanupFallbackAction) var cleanupFallbackAction: CleanupRoute.Action = .cleanUp
 
     let modelDownloadViewModel: ModelDownloadModel
     let cleanupDownloads = LocalCleanupDownloads()
     let cloudCleanup = CloudCleanupModel()
+    let router: RouterModel
 
     var selectedModelID: String {
         get { modelDownloadViewModel.selectedModelID }
@@ -103,6 +108,7 @@ final class AppModel {
     @ObservationIgnored @Dependency(\.doubleTapClient) private var doubleTapClient
     @ObservationIgnored @Dependency(\.windowClient) private var windowClient
     @ObservationIgnored @Dependency(\.playbackDuckingClient) private var playbackDuckingClient
+    @ObservationIgnored @Dependency(\.systemContextClient) private var systemContextClient
     @ObservationIgnored private let logger = Logger(subsystem: "com.optimalapps.petal", category: "AppModel")
 
     @ObservationIgnored private let isPreviewMode: Bool
@@ -130,7 +136,9 @@ final class AppModel {
     @ObservationIgnored private var activeHistorySessionID: UUID?
     @ObservationIgnored private var recordingModel: ModelOption?
     @ObservationIgnored private var streamingTask: Task<String, any Error>?
-    @ObservationIgnored private var historyReprocessContext: TranscriptHistoryEntry?
+    @ObservationIgnored private var historyReprocessContext: HistoryReprocess?
+    @ObservationIgnored private var sendNowChordStart: Date?
+    @ObservationIgnored private var pendingSendAfterPaste = false
     @ObservationIgnored private var isPlaybackDucked = false
     var menuBarFlashOn = true
     @ObservationIgnored private var estimatedTranscriptionRTF = 2.2
@@ -151,6 +159,7 @@ final class AppModel {
     init(isPreviewMode: Bool = AppModel.isRunningInSwiftUIPreview) {
         self.isPreviewMode = isPreviewMode
         modelDownloadViewModel = ModelDownloadModel(isPreviewMode: isPreviewMode)
+        router = RouterModel(cloud: cloudCleanup)
 
         if isPreviewMode {
             $hasCompletedSetup.withLock { $0 = true }
@@ -397,7 +406,17 @@ final class AppModel {
         transientMessage = "Transcript deleted"
     }
 
-    func reprocessTranscriptHistoryButtonTapped(_ entryID: UUID) async {
+    /// Petal W1, Apple Intelligence, or a cloud model that is ready right now, before any per-dictation rule.
+    var readyCleanupModel: CleanupModel? {
+        switch cleanupModel {
+        case .off: nil
+        case .appleIntelligence: foundationModelClient.isAvailable() ? .appleIntelligence : nil
+        case .petalW1: localCleanupClient.isDownloaded(cleanupModel) ? cleanupModel : nil
+        case .cloud: cloudCleanup.configuration == nil ? nil : .cloud
+        }
+    }
+
+    func reprocessTranscriptHistoryButtonTapped(_ entryID: UUID, cleansUp: Bool) async {
         guard let entry = transcriptHistoryDays.lazy.compactMap({ $0.entries[id: entryID] }).first,
               let audioURL = historyClient.historyAudioURL(entry.audioRelativePath)
         else {
@@ -405,7 +424,7 @@ final class AppModel {
             return
         }
 
-        historyReprocessContext = entry
+        historyReprocessContext = HistoryReprocess(entry: entry, cleansUp: cleansUp)
         defer { historyReprocessContext = nil }
         await transcribeDroppedAudioFile(audioURL)
     }
@@ -490,8 +509,8 @@ final class AppModel {
         await floatingCapsuleClient.showTrimming()
 
         let reprocessContext = historyReprocessContext
-        let historySessionID = reprocessContext?.id ?? uuid()
-        let historyTimestamp = reprocessContext?.timestamp ?? now
+        let historySessionID = reprocessContext?.entry.id ?? uuid()
+        let historyTimestamp = reprocessContext?.entry.timestamp ?? now
         let shouldPersistAudio = reprocessContext == nil
         let pipelineStart = now
         let transcriptionStart = now
@@ -517,7 +536,7 @@ final class AppModel {
                         "model": selectedModelOption.rawValue,
                         "modeRequested": transcriptionMode.rawValue,
                         "modeResolved": mode.rawValue,
-                        "cleanup": "skippedForDroppedFile",
+                        "cleanup": reprocessContext?.cleansUp == true ? "requested" : "skippedForDroppedFile",
                         "audioFile": audioURL.lastPathComponent,
                         "audioDuration": formatElapsedSeconds(audioDuration),
                         "audioSizeBytes": "\(audioSizeBytes)"
@@ -547,9 +566,20 @@ final class AppModel {
             stopTranscriptionProgressTracking(finalProgress: 1)
 
             let isEmptyTranscript = transcript.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            var output = transcript
+            if let reprocessContext, reprocessContext.cleansUp, !isEmptyTranscript, let cleanup = readyCleanupModel {
+                pipelineStage = "refining"
+                sessionState = .processing(.refining)
+                await floatingCapsuleClient.showRefining()
+                let route = cleanupRoutes.route(for: reprocessContext.entry.app)
+                if let cleaned = await cleanedTranscript(transcript, using: cleanup, prompt: route?.prompt, sessionID: historySessionID) {
+                    output = cleaned
+                }
+            }
+
             let persistedPaths = await persistHistoryArtifacts(
                 audioURL: audioURL,
-                transcript: transcript,
+                transcript: output,
                 timestamp: historyTimestamp,
                 mode: mode.rawValue,
                 modelID: selectedModelOption.rawValue,
@@ -571,12 +601,13 @@ final class AppModel {
                     audioRelativePath: persistedPaths?.audioRelativePath,
                     transcriptRelativePath: persistedPaths?.transcriptRelativePath,
                     sessionID: historySessionID,
-                    timestamp: historyTimestamp
+                    timestamp: historyTimestamp,
+                    replacesVariants: reprocessContext != nil
                 )
             } else {
                 pipelineStage = "clipboard"
                 await soundClient.playTranscriptionCompleted()
-                copyTranscriptToClipboard(transcript)
+                copyTranscriptToClipboard(output)
                 switch origin {
                 case .dropped:
                     await postCopiedToClipboardNotification(body: "Copied to clipboard")
@@ -588,7 +619,7 @@ final class AppModel {
                 await floatingCapsuleClient.showCopiedToClipboard()
 
                 appendTranscriptHistory(
-                    transcript: transcript,
+                    transcript: output,
                     modelID: selectedModelOption.rawValue,
                     mode: mode.rawValue,
                     audioDuration: audioDuration,
@@ -597,8 +628,21 @@ final class AppModel {
                     audioRelativePath: persistedPaths?.audioRelativePath,
                     transcriptRelativePath: persistedPaths?.transcriptRelativePath,
                     sessionID: historySessionID,
-                    timestamp: historyTimestamp
+                    timestamp: historyTimestamp,
+                    replacesVariants: reprocessContext != nil
                 )
+                if output != transcript {
+                    await appendOriginalTranscriptHistory(
+                        transcript,
+                        audioURL: audioURL,
+                        modelID: selectedModelOption.rawValue,
+                        audioDuration: audioDuration,
+                        transcriptionElapsed: transcriptionElapsed,
+                        sessionID: historySessionID,
+                        artifactTimestamp: historyTimestamp,
+                        timestamp: historyTimestamp
+                    )
+                }
             }
 
             lastError = nil
@@ -873,6 +917,8 @@ final class AppModel {
         }
         isStoppingRecording = true
         defer { isStoppingRecording = false }
+        let sendsAfterPaste = pendingSendAfterPaste
+        pendingSendAfterPaste = false
 
         let isCurrentlyRecording = await audioClient.isRecording()
         guard isCurrentlyRecording else {
@@ -917,6 +963,8 @@ final class AppModel {
             let stopRecordingStart = now
             let audioURL = try await audioClient.stopRecording()
             recordedAudioURL = audioURL
+            let readFocusedApp = systemContextClient.focusedApp
+            async let focusedApp = readFocusedApp()
             await stopPlaybackDuckingIfNeeded()
             let stopRecordingElapsed = now.timeIntervalSince(stopRecordingStart)
             let audioSizeBytes = appAudioFileSizeBytes(audioURL) ?? 0
@@ -986,10 +1034,13 @@ final class AppModel {
                 )
             )
 
-            let cleanup = cleanupMinimumWords.allowsCleanup(of: transcript)
+            let targetApp = await focusedApp
+            let route = cleanupRoutes.route(for: targetApp)
+            let routeAction = route?.action ?? cleanupFallbackAction
+            let cleanup = routeAction == .cleanUp && cleanupMinimumWords.allowsCleanup(of: transcript)
                 ? activeCleanupModel(mode: mode, model: selectedModelOption)
                 : nil
-            logger.info("Cleanup decision: mode=\(mode.rawValue, privacy: .public), selected=\(self.cleanupModel.rawValue, privacy: .public), resolved=\(cleanup?.rawValue ?? "none", privacy: .public), words=\(CleanupMinimumWords.wordCount(transcript), privacy: .public)")
+            logger.info("Cleanup decision: mode=\(mode.rawValue, privacy: .public), selected=\(self.cleanupModel.rawValue, privacy: .public), resolved=\(cleanup?.rawValue ?? "none", privacy: .public), route=\(route == nil ? "fallback" : "app", privacy: .public), action=\(routeAction.rawValue, privacy: .public), words=\(CleanupMinimumWords.wordCount(transcript), privacy: .public)")
 
             if let cleanup, !transcript.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 pipelineStage = "refining"
@@ -998,7 +1049,7 @@ final class AppModel {
                     await soundClient.playRefineStarted()
                 }
                 await floatingCapsuleClient.showRefining()
-                if let cleaned = await cleanedTranscript(transcript, using: cleanup, sessionID: historySessionID) {
+                if let cleaned = await cleanedTranscript(transcript, using: cleanup, prompt: route?.prompt, sessionID: historySessionID) {
                     shouldPersistOriginalVariant = cleaned != transcript
                     transcript = cleaned
                 }
@@ -1044,7 +1095,8 @@ final class AppModel {
                     pasteResult: .skipped,
                     audioRelativePath: persistedPaths?.audioRelativePath,
                     transcriptRelativePath: persistedPaths?.transcriptRelativePath,
-                    sessionID: historySessionID
+                    sessionID: historySessionID,
+                    app: targetApp
                 )
                 historyWasPersisted = true
             } else {
@@ -1053,6 +1105,11 @@ final class AppModel {
 
                 let pasteStart = now
                 let pasteResult = await pasteClient.paste(transcript, restoreClipboardAfterPaste)
+                if sendsAfterPaste, pasteResult == .pasted {
+                    // Chat apps built on web views insert pasted text a moment later, and an early Return sends an empty message.
+                    try? await clock.sleep(for: .milliseconds(150))
+                    await pasteClient.pressReturn()
+                }
                 let pasteElapsed = now.timeIntervalSince(pasteStart)
                 logger.info("Transcription completed. characters=\(transcript.count, privacy: .public), pasteResult=\(String(describing: pasteResult), privacy: .public)")
                 consoleLog("Transcription completed. characters=\(transcript.count), pasteResult=\(String(describing: pasteResult))")
@@ -1063,6 +1120,7 @@ final class AppModel {
                         [
                             "sessionID": historySessionID.uuidString,
                             "pasteResult": pasteResult.rawValue,
+                            "sentWithReturn": "\(sendsAfterPaste && pasteResult == .pasted)",
                             "elapsed": formatElapsedSeconds(pasteElapsed),
                             "restoreClipboardAfterPaste": "\(restoreClipboardAfterPaste)"
                         ]
@@ -1114,44 +1172,21 @@ final class AppModel {
                     pasteResult: pasteResult,
                     audioRelativePath: persistedPaths?.audioRelativePath,
                     transcriptRelativePath: persistedPaths?.transcriptRelativePath,
-                    sessionID: historySessionID
+                    sessionID: historySessionID,
+                    app: targetApp
                 )
                 historyWasPersisted = true
 
                 if shouldPersistOriginalVariant {
                     pipelineStage = "persist-original"
-                    let originalPersistStart = now
-                    let originalPaths = await persistHistoryArtifacts(
+                    await appendOriginalTranscriptHistory(
+                        originalTranscript,
                         audioURL: audioURL,
-                        transcript: originalTranscript,
-                        timestamp: transcriptionStart,
-                        mode: "original",
                         modelID: selectedModelOption.rawValue,
-                        persistAudio: false
-                    )
-                    let originalPersistElapsed = now.timeIntervalSince(originalPersistStart)
-                    logClient.dumpDebug(
-                        "AppModel",
-                        "Persisted original transcript variant",
-                        appDumpString(
-                            [
-                                "sessionID": historySessionID.uuidString,
-                                "elapsed": formatElapsedSeconds(originalPersistElapsed),
-                                "transcriptPath": originalPaths?.transcriptRelativePath ?? "nil"
-                            ]
-                        )
-                    )
-
-                    appendTranscriptHistory(
-                        transcript: originalTranscript,
-                        modelID: selectedModelOption.rawValue,
-                        mode: "original",
                         audioDuration: audioDuration,
                         transcriptionElapsed: transcriptionElapsed,
-                        pasteResult: .skipped,
-                        audioRelativePath: originalPaths?.audioRelativePath,
-                        transcriptRelativePath: originalPaths?.transcriptRelativePath,
-                        sessionID: historySessionID
+                        sessionID: historySessionID,
+                        artifactTimestamp: transcriptionStart
                     )
                 }
 
@@ -1453,9 +1488,36 @@ final class AppModel {
             }
         }
 
-        guard keyPress == .escape else { return false }
-        Task { await handleEscapeDuringRecording() }
-        return true
+        switch keyPress {
+        case .control("x"):
+            sendNowChordStart = now
+            return true
+        case .control("s") where sendNowChordStart.map({ now.timeIntervalSince($0) <= Self.sendNowChordWindow }) == true:
+            sendNowChordStart = nil
+            Task { await sendNowShortcutPressed() }
+            return true
+        case .escape:
+            sendNowChordStart = nil
+            Task { await handleEscapeDuringRecording() }
+            return true
+        default:
+            sendNowChordStart = nil
+            return false
+        }
+    }
+
+    /// Control-X then Control-S must come within this window, like the Emacs save chord it copies.
+    private static let sendNowChordWindow: TimeInterval = 1.5
+
+    /// Stops like the capsule's Transcribe button, then presses Return after the paste to send the message.
+    private func sendNowShortcutPressed() async {
+        guard case .recording = sessionState, await audioClient.isRecording() else { return }
+        logger.info("Send now shortcut pressed")
+        pendingSendAfterPaste = true
+        pushToTalkIsActive = false
+        toggleRecordingIsActive = false
+        currentShortcutPressStart = nil
+        await stopRecordingAndTranscribe()
     }
 
     private func handleConfirmationKeyPress(_ keyPress: KeyPress) async {
@@ -1982,17 +2044,13 @@ final class AppModel {
     /// Speech models with native smart transcription already applied the prompt, so a second pass is skipped.
     private func activeCleanupModel(mode: TranscriptionMode, model: ModelOption) -> CleanupModel? {
         if mode == .smart, model.supportsSmartTranscription { return nil }
-        switch cleanupModel {
-        case .off: return nil
-        case .appleIntelligence: return foundationModelClient.isAvailable() ? .appleIntelligence : nil
-        case .petalW1: return localCleanupClient.isDownloaded(cleanupModel) ? cleanupModel : nil
-        case .cloud: return cloudCleanup.configuration == nil ? nil : .cloud
-        }
+        return readyCleanupModel
     }
 
-    private func cleanedTranscript(_ transcript: String, using cleanup: CleanupModel, sessionID: UUID) async -> String? {
+    /// `prompt` comes from the app's route and replaces the default prompt. Petal W1 has no prompt, so it ignores it.
+    private func cleanedTranscript(_ transcript: String, using cleanup: CleanupModel, prompt: String?, sessionID: UUID) async -> String? {
         let start = now
-        var details = ["sessionID": sessionID.uuidString, "cleanup": cleanup.rawValue]
+        var details = ["sessionID": sessionID.uuidString, "cleanup": cleanup.rawValue, "routed": "\(prompt != nil)"]
         var cleaned: String?
         do {
             switch cleanup {
@@ -2001,7 +2059,7 @@ final class AppModel {
             case .appleIntelligence where FillerWords.isFillerOnly(transcript):
                 cleaned = ""
             case .appleIntelligence:
-                let refined = try await foundationModelClient.refine(transcript, smartPrompt)
+                let refined = try await foundationModelClient.refine(transcript, prompt ?? smartPrompt)
                 // Apple Intelligence returns empty text only on failure.
                 cleaned = refined.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : refined
             case .petalW1:
@@ -2014,7 +2072,10 @@ final class AppModel {
             case .cloud where FillerWords.isFillerOnly(transcript):
                 cleaned = ""
             case .cloud:
-                guard let configuration = cloudCleanup.configuration else { break }
+                guard var configuration = cloudCleanup.configuration else { break }
+                if let prompt {
+                    configuration.systemPrompt = prompt
+                }
                 details["provider"] = configuration.connection.provider.rawValue
                 details["model"] = configuration.model.rawValue
                 let result = try await cloudCleanupClient.clean(transcript, configuration)
@@ -2234,7 +2295,9 @@ final class AppModel {
         audioRelativePath: String?,
         transcriptRelativePath: String?,
         sessionID: UUID,
-        timestamp: Date? = nil
+        timestamp: Date? = nil,
+        app: FocusedApp? = nil,
+        replacesVariants: Bool = false
     ) {
         let entry = historyClient.appendEntry(
             AppendEntryRequest(
@@ -2249,10 +2312,45 @@ final class AppModel {
                 transcriptRelativePath: transcriptRelativePath,
                 retentionMode: historyRetentionMode,
                 timestamp: timestamp ?? now,
-                sessionID: sessionID
+                sessionID: sessionID,
+                app: app,
+                replacesVariants: replacesVariants
             )
         )
         $transcriptHistoryDays.withLock { $0 = entry }
+    }
+
+    /// Saves the speech model's text next to its cleanup, so History can show both.
+    private func appendOriginalTranscriptHistory(
+        _ transcript: String,
+        audioURL: URL,
+        modelID: String,
+        audioDuration: Double,
+        transcriptionElapsed: Double,
+        sessionID: UUID,
+        artifactTimestamp: Date,
+        timestamp: Date? = nil
+    ) async {
+        let paths = await persistHistoryArtifacts(
+            audioURL: audioURL,
+            transcript: transcript,
+            timestamp: artifactTimestamp,
+            mode: TranscriptHistoryVariant.originalMode,
+            modelID: modelID,
+            persistAudio: false
+        )
+        appendTranscriptHistory(
+            transcript: transcript,
+            modelID: modelID,
+            mode: TranscriptHistoryVariant.originalMode,
+            audioDuration: audioDuration,
+            transcriptionElapsed: transcriptionElapsed,
+            pasteResult: .skipped,
+            audioRelativePath: paths?.audioRelativePath,
+            transcriptRelativePath: paths?.transcriptRelativePath,
+            sessionID: sessionID,
+            timestamp: timestamp
+        )
     }
 
     private func persistHistoryArtifacts(
@@ -2288,6 +2386,11 @@ final class AppModel {
         menuBarFlashTask?.cancel()
         downloadStateObserverTask?.cancel()
     }
+}
+
+private struct HistoryReprocess {
+    var entry: TranscriptHistoryEntry
+    var cleansUp: Bool
 }
 
 private enum AppTranscriptionError: LocalizedError {
