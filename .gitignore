@@ -12,3 +12,6 @@ ops/private/
 
 build-release/
 secret_keys/
+
+# Local Claude Code instructions
+CLAUDE.md
