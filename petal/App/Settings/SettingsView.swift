@@ -105,6 +105,15 @@ struct GeneralPane: View {
                 SettingsCardDivider()
 
                 SettingsControlRow(
+                    title: "Paste Last Transcription",
+                    description: "Paste your most recent transcription again."
+                ) {
+                    KeyboardShortcuts.Recorder(for: .pasteLastTranscription)
+                }
+
+                SettingsCardDivider()
+
+                SettingsControlRow(
                     title: "Send Now",
                     description: "While recording, press ⌃X then ⌃S to stop, paste, and press Return."
                 ) {
