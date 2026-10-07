@@ -407,11 +407,14 @@ final class AppModel {
     }
 
     /// Petal W1, Apple Intelligence, or a cloud model that is ready right now, before any per-dictation rule.
-    var readyCleanupModel: CleanupModel? {
-        switch cleanupModel {
+    var readyCleanupModel: CleanupModel? { readyCleanupModel(cleanupModel) }
+
+    /// A route can pick its own engine, so readiness is checked for the engine that will actually run.
+    private func readyCleanupModel(_ model: CleanupModel) -> CleanupModel? {
+        switch model {
         case .off: nil
         case .appleIntelligence: foundationModelClient.isAvailable() ? .appleIntelligence : nil
-        case .petalW1: localCleanupClient.isDownloaded(cleanupModel) ? cleanupModel : nil
+        case .petalW1: localCleanupClient.isDownloaded(model) ? model : nil
         case .cloud: cloudCleanup.configuration == nil ? nil : .cloud
         }
     }
@@ -585,11 +588,11 @@ final class AppModel {
 
             let isEmptyTranscript = transcript.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             var output = transcript
-            if let reprocessContext, reprocessContext.cleansUp, !isEmptyTranscript, let cleanup = readyCleanupModel {
+            let route = reprocessContext.flatMap { cleanupRoutes.route(for: $0.entry.app) }
+            if let reprocessContext, reprocessContext.cleansUp, !isEmptyTranscript, let cleanup = readyCleanupModel(route?.cleanupModel ?? cleanupModel) {
                 pipelineStage = "refining"
                 sessionState = .processing(.refining)
                 await floatingCapsuleClient.showRefining()
-                let route = cleanupRoutes.route(for: reprocessContext.entry.app)
                 if let cleaned = await cleanedTranscript(transcript, using: cleanup, prompt: route?.prompt, sessionID: historySessionID) {
                     output = cleaned
                 }
@@ -1056,7 +1059,7 @@ final class AppModel {
             let route = cleanupRoutes.route(for: targetApp)
             let routeAction = route?.action ?? cleanupFallbackAction
             let cleanup = routeAction == .cleanUp && cleanupMinimumWords.allowsCleanup(of: transcript)
-                ? activeCleanupModel(mode: mode, model: selectedModelOption)
+                ? activeCleanupModel(mode: mode, model: selectedModelOption, route: route)
                 : nil
             logger.info("Cleanup decision: mode=\(mode.rawValue, privacy: .public), selected=\(self.cleanupModel.rawValue, privacy: .public), resolved=\(cleanup?.rawValue ?? "none", privacy: .public), route=\(route == nil ? "fallback" : "app", privacy: .public), action=\(routeAction.rawValue, privacy: .public), words=\(CleanupMinimumWords.wordCount(transcript), privacy: .public)")
 
@@ -2062,9 +2065,9 @@ final class AppModel {
     nonisolated private static let cloudCleanupFailedMessage = "Cloud cleanup failed. Pasted original."
 
     /// Speech models with native smart transcription already applied the prompt, so a second pass is skipped.
-    private func activeCleanupModel(mode: TranscriptionMode, model: ModelOption) -> CleanupModel? {
+    private func activeCleanupModel(mode: TranscriptionMode, model: ModelOption, route: CleanupRoute?) -> CleanupModel? {
         if mode == .smart, model.supportsSmartTranscription { return nil }
-        return readyCleanupModel
+        return readyCleanupModel(route?.cleanupModel ?? cleanupModel)
     }
 
     /// `prompt` comes from the app's route and replaces the default prompt. Petal W1 has no prompt, so it ignores it.

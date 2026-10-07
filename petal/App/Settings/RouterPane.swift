@@ -53,7 +53,7 @@ struct RouterPane: View {
             PromptEditorSheet(
                 title: "\(router.selectedRoute?.trigger.title ?? "All Other Apps") Instructions",
                 text: Binding(get: { router.selectedPrompt }, set: { router.promptChanged($0) }),
-                showsVariables: viewModel.cleanupModel != .appleIntelligence,
+                showsVariables: router.effectiveCleanupModel != .appleIntelligence,
                 isTranscriptTagMissing: router.isTranscriptTagMissing,
                 canReset: router.canResetPrompt,
                 onAddTranscriptTag: { router.addTranscriptTagButtonTapped() },
@@ -134,6 +134,10 @@ struct RouterPane: View {
             VStack(alignment: .leading, spacing: 10) {
                 PromptPreview(text: router.selectedPrompt) { router.promptEditorTapped() }
 
+                if router.canPickCleanupModel {
+                    cleanupModelMenu
+                }
+
                 if router.isTranscriptTagMissing {
                     TranscriptTagWarning { router.addTranscriptTagButtonTapped() }
                 }
@@ -149,6 +153,25 @@ struct RouterPane: View {
                     }
                 }
             }
+        }
+    }
+
+    private var cleanupModelMenu: some View {
+        HStack {
+            Text("Intelligence")
+                .font(.callout)
+            Spacer(minLength: 8)
+            Picker("Intelligence", selection: Binding(
+                get: { router.selectedRoute?.cleanupModel },
+                set: { router.cleanupModelSelected($0) }
+            )) {
+                Text("Default (\(viewModel.cleanupModel.displayName))").tag(CleanupModel?.none)
+                ForEach(CleanupModel.allCases) { model in
+                    Text(model.displayName).tag(CleanupModel?.some(model))
+                }
+            }
+            .labelsHidden()
+            .fixedSize()
         }
     }
 
@@ -169,7 +192,7 @@ struct RouterPane: View {
     }
 
     private var instructionsFootnote: String {
-        switch viewModel.cleanupModel {
+        switch router.effectiveCleanupModel {
         case .appleIntelligence: "Apple Intelligence follows these instructions. Click the prompt to edit it."
         case .petalW1: "Apple Intelligence and cloud models follow these instructions. Petal W1 uses its own style."
         case .off, .cloud: "Click the prompt to edit it and insert variables, such as your name or the window title."
