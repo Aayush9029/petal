@@ -21,12 +21,21 @@ public struct CleanupRoute: Codable, Equatable, Identifiable, Sendable {
     public var action: Action
     /// Kept while the action is `pasteAsSaid`, so turning cleanup back on restores it.
     public var prompt: String
+    /// Cleanup engine for this route. `nil` uses the one chosen in Intelligence.
+    public var cleanupModel: CleanupModel?
 
-    public init(id: ID, trigger: Trigger, action: Action = .cleanUp, prompt: String) {
+    public init(
+        id: ID,
+        trigger: Trigger,
+        action: Action = .cleanUp,
+        prompt: String,
+        cleanupModel: CleanupModel? = nil
+    ) {
         self.id = id
         self.trigger = trigger
         self.action = action
         self.prompt = prompt
+        self.cleanupModel = cleanupModel
     }
 
     /// Accepts what people paste, such as "https://www.github.com/apple", and keeps only "github.com".
