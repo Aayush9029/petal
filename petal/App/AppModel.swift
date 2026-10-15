@@ -200,7 +200,6 @@ final class AppModel {
         }
         refreshPermissionStatus()
         startPermissionMonitoring()
-        audioClient.warmup()
         logger.info("AppModel initialized. setupCompleted=\(self.hasCompletedSetup, privacy: .public), model=\(self.selectedModelID, privacy: .public)")
         consoleLog("AppModel initialized. setupCompleted=\(self.hasCompletedSetup), model=\(self.selectedModelID)")
 
@@ -279,6 +278,7 @@ final class AppModel {
 
     func selectedModelDidChange() {
         modelDownloadViewModel.selectedModelChanged()
+        prepareAudioCapture()
         estimatedTranscriptionRTF = defaultTranscriptionRTF(for: selectedModelOption)
         let normalizedMode = normalizedTranscriptionMode(transcriptionMode)
         if transcriptionMode != normalizedMode {
@@ -875,17 +875,18 @@ final class AppModel {
     // MARK: - Private: Recording & Transcription
 
     private func startAudioCapture(model: ModelOption) async throws {
-        prepareCleanupModelIfNeeded()
         let levelHandler: @Sendable (Double) -> Void = { [weak self] level in
             Task { @MainActor [weak self] in self?.recordingLevelDidUpdate(level) }
         }
         guard model.supportsStreamingTranscription else {
             try await audioClient.startRecording(levelHandler)
             try Task.checkCancellation()
+            prepareCleanupModelIfNeeded()
             return
         }
         let audio = try await audioClient.startStreamingRecording(levelHandler)
         try Task.checkCancellation()
+        prepareCleanupModelIfNeeded()
         let sessionID = activeHistorySessionID
         let client = transcriptionClient
         streamingTask = Task { [weak self] in
@@ -1650,9 +1651,18 @@ final class AppModel {
 
     private func refreshPermissionStatusAsync() async {
         if isPreviewMode { return }
+        let wasMicrophoneAuthorized = microphoneAuthorized
         microphonePermissionState = await permissionsClient.microphonePermissionState()
         microphoneAuthorized = microphonePermissionState == .authorized
+        if microphoneAuthorized && !wasMicrophoneAuthorized {
+            prepareAudioCapture()
+        }
         accessibilityAuthorized = await permissionsClient.hasAccessibilityPermission()
+    }
+
+    func prepareAudioCapture() {
+        guard !isPreviewMode, microphoneAuthorized else { return }
+        audioClient.warmup()
     }
 
     private func startPermissionMonitoring() {
@@ -2130,16 +2140,27 @@ final class AppModel {
     /// Loads the local cleanup model while the user speaks so cleanup starts on warm weights.
     private func prepareCleanupModelIfNeeded() {
         let model = cleanupModel
-        guard model.isLocal, cleanupWarmupTask == nil, localCleanupClient.isDownloaded(model) else { return }
+        guard model.isLocal, cleanupWarmupTask == nil else { return }
         let client = localCleanupClient
         cleanupWarmupTask = Task { [weak self] in
             do {
-                try await client.prepare(model)
+                let prepared = try await Self.prepareCleanupModel(model, client: client)
+                guard !Task.isCancelled else { return }
+                if !prepared { self?.cleanupWarmupTask = nil }
             } catch {
+                guard !Task.isCancelled else { return }
                 self?.logger.error("\(model.rawValue, privacy: .public) warmup failed: \(error.localizedDescription, privacy: .public)")
                 self?.cleanupWarmupTask = nil
             }
         }
+    }
+
+    @concurrent
+    nonisolated private static func prepareCleanupModel(_ model: CleanupModel, client: LocalCleanupClient) async throws -> Bool {
+        guard client.isDownloaded(model) else { return false }
+        try Task.checkCancellation()
+        try await client.prepare(model)
+        return true
     }
 
     func cleanupModelDidChange() {

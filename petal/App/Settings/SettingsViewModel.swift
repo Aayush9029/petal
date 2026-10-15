@@ -67,6 +67,7 @@ final class SettingsViewModel {
             $selectedAudioInputDeviceID.withLock {
                 $0 = newValue.isEmpty ? AudioInputDevice.systemDefaultID : newValue
             }
+            appModel.prepareAudioCapture()
         }
     }
 
