@@ -52,7 +52,7 @@ struct IntelligencePane: View {
                 .transition(.opacity.combined(with: .move(edge: .bottom)))
             }
 
-            if viewModel.cleanupModel == .cloud {
+            if viewModel.showsCloudCleanupSetup {
                 CloudCleanupSections(cloud: viewModel.cloudCleanup)
                     .transition(.opacity.combined(with: .move(edge: .bottom)))
             }

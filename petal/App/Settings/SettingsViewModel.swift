@@ -160,14 +160,31 @@ final class SettingsViewModel {
     var routerNotice: RouterNotice? {
         if usesSmartTranscription { return .smartTranscription }
         switch cleanupModel {
-        case .off: return .cleanupOff
+        case .off: return router.routeCleanupModels.isEmpty ? .cleanupOff : nil
         case .petalW1: return .petalW1
         case .appleIntelligence, .cloud: return nil
         }
     }
 
-    var canCleanUpHistory: Bool {
-        appModel.readyCleanupModel != nil
+    /// A Cloud Model route reads the provider and key set up here, even when the default is another engine.
+    var showsCloudCleanupSetup: Bool {
+        cleanupModel == .cloud || router.routeCleanupModels.contains(.cloud)
+    }
+
+    /// A route on an engine that is not ready pastes the words as said, so the Router explains why.
+    var unreadyRouteCleanupModel: CleanupModel? {
+        guard let model = router.selectedCleanupModel, !appModel.isCleanupModelReady(model) else { return nil }
+        return model
+    }
+
+    /// Checking Petal W1 reads the disk, so the History list reads this once and not once per entry.
+    var readyCleanupModels: Set<CleanupModel> {
+        Set(CleanupModel.allCases.filter(appModel.isCleanupModelReady))
+    }
+
+    /// Cleanup in History uses the engine of the entry's app route, the same as live dictation.
+    func historyCleanupModel(for entry: TranscriptHistoryEntry) -> CleanupModel {
+        router.routes.route(for: entry.app)?.cleanupModel ?? cleanupModel
     }
 
     var cloudCleanupDetail: String? {

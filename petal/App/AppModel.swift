@@ -407,16 +407,18 @@ final class AppModel {
         transientMessage = "Transcript deleted"
     }
 
-    /// Petal W1, Apple Intelligence, or a cloud model that is ready right now, before any per-dictation rule.
-    var readyCleanupModel: CleanupModel? { readyCleanupModel(cleanupModel) }
+    /// A route can pick its own engine, so readiness is checked for the engine that runs for it.
+    private func readyCleanupModel(for route: CleanupRoute?) -> CleanupModel? {
+        let model = route?.cleanupModel ?? cleanupModel
+        return isCleanupModelReady(model) ? model : nil
+    }
 
-    /// A route can pick its own engine, so readiness is checked for the engine that will actually run.
-    private func readyCleanupModel(_ model: CleanupModel) -> CleanupModel? {
+    func isCleanupModelReady(_ model: CleanupModel) -> Bool {
         switch model {
-        case .off: nil
-        case .appleIntelligence: foundationModelClient.isAvailable() ? .appleIntelligence : nil
-        case .petalW1: localCleanupClient.isDownloaded(model) ? model : nil
-        case .cloud: cloudCleanup.configuration == nil ? nil : .cloud
+        case .off: false
+        case .appleIntelligence: foundationModelClient.isAvailable()
+        case .petalW1: localCleanupClient.isDownloaded(model)
+        case .cloud: cloudCleanup.configuration != nil
         }
     }
 
@@ -590,7 +592,7 @@ final class AppModel {
             let isEmptyTranscript = transcript.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             var output = transcript
             let route = reprocessContext.flatMap { cleanupRoutes.route(for: $0.entry.app) }
-            if let reprocessContext, reprocessContext.cleansUp, !isEmptyTranscript, let cleanup = readyCleanupModel(route?.cleanupModel ?? cleanupModel) {
+            if let reprocessContext, reprocessContext.cleansUp, !isEmptyTranscript, let cleanup = readyCleanupModel(for: route) {
                 pipelineStage = "refining"
                 sessionState = .processing(.refining)
                 await floatingCapsuleClient.showRefining()
@@ -1063,7 +1065,7 @@ final class AppModel {
             let cleanup = routeAction == .cleanUp && cleanupMinimumWords.allowsCleanup(of: transcript)
                 ? activeCleanupModel(mode: mode, model: selectedModelOption, route: route)
                 : nil
-            logger.info("Cleanup decision: mode=\(mode.rawValue, privacy: .public), selected=\(self.cleanupModel.rawValue, privacy: .public), resolved=\(cleanup?.rawValue ?? "none", privacy: .public), route=\(route == nil ? "fallback" : "app", privacy: .public), action=\(routeAction.rawValue, privacy: .public), words=\(CleanupMinimumWords.wordCount(transcript), privacy: .public)")
+            logger.info("Cleanup decision: mode=\(mode.rawValue, privacy: .public), selected=\(self.cleanupModel.rawValue, privacy: .public), resolved=\(cleanup?.rawValue ?? "none", privacy: .public), route=\(route == nil ? "fallback" : "app", privacy: .public), routeModel=\(route?.cleanupModel?.rawValue ?? "default", privacy: .public), action=\(routeAction.rawValue, privacy: .public), words=\(CleanupMinimumWords.wordCount(transcript), privacy: .public)")
 
             if let cleanup, !transcript.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 pipelineStage = "refining"
@@ -2086,7 +2088,7 @@ final class AppModel {
     /// Speech models with native smart transcription already applied the prompt, so a second pass is skipped.
     private func activeCleanupModel(mode: TranscriptionMode, model: ModelOption, route: CleanupRoute?) -> CleanupModel? {
         if mode == .smart, model.supportsSmartTranscription { return nil }
-        return readyCleanupModel(route?.cleanupModel ?? cleanupModel)
+        return readyCleanupModel(for: route)
     }
 
     /// `prompt` comes from the app's route and replaces the default prompt. Petal W1 has no prompt, so it ignores it.
@@ -2149,10 +2151,9 @@ final class AppModel {
         return cleaned
     }
 
-    /// Loads the local cleanup model while the user speaks so cleanup starts on warm weights.
+    /// Loads the local cleanup model while the user speaks so cleanup starts on warm weights. A route can use it when the default does not.
     private func prepareCleanupModelIfNeeded() {
-        let model = cleanupModel
-        guard model.isLocal, cleanupWarmupTask == nil else { return }
+        guard let model = ([cleanupModel] + router.routeCleanupModels).first(where: \.isLocal), cleanupWarmupTask == nil else { return }
         let client = localCleanupClient
         cleanupWarmupTask = Task { [weak self] in
             do {

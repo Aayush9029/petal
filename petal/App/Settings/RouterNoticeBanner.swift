@@ -23,7 +23,7 @@ struct RouterNoticeBanner: View {
     private var message: String {
         switch notice {
         case .cleanupOff: "Text cleanup is off, so Petal pastes every dictation as you said it."
-        case .petalW1: "Petal W1 uses its own style. Routes set to As Said still skip cleanup."
+        case .petalW1: "Petal W1 uses its own style. Routes set to As Said or to their own intelligence still apply."
         case .smartTranscription: "Smart transcription applies its own instructions, so routes do not run."
         }
     }

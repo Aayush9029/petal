@@ -138,6 +138,10 @@ struct RouterPane: View {
                     cleanupModelMenu
                 }
 
+                if let model = viewModel.unreadyRouteCleanupModel {
+                    CleanupModelNotReadyWarning(model: model, onSetUp: onOpenIntelligence)
+                }
+
                 if router.isTranscriptTagMissing {
                     TranscriptTagWarning { router.addTranscriptTagButtonTapped() }
                 }
@@ -161,12 +165,10 @@ struct RouterPane: View {
             Text("Intelligence")
                 .font(.callout)
             Spacer(minLength: 8)
-            Picker("Intelligence", selection: Binding(
-                get: { router.selectedRoute?.cleanupModel },
-                set: { router.cleanupModelSelected($0) }
-            )) {
+            Picker("Intelligence", selection: Bindable(router).selectedCleanupModel) {
                 Text("Default (\(viewModel.cleanupModel.displayName))").tag(CleanupModel?.none)
-                ForEach(CleanupModel.allCases) { model in
+                // As Said already skips cleanup for a route, so Off is not offered twice.
+                ForEach(CleanupModel.allCases.filter { $0 != .off }) { model in
                     Text(model.displayName).tag(CleanupModel?.some(model))
                 }
             }

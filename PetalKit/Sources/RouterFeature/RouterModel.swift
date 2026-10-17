@@ -154,16 +154,24 @@ public final class RouterModel {
         effectiveCleanupModel == .cloud && !CloudPromptTranscript.isMentioned(in: selectedPrompt)
     }
 
+    /// Engines that routes pick for themselves instead of the one chosen in Intelligence.
+    public var routeCleanupModels: Set<CleanupModel> {
+        Set(routes.filter { $0.action == .cleanUp }.compactMap(\.cleanupModel))
+    }
+
     /// Only a route can pick its own engine, and only while it cleans up.
     public var canPickCleanupModel: Bool {
         selectedRoute != nil && selectedAction == .cleanUp
     }
 
-    /// `nil` goes back to the engine chosen in Intelligence.
-    public func cleanupModelSelected(_ model: CleanupModel?) {
-        guard case let .route(id) = selection else { return }
-        $routes.withLock { $0[id: id]?.cleanupModel = model }
-        testRun = .idle
+    /// The selected route's own engine. `nil` uses the one chosen in Intelligence.
+    public var selectedCleanupModel: CleanupModel? {
+        get { selectedRoute?.cleanupModel }
+        set {
+            guard canPickCleanupModel, let id = selection.route else { return }
+            $routes.withLock { $0[id: id]?.cleanupModel = newValue }
+            testRun = .idle
+        }
     }
 
     public var canRunTest: Bool {

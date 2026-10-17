@@ -252,18 +252,26 @@ struct RouterModelTests {
         model.$cleanupModel.withLock { $0 = .petalW1 }
         model.fallbackTapped()
         #expect(!model.canPickCleanupModel)
+        model.selectedCleanupModel = .cloud
+        #expect(model.effectiveCleanupModel == .petalW1)
 
         model.runningAppTapped(.slack)
         #expect(model.canPickCleanupModel)
         #expect(model.effectiveCleanupModel == .petalW1)
 
-        model.cleanupModelSelected(.cloud)
+        model.selectedCleanupModel = .cloud
         #expect(model.selectedRoute?.cleanupModel == .cloud)
         #expect(model.effectiveCleanupModel == .cloud)
+        #expect(model.routeCleanupModels == [.cloud])
 
-        model.cleanupModelSelected(nil)
+        model.pasteAsSaidTapped()
+        #expect(model.routeCleanupModels.isEmpty)
+        model.presetTapped(.cleanUp)
+
+        model.selectedCleanupModel = nil
         #expect(model.selectedRoute?.cleanupModel == nil)
         #expect(model.effectiveCleanupModel == .petalW1)
+        #expect(model.routeCleanupModels.isEmpty)
     }
 
     @Test(.dependencies {
@@ -276,12 +284,12 @@ struct RouterModelTests {
         model.runningAppTapped(.slack)
         #expect(!model.canRunTest)
 
-        model.cleanupModelSelected(.cloud)
+        model.selectedCleanupModel = .cloud
         model.sampleTranscript = "um hi"
         #expect(model.canRunTest)
         await model.runTestButtonTapped()
 
-        #expect(model.testRun == .finished(CloudCleanupResult(text: "cloud: um hi", elapsed: .zero)))
+        expectNoDifference(model.testRun, .finished(CloudCleanupResult(text: "cloud: um hi", elapsed: .zero)))
     }
 
     @Test

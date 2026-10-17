@@ -380,7 +380,7 @@ struct HistoryPane: View {
     @State private var playback = HistoryPlaybackModel()
 
     var body: some View {
-        let canCleanUp = viewModel.canCleanUpHistory
+        let readyCleanupModels = viewModel.readyCleanupModels
         let days = viewModel.historyDays(matching: searchText)
         ZStack(alignment: .bottom) {
             VStack(alignment: .leading, spacing: 0) {
@@ -401,7 +401,7 @@ struct HistoryPane: View {
                                             audioURL: viewModel.historyAudioURL(for: entry),
                                             isFailed: viewModel.historyEntryFailed(entry),
                                             isReprocessing: viewModel.reprocessingHistoryEntryID == entry.id,
-                                            canCleanUp: canCleanUp,
+                                            canCleanUp: readyCleanupModels.contains(viewModel.historyCleanupModel(for: entry)),
                                             playback: playback,
                                             onCopy: { viewModel.copyButtonTapped($0) },
                                             onTranscribeAgain: {
