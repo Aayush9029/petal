@@ -38,6 +38,16 @@ public struct CleanupRoute: Codable, Equatable, Identifiable, Sendable {
         self.cleanupModel = cleanupModel
     }
 
+    /// A newer Petal can add an engine. An older build reads it as the default instead of dropping every route.
+    public init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(ID.self, forKey: .id)
+        trigger = try container.decode(Trigger.self, forKey: .trigger)
+        action = try container.decode(Action.self, forKey: .action)
+        prompt = try container.decode(String.self, forKey: .prompt)
+        cleanupModel = try? container.decodeIfPresent(CleanupModel.self, forKey: .cleanupModel)
+    }
+
     /// Accepts what people paste, such as "https://www.github.com/apple", and keeps only "github.com".
     public static func domain(from input: String) -> String? {
         var text = input.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
