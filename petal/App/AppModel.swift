@@ -115,6 +115,7 @@ final class AppModel {
 
     @ObservationIgnored private var didBootstrap = false
     @ObservationIgnored private var pushToTalkIsActive = false
+    @ObservationIgnored private var lastTranscript: String?
     @ObservationIgnored private var toggleRecordingIsActive = false
     @ObservationIgnored private var isAwaitingCancelRecordingConfirmation = false
     @ObservationIgnored private var cancelConfirmationTimerTask: Task<Void, Never>?
@@ -1122,6 +1123,7 @@ final class AppModel {
                 await soundClient.playTranscriptionCompleted()
 
                 let pasteStart = now
+                lastTranscript = transcript
                 let pasteResult = await pasteClient.paste(transcript, restoreClipboardAfterPaste)
                 if sendsAfterPaste, pasteResult == .pasted {
                     // Chat apps built on web views insert pasted text a moment later, and an early Return sends an empty message.
@@ -1473,6 +1475,13 @@ final class AppModel {
                 }, { [weak self] in
                     Task { @MainActor in await self?.pushToTalkKeyUp() }
                 })
+            }
+        }
+
+        KeyboardShortcuts.onKeyDown(for: .pasteLastTranscription) { [weak self] in
+            Task { @MainActor in
+                guard let self, let text = self.lastTranscript else { return }
+                _ = await self.pasteClient.paste(text, self.restoreClipboardAfterPaste)
             }
         }
     }
