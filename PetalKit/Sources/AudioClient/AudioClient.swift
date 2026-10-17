@@ -45,7 +45,8 @@ public struct AudioInputDevice: Identifiable, Hashable, Sendable {
 @DependencyClient
 public struct AudioClient: Sendable {
     public var isRecording: @Sendable () async -> Bool = { false }
-    public var warmup: @Sendable () -> Void = {}
+    /// Prepares the next recording without starting the microphone.
+    public var warmup: @Sendable (_ streaming: Bool) -> Void = { _ in }
     public var availableInputDevices: @Sendable () async -> [AudioInputDevice] = { [] }
     public var startRecording: @Sendable (@escaping @Sendable (Double) -> Void) async throws -> Void
     /// Starts recording a history file and exposes its PCM audio as it arrives.
@@ -61,8 +62,8 @@ extension AudioClient: DependencyKey {
             isRecording: {
                 await LiveAudioCaptureRuntimeContainer.shared.isRecording()
             },
-            warmup: {
-                LiveAudioCaptureRuntimeContainer.shared.warmup()
+            warmup: { streaming in
+                LiveAudioCaptureRuntimeContainer.shared.warmup(streaming: streaming)
             },
             availableInputDevices: {
                 LiveAudioCaptureRuntime.availableInputDevices()
@@ -90,7 +91,7 @@ extension AudioClient: TestDependencyKey {
     public static var testValue: Self {
         Self(
             isRecording: { false },
-            warmup: {},
+            warmup: { _ in },
             availableInputDevices: {
                 [
                     AudioInputDevice(
@@ -169,7 +170,11 @@ final class LiveAudioCaptureRuntime: @unchecked Sendable {
     private var standbyCaptureRecording: SelectedInputAudioRecording?
     private var standbyURL: URL?
     private var standbyConfiguration: AudioCaptureConfiguration?
+    /// The standby matches the mode of the latest recording or warmup request.
+    private var standbyStreams = false
     private var captureFallbackInputUID: String?
+    private var inputChangeObservers: [any NSObjectProtocol] = []
+    private var defaultInputListener: AudioObjectPropertyListenerBlock?
     private var simulatedRecordingSourceURL: URL?
     private var simulatedSamples: [Float] = []
     private var simulatedSampleOffset = 0
@@ -181,6 +186,14 @@ final class LiveAudioCaptureRuntime: @unchecked Sendable {
 
     init(audioFixtureURL: @escaping @Sendable () -> URL? = LiveAudioCaptureRuntime.e2eAudioFixtureURL) {
         self.audioFixtureURL = audioFixtureURL
+    }
+
+    deinit {
+        for observer in inputChangeObservers { NotificationCenter.default.removeObserver(observer) }
+        if let defaultInputListener {
+            var address = Self.defaultInputAddress
+            AudioObjectRemovePropertyListenerBlock(AudioObjectID(kAudioObjectSystemObject), &address, stateQueue, defaultInputListener)
+        }
     }
 
     private nonisolated(unsafe) static let recordingSettings: [String: Any] = [
@@ -201,9 +214,9 @@ final class LiveAudioCaptureRuntime: @unchecked Sendable {
         }
     }
 
-    /// Configures the next recording without starting microphone capture.
-    func warmup() {
+    func warmup(streaming: Bool) {
         stateQueue.async { [self] in
+            standbyStreams = streaming
             warmupStandbyLocked()
         }
     }
@@ -243,8 +256,8 @@ final class LiveAudioCaptureRuntime: @unchecked Sendable {
         guard recorder == nil, selectedInputRecording == nil, simulatedRecordingSourceURL == nil else { return }
         guard audioFixtureURL() == nil else { return }
         guard AVCaptureDevice.authorizationStatus(for: .audio) == .authorized else { return }
-        @Shared(.selectedModelID) var selectedModelID
-        let streaming = ModelOption(rawValue: selectedModelID)?.supportsStreamingTranscription ?? false
+        observeInputChangesLocked()
+        let streaming = standbyStreams
         let configuration = Self.captureConfiguration(streaming: streaming)
         if standbyMatchesLocked(configuration) { return }
         discardStandbyLocked()
@@ -277,6 +290,20 @@ final class LiveAudioCaptureRuntime: @unchecked Sendable {
         } catch {
             discardStandbyLocked()
             logger.debug("Audio preparation failed: \(error.localizedDescription, privacy: .public)")
+        }
+    }
+
+    /// A new headset or a changed system input makes the standby stale, so it is prepared again before the next shortcut press.
+    private func observeInputChangesLocked() {
+        guard inputChangeObservers.isEmpty else { return }
+        let rewarm: @Sendable () -> Void = { [weak self] in self?.scheduleWarmup() }
+        inputChangeObservers = [AVCaptureDevice.wasConnectedNotification, AVCaptureDevice.wasDisconnectedNotification].map {
+            NotificationCenter.default.addObserver(forName: $0, object: nil, queue: nil) { _ in rewarm() }
+        }
+        let listener: AudioObjectPropertyListenerBlock = { [weak self] _, _ in self?.warmupStandbyLocked() }
+        var address = Self.defaultInputAddress
+        if AudioObjectAddPropertyListenerBlock(AudioObjectID(kAudioObjectSystemObject), &address, stateQueue, listener) == noErr {
+            defaultInputListener = listener
         }
     }
 
@@ -322,7 +349,8 @@ final class LiveAudioCaptureRuntime: @unchecked Sendable {
             return
         }
 
-        let configuration = Self.captureConfiguration(streaming: sampleProducer != nil)
+        standbyStreams = sampleProducer != nil
+        let configuration = Self.captureConfiguration(streaming: standbyStreams)
         if !standbyMatchesLocked(configuration) {
             discardStandbyLocked()
         }
@@ -458,7 +486,7 @@ final class LiveAudioCaptureRuntime: @unchecked Sendable {
                 self.selectedInputRecording = nil
                 recordingURL = nil
                 levelHandler(0)
-                scheduleWarmupLocked()
+                scheduleWarmup()
             }
             return try selectedInputRecording.stop()
         }
@@ -474,7 +502,7 @@ final class LiveAudioCaptureRuntime: @unchecked Sendable {
         levelHandler(0)
 
         // Pre-warm next standby recorder in the background
-        scheduleWarmupLocked()
+        scheduleWarmup()
 
         let fileSize = (try? FileManager.default.attributesOfItem(atPath: url.path))?[.size] as? Int64 ?? 0
 
@@ -516,7 +544,7 @@ final class LiveAudioCaptureRuntime: @unchecked Sendable {
             if let url {
                 try? FileManager.default.removeItem(at: url)
             }
-            scheduleWarmupLocked()
+            scheduleWarmup()
             return
         }
 
@@ -534,12 +562,12 @@ final class LiveAudioCaptureRuntime: @unchecked Sendable {
         }
 
         // Pre-warm next standby recorder in the background
-        scheduleWarmupLocked()
+        scheduleWarmup()
     }
 
-    private func scheduleWarmupLocked() {
-        stateQueue.async { [self] in
-            warmupStandbyLocked()
+    private func scheduleWarmup() {
+        stateQueue.async { [weak self] in
+            self?.warmupStandbyLocked()
         }
     }
 
@@ -708,14 +736,16 @@ final class LiveAudioCaptureRuntime: @unchecked Sendable {
         return devices.first
     }
 
+    nonisolated private static let defaultInputAddress = AudioObjectPropertyAddress(
+        mSelector: kAudioHardwarePropertyDefaultInputDevice,
+        mScope: kAudioObjectPropertyScopeGlobal,
+        mElement: kAudioObjectPropertyElementMain
+    )
+
     nonisolated private static func coreAudioDefaultInputUID() -> String? {
         var deviceID = AudioObjectID(kAudioObjectUnknown)
         var size = UInt32(MemoryLayout<AudioObjectID>.size)
-        var address = AudioObjectPropertyAddress(
-            mSelector: kAudioHardwarePropertyDefaultInputDevice,
-            mScope: kAudioObjectPropertyScopeGlobal,
-            mElement: kAudioObjectPropertyElementMain
-        )
+        var address = defaultInputAddress
         guard AudioObjectGetPropertyData(AudioObjectID(kAudioObjectSystemObject), &address, 0, nil, &size, &deviceID) == noErr,
               deviceID != kAudioObjectUnknown
         else { return nil }
@@ -751,6 +781,7 @@ final class SelectedInputAudioRecording: NSObject, AVCaptureAudioDataOutputSampl
     private var sampleProducer: AudioSampleProducer?
     private var didStartWriting = false
     private var isStopping = false
+    private var runtimeErrorObserver: (any NSObjectProtocol)?
 
     init(
         device: AVCaptureDevice,
@@ -783,6 +814,19 @@ final class SelectedInputAudioRecording: NSObject, AVCaptureAudioDataOutputSampl
         session.addOutput(audioOutput)
         session.commitConfiguration()
         writer.add(writerInput)
+
+        // startRunning reports its failures only through this notification.
+        let deviceName = device.localizedName
+        runtimeErrorObserver = NotificationCenter.default.addObserver(
+            forName: AVCaptureSession.runtimeErrorNotification, object: session, queue: nil
+        ) { notification in
+            let error = notification.userInfo?[AVCaptureSessionErrorKey] as? Error
+            logger.error("Capture session error on \(deviceName, privacy: .public): \(error?.localizedDescription ?? "unknown", privacy: .public)")
+        }
+    }
+
+    deinit {
+        if let runtimeErrorObserver { NotificationCenter.default.removeObserver(runtimeErrorObserver) }
     }
 
     static func makeWriter(outputURL: URL) throws -> (AVAssetWriter, AVAssetWriterInput) {
@@ -824,7 +868,6 @@ final class SelectedInputAudioRecording: NSObject, AVCaptureAudioDataOutputSampl
             // stopRunning followed by this barrier drains every queued capture callback.
             sampleProducer?.finish()
             guard didStartWriting else {
-                writer.cancelWriting()
                 throw AudioClientError.failedToStart
             }
 
@@ -856,7 +899,7 @@ final class SelectedInputAudioRecording: NSObject, AVCaptureAudioDataOutputSampl
         captureQueue.sync {
             isStopping = true
             sampleProducer?.finish(throwing: CancellationError())
-            writer.cancelWriting()
+            if didStartWriting { writer.cancelWriting() }
         }
     }
 

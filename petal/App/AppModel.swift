@@ -1674,7 +1674,7 @@ final class AppModel {
 
     func prepareAudioCapture() {
         guard !isPreviewMode, microphoneAuthorized else { return }
-        audioClient.warmup()
+        audioClient.warmup(selectedModelOption?.supportsStreamingTranscription ?? false)
     }
 
     private func startPermissionMonitoring() {

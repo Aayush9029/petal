@@ -11,12 +11,12 @@ struct AudioCaptureLifecycleTests {
     }
 
     @Test
-    func warmupDoesNotStartRecordingAndRepeatedStartsPreserveAudio() async throws {
+    func warmupLeavesTheRuntimeIdleAndFixtureRecordingsRepeat() async throws {
         let fixture = fixtureURL
         let runtime = LiveAudioCaptureRuntime(audioFixtureURL: { fixture })
         let expected = try AudioSampleProducer.readFixture(fixture)
 
-        runtime.warmup()
+        runtime.warmup(streaming: true)
         #expect(!(await runtime.isRecording()))
 
         for _ in 0..<2 {
