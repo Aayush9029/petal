@@ -104,3 +104,27 @@ func transcribingAgainReplacesStaleVariantsAndKeepsTheApp() {
     #expect(entry?.app == FocusedApp(app: .mail))
     #expect(entry?.cleanupVariant == nil)
 }
+
+@Test
+func aRouteSavedBeforeEnginePicksStillDecodes() throws {
+    let id = UUID()
+    let json = """
+    {"id":"\(id.uuidString)","trigger":{"website":{"_0":"github.com"}},"action":"cleanUp","prompt":"Hi"}
+    """
+    let route = try JSONDecoder().decode(CleanupRoute.self, from: Data(json.utf8))
+
+    #expect(route.cleanupModel == nil)
+}
+
+@Test
+func aRouteKeepsItsEngineWhenSaved() throws {
+    let route = CleanupRoute(
+        id: CleanupRoute.ID(UUID()),
+        trigger: .app(.mail),
+        prompt: "Hi",
+        cleanupModel: .cloud
+    )
+    let decoded = try JSONDecoder().decode(CleanupRoute.self, from: JSONEncoder().encode(route))
+
+    #expect(decoded == route)
+}

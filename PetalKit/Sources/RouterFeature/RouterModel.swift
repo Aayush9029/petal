@@ -76,7 +76,12 @@ public final class RouterModel {
 
     /// Petal W1 has a built-in style, so only Paste As Said routes change what it does.
     public var cleanupUsesPrompts: Bool {
-        cleanupModel == .appleIntelligence || cleanupModel == .cloud
+        effectiveCleanupModel == .appleIntelligence || effectiveCleanupModel == .cloud
+    }
+
+    /// The engine the selected route runs on: its own choice, or the one from Intelligence.
+    public var effectiveCleanupModel: CleanupModel {
+        selectedRoute?.cleanupModel ?? cleanupModel
     }
 
     public var selectedRoute: CleanupRoute? {
@@ -146,7 +151,19 @@ public final class RouterModel {
 
     /// Only cloud models read the tag. Petal adds the sentence anyway, so this is a hint, not an error.
     public var isTranscriptTagMissing: Bool {
-        cleanupModel == .cloud && !CloudPromptTranscript.isMentioned(in: selectedPrompt)
+        effectiveCleanupModel == .cloud && !CloudPromptTranscript.isMentioned(in: selectedPrompt)
+    }
+
+    /// Only a route can pick its own engine, and only while it cleans up.
+    public var canPickCleanupModel: Bool {
+        selectedRoute != nil && selectedAction == .cleanUp
+    }
+
+    /// `nil` goes back to the engine chosen in Intelligence.
+    public func cleanupModelSelected(_ model: CleanupModel?) {
+        guard case let .route(id) = selection else { return }
+        $routes.withLock { $0[id: id]?.cleanupModel = model }
+        testRun = .idle
     }
 
     public var canRunTest: Bool {
@@ -287,7 +304,7 @@ public final class RouterModel {
         let transcript = sampleTranscript.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !transcript.isEmpty, canRunTest else { return }
         let prompt = selectedPrompt
-        switch cleanupModel {
+        switch effectiveCleanupModel {
         case .cloud:
             guard var configuration = cloud.configuration else {
                 testRun = .failed(cloud.provider.requiresAPIKey ? "Verify an API key first." : "Enter a server URL and a model first.")

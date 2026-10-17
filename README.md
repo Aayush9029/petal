@@ -45,6 +45,7 @@ Petal can also clean up your dictation with a cloud model. Use your own OpenAI, 
 - Insert variables that Petal fills in on your Mac each time: `{{name}}`, `{{first_name}}`, `{{app}}`, `{{window}}`, `{{language}}`, `{{region}}`, and `{{time_zone}}`.
 - Turn on Date and Time to turn words like "next Friday" into exact dates. Turn on Web Search to let the model look up facts that you ask for.
 - Turn on Screen to send a screenshot of your screen with each dictation, so the model can spell the names it sees and know what "this" means. Screen needs Screen Recording access and is not available for custom servers.
+- In Settings > Router, each app or website route can use its own intelligence (Off, Apple Intelligence, Petal W1, or Cloud Model) instead of the default. A Cloud Model route uses the provider, model, and tools from Settings > Intelligence.
 - Petal keeps your keys in the macOS keychain and sends the transcript, and the screenshot when Screen is on, only to the provider that you choose.
 
   

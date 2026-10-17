@@ -247,6 +247,44 @@ struct RouterModelTests {
     }
 
     @Test
+    func `a route can pick its own engine and go back to the default`() {
+        let model = RouterModel(cloud: CloudCleanupModel())
+        model.$cleanupModel.withLock { $0 = .petalW1 }
+        model.fallbackTapped()
+        #expect(!model.canPickCleanupModel)
+
+        model.runningAppTapped(.slack)
+        #expect(model.canPickCleanupModel)
+        #expect(model.effectiveCleanupModel == .petalW1)
+
+        model.cleanupModelSelected(.cloud)
+        #expect(model.selectedRoute?.cleanupModel == .cloud)
+        #expect(model.effectiveCleanupModel == .cloud)
+
+        model.cleanupModelSelected(nil)
+        #expect(model.selectedRoute?.cleanupModel == nil)
+        #expect(model.effectiveCleanupModel == .petalW1)
+    }
+
+    @Test(.dependencies {
+        $0.keychainClient = .inMemory([CloudProvider.openAI.keychainAccount: "sk-proj-live"])
+        $0.cloudCleanupClient.clean = { transcript, _ in CloudCleanupResult(text: "cloud: \(transcript)", elapsed: .zero) }
+    })
+    func `a route on a cloud model can run a test while the default is Petal W1`() async {
+        let model = RouterModel(cloud: CloudCleanupModel())
+        model.$cleanupModel.withLock { $0 = .petalW1 }
+        model.runningAppTapped(.slack)
+        #expect(!model.canRunTest)
+
+        model.cleanupModelSelected(.cloud)
+        model.sampleTranscript = "um hi"
+        #expect(model.canRunTest)
+        await model.runTestButtonTapped()
+
+        #expect(model.testRun == .finished(CloudCleanupResult(text: "cloud: um hi", elapsed: .zero)))
+    }
+
+    @Test
     func `a cloud test run without a key explains what is missing`() async {
         let model = RouterModel(cloud: CloudCleanupModel())
         model.$cleanupModel.withLock { $0 = .cloud }
