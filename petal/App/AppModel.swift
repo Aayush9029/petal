@@ -115,7 +115,6 @@ final class AppModel {
 
     @ObservationIgnored private var didBootstrap = false
     @ObservationIgnored private var pushToTalkIsActive = false
-    @ObservationIgnored private var lastTranscript: String?
     @ObservationIgnored private var toggleRecordingIsActive = false
     @ObservationIgnored private var isAwaitingCancelRecordingConfirmation = false
     @ObservationIgnored private var cancelConfirmationTimerTask: Task<Void, Never>?
@@ -140,6 +139,7 @@ final class AppModel {
     @ObservationIgnored private var historyReprocessContext: HistoryReprocess?
     @ObservationIgnored private var sendNowChordStart: Date?
     @ObservationIgnored private var pendingSendAfterPaste = false
+    @ObservationIgnored private var lastTranscript: String?
     @ObservationIgnored private var isPlaybackDucked = false
     var menuBarFlashOn = true
     @ObservationIgnored private var estimatedTranscriptionRTF = 2.2
@@ -1458,10 +1458,14 @@ final class AppModel {
     func registerShortcutHandlers() {
         if isPreviewMode { return }
 
+        KeyboardShortcuts.removeAllHandlers()
+        KeyboardShortcuts.onKeyDown(for: .pasteLastTranscription) { [weak self] in
+            Task { await self?.pasteLastTranscriptionKeyDown() }
+        }
+
         switch shortcutTriggerMode {
         case .combo:
             Task { await doubleTapClient.stop() }
-            KeyboardShortcuts.removeAllHandlers()
             KeyboardShortcuts.onKeyDown(for: .pushToTalk) { [weak self] in
                 Task { await self?.pushToTalkKeyDown() }
             }
@@ -1470,7 +1474,6 @@ final class AppModel {
             }
 
         case .doubleTap:
-            KeyboardShortcuts.removeAllHandlers()
             KeyboardShortcuts.disable(.pushToTalk)
             guard doubleTapKey.isConfigured else { return }
             let key = doubleTapKey
@@ -1483,12 +1486,13 @@ final class AppModel {
                 })
             }
         }
+    }
 
-        KeyboardShortcuts.onKeyDown(for: .pasteLastTranscription) { [weak self] in
-            Task { @MainActor in
-                guard let self, let text = self.lastTranscript else { return }
-                _ = await self.pasteClient.paste(text, self.restoreClipboardAfterPaste)
-            }
+    /// A paste during a dictation would race its clipboard swap, so the shortcut waits until Petal is idle.
+    private func pasteLastTranscriptionKeyDown() async {
+        guard sessionState != .recording, !isProcessing, let lastTranscript else { return }
+        if await pasteClient.paste(lastTranscript, restoreClipboardAfterPaste) == .copiedOnly {
+            await postPasteFallbackNotification()
         }
     }
 

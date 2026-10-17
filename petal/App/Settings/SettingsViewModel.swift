@@ -494,13 +494,24 @@ final class SettingsViewModel {
 
         case let .combo(keyCode, carbonModifiers, _):
             $shortcutTriggerMode.withLock { $0 = .combo }
-            KeyboardShortcuts.setShortcut(
-                .init(carbonKeyCode: keyCode, carbonModifiers: carbonModifiers),
-                for: .pushToTalk
-            )
+            let shortcut = KeyboardShortcuts.Shortcut(carbonKeyCode: keyCode, carbonModifiers: carbonModifiers)
+            KeyboardShortcuts.setShortcut(shortcut, for: .pushToTalk)
+            clearPasteLastTranscriptionShortcut(matching: shortcut)
             $doubleTapKey.withLock { $0 = .unconfigured }
         }
         appModel.registerShortcutHandlers()
+    }
+
+    func pasteLastTranscriptionShortcutRecorded(_ shortcut: KeyboardShortcuts.Shortcut?) {
+        guard let shortcut, shortcut == KeyboardShortcuts.getShortcut(for: .pushToTalk) else { return }
+        clearPasteLastTranscriptionShortcut(matching: shortcut)
+    }
+
+    /// Push-to-talk keeps a combo that both shortcuts share, so one press never records and pastes at once.
+    private func clearPasteLastTranscriptionShortcut(matching shortcut: KeyboardShortcuts.Shortcut) {
+        guard KeyboardShortcuts.getShortcut(for: .pasteLastTranscription) == shortcut else { return }
+        KeyboardShortcuts.setShortcut(nil, for: .pasteLastTranscription)
+        NSSound.beep()
     }
 
     func exportLogs() {

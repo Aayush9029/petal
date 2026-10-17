@@ -108,7 +108,7 @@ struct GeneralPane: View {
                     title: "Paste Last Transcription",
                     description: "Paste your most recent transcription again."
                 ) {
-                    KeyboardShortcuts.Recorder(for: .pasteLastTranscription)
+                    KeyboardShortcuts.Recorder(for: .pasteLastTranscription) { viewModel.pasteLastTranscriptionShortcutRecorded($0) }
                 }
 
                 SettingsCardDivider()
