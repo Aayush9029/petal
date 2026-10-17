@@ -130,6 +130,7 @@ final class AppModel {
     @ObservationIgnored private var miniDownloadRestoreTask: Task<Void, Never>?
     @ObservationIgnored private var warmupTask: Task<Void, Never>?
     @ObservationIgnored private var cleanupWarmupTask: Task<Void, Never>?
+    @ObservationIgnored private var pasteLastTranscriptionTask: Task<Void, Never>?
     @ObservationIgnored private var menuBarFlashTask: Task<Void, Never>?
     @ObservationIgnored private var downloadStateObserverTask: Task<Void, Never>?
     @ObservationIgnored private var isShowingMiniDownload = false
@@ -192,6 +193,7 @@ final class AppModel {
         Task { await bootstrapHistory() }
 
         registerShortcutHandlers()
+        listenForPasteLastTranscriptionShortcut()
         registerKeyboardMonitor()
         let downloads = cleanupDownloads
         Task {
@@ -1458,14 +1460,10 @@ final class AppModel {
     func registerShortcutHandlers() {
         if isPreviewMode { return }
 
-        KeyboardShortcuts.removeAllHandlers()
-        KeyboardShortcuts.onKeyDown(for: .pasteLastTranscription) { [weak self] in
-            Task { await self?.pasteLastTranscriptionKeyDown() }
-        }
-
         switch shortcutTriggerMode {
         case .combo:
             Task { await doubleTapClient.stop() }
+            KeyboardShortcuts.removeAllHandlers()
             KeyboardShortcuts.onKeyDown(for: .pushToTalk) { [weak self] in
                 Task { await self?.pushToTalkKeyDown() }
             }
@@ -1474,6 +1472,7 @@ final class AppModel {
             }
 
         case .doubleTap:
+            KeyboardShortcuts.removeAllHandlers()
             KeyboardShortcuts.disable(.pushToTalk)
             guard doubleTapKey.isConfigured else { return }
             let key = doubleTapKey
@@ -1484,6 +1483,16 @@ final class AppModel {
                 }, { [weak self] in
                     Task { @MainActor in await self?.pushToTalkKeyUp() }
                 })
+            }
+        }
+    }
+
+    /// The stream outlives `removeAllHandlers()`, so switching the recording shortcut never drops this one.
+    private func listenForPasteLastTranscriptionShortcut() {
+        if isPreviewMode { return }
+        pasteLastTranscriptionTask = Task { [weak self] in
+            for await _ in KeyboardShortcuts.events(.keyDown, for: .pasteLastTranscription) {
+                await self?.pasteLastTranscriptionKeyDown()
             }
         }
     }
@@ -2443,6 +2452,7 @@ final class AppModel {
         miniDownloadRestoreTask?.cancel()
         menuBarFlashTask?.cancel()
         downloadStateObserverTask?.cancel()
+        pasteLastTranscriptionTask?.cancel()
     }
 }
 
