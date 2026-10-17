@@ -14,8 +14,9 @@ let package = Package(
         )
     ],
     dependencies: [
-        .package(url: "https://github.com/ml-explore/mlx-swift", from: "0.31.6"),
-        .package(url: "https://github.com/ml-explore/mlx-swift-lm", from: "3.31.4"),
+        // mlx-swift-lm 3.32 changed the LanguageModel protocol, so both stay on the minor that PetalKit resolves.
+        .package(url: "https://github.com/ml-explore/mlx-swift", .upToNextMinor(from: "0.31.6")),
+        .package(url: "https://github.com/ml-explore/mlx-swift-lm", .upToNextMinor(from: "3.31.4")),
         .package(url: "https://github.com/huggingface/swift-transformers", from: "1.3.4"),
     ],
     targets: [
