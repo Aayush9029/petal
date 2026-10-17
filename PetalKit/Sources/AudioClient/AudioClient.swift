@@ -59,7 +59,7 @@ extension AudioClient: DependencyKey {
     public static var liveValue: Self {
         return Self(
             isRecording: {
-                LiveAudioCaptureRuntimeContainer.shared.isRecording
+                await LiveAudioCaptureRuntimeContainer.shared.isRecording()
             },
             warmup: {
                 LiveAudioCaptureRuntimeContainer.shared.warmup()
@@ -160,12 +160,16 @@ private final class LevelProcessor: @unchecked Sendable {
     }
 }
 
-private final class LiveAudioCaptureRuntime: @unchecked Sendable {
-    private let stateQueue = DispatchQueue(label: "com.petal.audio.capture.runtime")
+final class LiveAudioCaptureRuntime: @unchecked Sendable {
+    private let stateQueue = DispatchQueue(label: "com.petal.audio.capture.runtime", qos: .userInitiated)
+    private let audioFixtureURL: @Sendable () -> URL?
     private var recorder: AVAudioRecorder?
     private var selectedInputRecording: SelectedInputAudioRecording?
     private var standbyRecorder: AVAudioRecorder?
+    private var standbyCaptureRecording: SelectedInputAudioRecording?
     private var standbyURL: URL?
+    private var standbyConfiguration: AudioCaptureConfiguration?
+    private var captureFallbackInputUID: String?
     private var simulatedRecordingSourceURL: URL?
     private var simulatedSamples: [Float] = []
     private var simulatedSampleOffset = 0
@@ -174,6 +178,10 @@ private final class LiveAudioCaptureRuntime: @unchecked Sendable {
     private var levelHandler: @Sendable (Double) -> Void = { _ in }
     private var levelTimer: DispatchSourceTimer?
     private let levelProcessor = LevelProcessor()
+
+    init(audioFixtureURL: @escaping @Sendable () -> URL? = LiveAudioCaptureRuntime.e2eAudioFixtureURL) {
+        self.audioFixtureURL = audioFixtureURL
+    }
 
     private nonisolated(unsafe) static let recordingSettings: [String: Any] = [
         AVFormatIDKey: Int(kAudioFormatLinearPCM),
@@ -184,20 +192,16 @@ private final class LiveAudioCaptureRuntime: @unchecked Sendable {
         AVLinearPCMIsBigEndianKey: false
     ]
 
-    var isRecording: Bool {
-        stateQueue.sync {
-            if simulatedRecordingSourceURL != nil {
-                return true
+    func isRecording() async -> Bool {
+        await withCheckedContinuation { continuation in
+            stateQueue.async { [self] in
+                continuation.resume(returning: simulatedRecordingSourceURL != nil
+                    || selectedInputRecording != nil || recorder?.isRecording == true)
             }
-            if selectedInputRecording != nil {
-                return true
-            }
-            return recorder?.isRecording ?? false
         }
     }
 
-    /// Pre-creates and prepares an AVAudioRecorder so the next
-    /// `startRecording` call only needs to call `record()`.
+    /// Configures the next recording without starting microphone capture.
     func warmup() {
         stateQueue.async { [self] in
             warmupStandbyLocked()
@@ -208,7 +212,9 @@ private final class LiveAudioCaptureRuntime: @unchecked Sendable {
         try await withCheckedThrowingContinuation { continuation in
             stateQueue.async { [self] in
                 do {
-                    try startRecordingLocked(levelHandler: levelHandler)
+                    _ = try AudioRecordingStartup.start(streaming: false) { producer in
+                        try startRecordingLocked(levelHandler: levelHandler, sampleProducer: producer)
+                    }
                     continuation.resume()
                 } catch {
                     continuation.resume(throwing: error)
@@ -221,9 +227,11 @@ private final class LiveAudioCaptureRuntime: @unchecked Sendable {
         try await withCheckedThrowingContinuation { continuation in
             stateQueue.async { [self] in
                 do {
-                    let producer = AudioSampleProducer()
-                    try startRecordingLocked(levelHandler: levelHandler, sampleProducer: producer)
-                    continuation.resume(returning: producer.stream)
+                    let stream = try AudioRecordingStartup.start(streaming: true) { producer in
+                        try startRecordingLocked(levelHandler: levelHandler, sampleProducer: producer)
+                    }
+                    guard let stream else { throw AudioClientError.failedToStart }
+                    continuation.resume(returning: stream)
                 } catch {
                     continuation.resume(throwing: error)
                 }
@@ -232,18 +240,65 @@ private final class LiveAudioCaptureRuntime: @unchecked Sendable {
     }
 
     private func warmupStandbyLocked() {
-        guard standbyRecorder == nil, recorder == nil else { return }
-        guard Self.e2eAudioFixtureURL() == nil else { return }
-        guard Self.selectedInputDeviceIDForRecording() == AudioInputDevice.systemDefaultID else { return }
+        guard recorder == nil, selectedInputRecording == nil, simulatedRecordingSourceURL == nil else { return }
+        guard audioFixtureURL() == nil else { return }
+        guard AVCaptureDevice.authorizationStatus(for: .audio) == .authorized else { return }
+        @Shared(.selectedModelID) var selectedModelID
+        let streaming = ModelOption(rawValue: selectedModelID)?.supportsStreamingTranscription ?? false
+        let configuration = Self.captureConfiguration(streaming: streaming)
+        if standbyMatchesLocked(configuration) { return }
+        discardStandbyLocked()
 
-        let url = RecordingFiles.newURL(extension: "wav")
         do {
-            let rec = try AVAudioRecorder(url: url, settings: Self.recordingSettings)
-            rec.isMeteringEnabled = true
-            guard rec.prepareToRecord() else { return }
-            standbyRecorder = rec
-            standbyURL = url
-        } catch {}
+            let needsCaptureFallback = configuration.usesSystemDefault
+                && configuration.defaultInputUID != nil && captureFallbackInputUID == configuration.defaultInputUID
+            let device = Self.selectedCaptureDeviceForRecording(inputID: configuration.inputDeviceID)
+                ?? (streaming || needsCaptureFallback
+                    ? Self.fallbackCaptureDevice(defaultInputUID: configuration.defaultInputUID) : nil)
+            if let device {
+                let url = RecordingFiles.newURL(extension: "m4a")
+                standbyURL = url
+                standbyCaptureRecording = try SelectedInputAudioRecording(
+                    device: device, outputURL: url, streaming: streaming
+                )
+            } else {
+                guard !streaming else { return }
+                let url = RecordingFiles.newURL(extension: "wav")
+                standbyURL = url
+                let rec = try AVAudioRecorder(url: url, settings: Self.recordingSettings)
+                rec.isMeteringEnabled = true
+                guard rec.prepareToRecord() else {
+                    discardStandbyLocked()
+                    return
+                }
+                standbyRecorder = rec
+            }
+            standbyConfiguration = configuration
+        } catch {
+            discardStandbyLocked()
+            logger.debug("Audio preparation failed: \(error.localizedDescription, privacy: .public)")
+        }
+    }
+
+    private func standbyMatchesLocked(_ configuration: AudioCaptureConfiguration) -> Bool {
+        guard let standbyConfiguration, standbyURL != nil else { return false }
+        if let capture = standbyCaptureRecording {
+            return standbyConfiguration.canReuse(
+                for: configuration, captureDeviceID: capture.device.uniqueID,
+                captureDeviceIsConnected: capture.device.isConnected
+            )
+        }
+        return standbyRecorder != nil && standbyConfiguration.canReuse(for: configuration, captureDeviceID: nil)
+    }
+
+    private func discardStandbyLocked() {
+        standbyRecorder?.stop()
+        standbyRecorder = nil
+        standbyCaptureRecording?.cancel()
+        standbyCaptureRecording = nil
+        if let standbyURL { try? FileManager.default.removeItem(at: standbyURL) }
+        standbyURL = nil
+        standbyConfiguration = nil
     }
 
     private func startRecordingLocked(
@@ -255,7 +310,7 @@ private final class LiveAudioCaptureRuntime: @unchecked Sendable {
         }
         self.levelHandler = levelHandler
 
-        if let e2eAudioURL = Self.e2eAudioFixtureURL() {
+        if let e2eAudioURL = audioFixtureURL() {
             if let sampleProducer {
                 simulatedSamples = try AudioSampleProducer.readFixture(e2eAudioURL)
                 simulatedSampleOffset = 0
@@ -267,25 +322,34 @@ private final class LiveAudioCaptureRuntime: @unchecked Sendable {
             return
         }
 
-        let captureDevice = Self.selectedCaptureDeviceForRecording()
-            ?? (sampleProducer == nil ? nil : Self.fallbackCaptureDevice())
-        if let selectedDevice = captureDevice {
-            if sampleProducer != nil {
-                standbyRecorder?.stop()
-                standbyRecorder = nil
-                if let standbyURL { try? FileManager.default.removeItem(at: standbyURL) }
-                standbyURL = nil
+        let configuration = Self.captureConfiguration(streaming: sampleProducer != nil)
+        if !standbyMatchesLocked(configuration) {
+            discardStandbyLocked()
+        }
+        if let prepared = standbyCaptureRecording, let url = standbyURL {
+            standbyCaptureRecording = nil
+            standbyURL = nil
+            do {
+                try prepared.start(levelHandler: levelHandler, sampleProducer: sampleProducer)
+            } catch {
+                prepared.cancel()
+                try? FileManager.default.removeItem(at: url)
+                logger.warning("Prepared capture failed; retrying a fresh session: \(error.localizedDescription, privacy: .public)")
+                throw PreparedCaptureStartFailure.unavailable
             }
-            let audioURL = RecordingFiles.newURL(extension: "m4a")
-            let recording = try SelectedInputAudioRecording(
-                device: selectedDevice,
-                outputURL: audioURL,
-                levelHandler: levelHandler,
-                sampleProducer: sampleProducer
+            selectedInputRecording = prepared
+            recordingURL = url
+            logger.info("Recording via prepared capture session on \(prepared.device.localizedName, privacy: .public), streaming=\(sampleProducer != nil, privacy: .public)")
+            return
+        }
+
+        let captureDevice = Self.selectedCaptureDeviceForRecording(inputID: configuration.inputDeviceID)
+            ?? (sampleProducer == nil ? nil : Self.fallbackCaptureDevice(defaultInputUID: configuration.defaultInputUID))
+        if let selectedDevice = captureDevice {
+            discardStandbyLocked()
+            try startFreshCaptureRecordingLocked(
+                device: selectedDevice, levelHandler: levelHandler, sampleProducer: sampleProducer
             )
-            try recording.start()
-            selectedInputRecording = recording
-            recordingURL = audioURL
             logger.info("Recording via capture session on \(selectedDevice.localizedName, privacy: .public), streaming=\(sampleProducer != nil, privacy: .public)")
             return
         }
@@ -304,7 +368,7 @@ private final class LiveAudioCaptureRuntime: @unchecked Sendable {
             }
             try? FileManager.default.removeItem(at: url)
             logger.warning("Standby recorder failed to start on the system default input; falling back to capture session")
-            try startFallbackCaptureRecordingLocked(levelHandler: levelHandler)
+            try startFallbackCaptureRecordingLocked(levelHandler: levelHandler, defaultInputUID: configuration.defaultInputUID)
             return
         }
 
@@ -323,26 +387,43 @@ private final class LiveAudioCaptureRuntime: @unchecked Sendable {
 
         try? FileManager.default.removeItem(at: audioURL)
         logger.warning("AVAudioRecorder failed to start on the system default input; falling back to capture session")
-        try startFallbackCaptureRecordingLocked(levelHandler: levelHandler)
+        try startFallbackCaptureRecordingLocked(levelHandler: levelHandler, defaultInputUID: configuration.defaultInputUID)
     }
 
     /// AVAudioRecorder binds to CoreAudio's default input device, which can be
     /// stale after a USB or Bluetooth microphone disconnects. AVCaptureDevice
     /// discovery only reports connected hardware, so route through it instead.
-    private func startFallbackCaptureRecordingLocked(levelHandler: @escaping @Sendable (Double) -> Void) throws {
-        guard let device = Self.fallbackCaptureDevice() else {
+    private func startFallbackCaptureRecordingLocked(
+        levelHandler: @escaping @Sendable (Double) -> Void, defaultInputUID: String?
+    ) throws {
+        guard let device = Self.fallbackCaptureDevice(defaultInputUID: defaultInputUID) else {
             throw AudioClientError.failedToStart
         }
-        let audioURL = RecordingFiles.newURL(extension: "m4a")
-        let recording = try SelectedInputAudioRecording(
-            device: device,
-            outputURL: audioURL,
-            levelHandler: levelHandler
-        )
-        try recording.start()
-        selectedInputRecording = recording
-        recordingURL = audioURL
+        try startFreshCaptureRecordingLocked(device: device, levelHandler: levelHandler)
+        captureFallbackInputUID = defaultInputUID
         logger.info("Recording via capture session fallback on \(device.localizedName, privacy: .public)")
+    }
+
+    private func startFreshCaptureRecordingLocked(
+        device: AVCaptureDevice,
+        levelHandler: @escaping @Sendable (Double) -> Void,
+        sampleProducer: AudioSampleProducer? = nil
+    ) throws {
+        let url = RecordingFiles.newURL(extension: "m4a")
+        var recording: SelectedInputAudioRecording?
+        do {
+            let capture = try SelectedInputAudioRecording(
+                device: device, outputURL: url, streaming: sampleProducer != nil
+            )
+            recording = capture
+            try capture.start(levelHandler: levelHandler, sampleProducer: sampleProducer)
+            selectedInputRecording = capture
+            recordingURL = url
+        } catch {
+            recording?.cancel()
+            try? FileManager.default.removeItem(at: url)
+            throw error
+        }
     }
 
     func unfinishedRecordings() async -> [URL] {
@@ -377,6 +458,7 @@ private final class LiveAudioCaptureRuntime: @unchecked Sendable {
                 self.selectedInputRecording = nil
                 recordingURL = nil
                 levelHandler(0)
+                scheduleWarmupLocked()
             }
             return try selectedInputRecording.stop()
         }
@@ -392,9 +474,7 @@ private final class LiveAudioCaptureRuntime: @unchecked Sendable {
         levelHandler(0)
 
         // Pre-warm next standby recorder in the background
-        stateQueue.asyncAfter(deadline: .now() + 0.1) { [self] in
-            warmupStandbyLocked()
-        }
+        scheduleWarmupLocked()
 
         let fileSize = (try? FileManager.default.attributesOfItem(atPath: url.path))?[.size] as? Int64 ?? 0
 
@@ -436,6 +516,7 @@ private final class LiveAudioCaptureRuntime: @unchecked Sendable {
             if let url {
                 try? FileManager.default.removeItem(at: url)
             }
+            scheduleWarmupLocked()
             return
         }
 
@@ -453,7 +534,11 @@ private final class LiveAudioCaptureRuntime: @unchecked Sendable {
         }
 
         // Pre-warm next standby recorder in the background
-        stateQueue.asyncAfter(deadline: .now() + 0.1) { [self] in
+        scheduleWarmupLocked()
+    }
+
+    private func scheduleWarmupLocked() {
+        stateQueue.async { [self] in
             warmupStandbyLocked()
         }
     }
@@ -596,17 +681,23 @@ private final class LiveAudioCaptureRuntime: @unchecked Sendable {
         return trimmed.isEmpty ? AudioInputDevice.systemDefaultID : trimmed
     }
 
-    nonisolated private static func selectedCaptureDeviceForRecording() -> AVCaptureDevice? {
-        let selectedID = selectedInputDeviceIDForRecording()
-        guard selectedID != AudioInputDevice.systemDefaultID else { return nil }
-        return inputCaptureDevices()
-            .first(where: { $0.uniqueID == selectedID })
+    nonisolated private static func captureConfiguration(streaming: Bool) -> AudioCaptureConfiguration {
+        AudioCaptureConfiguration(
+            inputDeviceID: selectedInputDeviceIDForRecording(),
+            defaultInputUID: coreAudioDefaultInputUID(), streaming: streaming
+        )
     }
 
-    nonisolated private static func fallbackCaptureDevice() -> AVCaptureDevice? {
+    nonisolated private static func selectedCaptureDeviceForRecording(inputID: String) -> AVCaptureDevice? {
+        guard inputID != AudioInputDevice.systemDefaultID else { return nil }
+        return inputCaptureDevices()
+            .first(where: { $0.uniqueID == inputID })
+    }
+
+    nonisolated private static func fallbackCaptureDevice(defaultInputUID: String?) -> AVCaptureDevice? {
         let devices = inputCaptureDevices().filter(\.isConnected)
         // AVCaptureDevice.default can differ from the input that the user set in System Settings.
-        if let defaultUID = coreAudioDefaultInputUID(),
+        if let defaultUID = defaultInputUID,
            let match = devices.first(where: { $0.uniqueID == defaultUID }) {
             return match
         }
@@ -647,27 +738,28 @@ private final class LiveAudioCaptureRuntime: @unchecked Sendable {
 }
 
 final class SelectedInputAudioRecording: NSObject, AVCaptureAudioDataOutputSampleBufferDelegate, @unchecked Sendable {
+    let device: AVCaptureDevice
+    let streaming: Bool
     private let session = AVCaptureSession()
     private let audioOutput = AVCaptureAudioDataOutput()
     private let captureQueue = DispatchQueue(label: "com.petal.audio.capture.selected-input")
     private let writer: AVAssetWriter
     private let writerInput: AVAssetWriterInput
     private let outputURL: URL
-    private let levelHandler: @Sendable (Double) -> Void
+    private var levelHandler: @Sendable (Double) -> Void = { _ in }
     private let levelProcessor = LevelProcessor()
-    private let sampleProducer: AudioSampleProducer?
+    private var sampleProducer: AudioSampleProducer?
     private var didStartWriting = false
     private var isStopping = false
 
     init(
         device: AVCaptureDevice,
         outputURL: URL,
-        levelHandler: @escaping @Sendable (Double) -> Void,
-        sampleProducer: AudioSampleProducer? = nil
+        streaming: Bool = false
     ) throws {
-        self.sampleProducer = sampleProducer
+        self.device = device
+        self.streaming = streaming
         self.outputURL = outputURL
-        self.levelHandler = levelHandler
         (writer, writerInput) = try Self.makeWriter(outputURL: outputURL)
         super.init()
 
@@ -681,7 +773,7 @@ final class SelectedInputAudioRecording: NSObject, AVCaptureAudioDataOutputSampl
         // Stereo and multichannel devices make the mono AAC writer fail, so the output always converts to mono.
         audioOutput.audioSettings = [
             AVFormatIDKey: kAudioFormatLinearPCM,
-            AVSampleRateKey: sampleProducer != nil ? 16_000 : 44_100,
+            AVSampleRateKey: streaming ? 16_000 : 44_100,
             AVNumberOfChannelsKey: 1,
             AVLinearPCMBitDepthKey: 32,
             AVLinearPCMIsFloatKey: true,
@@ -710,7 +802,15 @@ final class SelectedInputAudioRecording: NSObject, AVCaptureAudioDataOutputSampl
         return (writer, input)
     }
 
-    func start() throws {
+    func start(
+        levelHandler: @escaping @Sendable (Double) -> Void,
+        sampleProducer: AudioSampleProducer? = nil
+    ) throws {
+        guard streaming == (sampleProducer != nil) else { throw AudioClientError.invalidStreamFormat }
+        captureQueue.sync {
+            self.levelHandler = levelHandler
+            self.sampleProducer = sampleProducer
+        }
         session.startRunning()
         guard session.isRunning else {
             throw AudioClientError.failedToStart
