@@ -3,6 +3,7 @@ import Dependencies
 import DependenciesMacros
 import Observation
 import QuartzCore
+import Shared
 import SwiftUI
 import UI
 
@@ -117,6 +118,8 @@ private final class LiveFloatingCapsuleRuntime: NSObject {
     private var globalMouseMonitor: Any?
     private var localMouseMonitor: Any?
     private var deferredScreenFollowTask: Task<Void, Never>?
+    private var orderOutTask: Task<Void, Never>?
+    @Shared(.floatingCapsuleBackgroundStyle) private var backgroundStyle
 
     override init() {
         let contentView = FloatingCapsuleView(state: state)
@@ -227,6 +230,10 @@ private final class LiveFloatingCapsuleRuntime: NSObject {
     }
 
     func hide() {
+        let dismissDuration = FloatingCapsuleLayout.dismissDuration(
+            style: backgroundStyle,
+            reduceMotion: NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
+        )
         state.phase = .hidden
         state.liveTranscript = ""
         state.level = 0
@@ -235,17 +242,35 @@ private final class LiveFloatingCapsuleRuntime: NSObject {
         state.onRecordingTapped = nil
         state.onCancelRecordingTapped = nil
         state.onAccessibilityTapped = nil
-        panel.orderOut(nil)
+        orderOutTask?.cancel()
+        guard dismissDuration > 0, panel.isVisible else {
+            panel.orderOut(nil)
+            return
+        }
+        // The capsule plays its dismissal after the session ends; it no longer takes clicks.
+        panel.ignoresMouseEvents = true
+        orderOutTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .seconds(dismissDuration))
+            guard !Task.isCancelled, let self, self.state.phase == .hidden else { return }
+            self.panel.orderOut(nil)
+        }
     }
 
     private func resizePanel() {
-        let height: CGFloat = state.showsLiveTranscript ? 178 : 52
-        guard panel.frame.height != height else { return }
-        panel.setContentSize(NSSize(width: 400, height: height))
+        let size = FloatingCapsuleLayout.panelSize(
+            style: backgroundStyle,
+            showsLiveTranscript: state.showsLiveTranscript
+        )
+        guard panel.frame.size != size else { return }
+        panel.setContentSize(size)
         positionPanel(on: preferredScreen ?? NSScreen.main)
     }
 
     private func showWindowIfNeeded() {
+        orderOutTask?.cancel()
+        orderOutTask = nil
+        panel.ignoresMouseEvents = false
+        panel.hasShadow = FloatingCapsuleLayout.usesWindowShadow(style: backgroundStyle)
         resizePanel()
         let screen = screenAtMouseLocation() ?? preferredScreen ?? NSScreen.main
         preferredScreen = screen
@@ -347,7 +372,7 @@ private final class LiveFloatingCapsuleRuntime: NSObject {
         guard let screen else { return }
         let visibleFrame = screen.visibleFrame
         let x = visibleFrame.midX - panel.frame.width / 2
-        let y = visibleFrame.minY + 36
+        let y = visibleFrame.minY + FloatingCapsuleLayout.bottomOffset(style: backgroundStyle)
         let origin = NSPoint(x: x, y: y)
 
         guard animated else {

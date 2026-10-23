@@ -1,7 +1,9 @@
+import Shared
 import SwiftUI
 
 public struct FloatingCapsuleView: View {
     @Bindable var state: FloatingCapsuleState
+    @Shared(.floatingCapsuleBackgroundStyle) private var backgroundStyle
     // Pre-macOS 26 only: a blur pulse masks the swap between separate glass
     // surfaces. On macOS 26 the surfaces are one morphing Liquid Glass capsule,
     // so no pulse is needed and this stays at 0.
@@ -13,6 +15,14 @@ public struct FloatingCapsuleView: View {
     }
 
     public var body: some View {
+        if backgroundStyle == .liquid {
+            LiquidCapsuleStage(state: state)
+        } else {
+            classic
+        }
+    }
+
+    private var classic: some View {
         VStack(spacing: 12) {
             if state.showsLiveTranscript {
                 liveTranscript
@@ -36,22 +46,7 @@ public struct FloatingCapsuleView: View {
     }
 
     private var liveTranscript: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text("Live transcription")
-                .font(.caption.weight(.medium))
-                .foregroundStyle(.secondary)
-            Text(state.liveTranscript)
-                .font(.callout)
-                .lineLimit(3)
-                .truncationMode(.head)
-                .frame(maxWidth: .infinity, alignment: .leading)
-        }
-        .padding(14)
-        .frame(width: 384, height: 112, alignment: .topLeading)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 18))
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel("Live transcription")
-        .accessibilityValue(state.liveTranscript)
+        LiveTranscriptCard(text: state.liveTranscript)
     }
 
     /// On macOS 26 every status renders into a single `GlassEffectContainer`
@@ -81,102 +76,10 @@ public struct FloatingCapsuleView: View {
         )
     }
 
-    private var phaseID: String {
-        switch state.phase {
-        case .hidden: "hidden"
-        case .recording: "recording"
-        case .confirmCancel: "confirmCancel"
-        case .trimming: "trimming"
-        case .speeding: "speeding"
-        case .transcribing: "transcribing"
-        case .refining: "refining"
-        case .copiedToClipboard: "copied"
-        case .accessibilityPrompt: "accessibilityPrompt"
-        case .accessibilityEnabled: "accessibilityEnabled"
-        case .error: "error"
-        }
-    }
+    private var phaseID: String { state.phase.contentID }
 
-    @ViewBuilder
     private var phaseContent: some View {
-        switch state.phase {
-        case .hidden:
-            Color.clear
-        case .recording:
-            recording
-        case .confirmCancel:
-            confirmCancel
-        case .trimming, .speeding, .transcribing:
-            processing
-        case .refining:
-            intelligenceProcessing
-        case .copiedToClipboard:
-            copiedToClipboard
-        case .accessibilityPrompt:
-            accessibilityPrompt
-        case .accessibilityEnabled:
-            accessibilityEnabled
-        case .error:
-            error
-        }
-    }
-
-    // MARK: - Phase content
-
-    private var recording: some View {
-        RecordingCapsuleButton(
-            level: state.level,
-            blur: blurRadius,
-            transcribe: { state.onRecordingTapped?() },
-            cancel: { state.onCancelRecordingTapped?() }
-        )
-    }
-
-    private var confirmCancel: some View {
-        CancelConfirmationCapsule(isActive: state.cancelCountdownActive)
-    }
-
-    private var processing: some View {
-        ProcessingWaveform(bars: 37, rows: 7, tint: .primary, metrics: .floating)
-            .floatingCapsuleChrome(blur: blurRadius)
-    }
-
-    private var intelligenceProcessing: some View {
-        IntelligenceProcessingWaveform(bars: 37, rows: 7, metrics: .floating)
-            .shadow(color: .purple.opacity(0.35), radius: 5)
-            .floatingCapsuleChrome(blur: blurRadius)
-    }
-
-    private var error: some View {
-        HStack(spacing: 8) {
-            DottedStatusGlyph(kind: .warning, tint: .orange)
-
-            Text("Error")
-                .font(.footnote.weight(.semibold))
-                .foregroundStyle(.primary)
-        }
-        .floatingCapsuleChrome(blur: blurRadius)
-    }
-
-    private var copiedToClipboard: some View {
-        CopiedToClipboardCapsule(blur: blurRadius)
-    }
-
-    private var accessibilityPrompt: some View {
-        AccessibilityCapsuleButton(blur: blurRadius) {
-            state.onAccessibilityTapped?()
-        }
-    }
-
-    private var accessibilityEnabled: some View {
-        HStack(spacing: 8) {
-            DottedStatusGlyph(kind: .checkmark, tint: .green)
-
-            Text("Accessibility Enabled")
-                .font(.callout.weight(.semibold))
-                .foregroundStyle(.primary)
-        }
-        .floatingCapsuleChrome(blur: blurRadius)
+        FloatingCapsulePhaseContent(state: state, phase: state.phase, blur: blurRadius)
     }
 }
 

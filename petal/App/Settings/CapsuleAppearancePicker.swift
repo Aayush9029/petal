@@ -10,6 +10,7 @@ struct CapsuleAppearancePicker: View {
 
     var body: some View {
         HStack(spacing: 12) {
+            appearanceOption(.liquid, label: "Liquid")
             appearanceOption(.liquidGlass, label: "Glass")
             appearanceOption(.solid, label: "Opaque")
         }
@@ -81,6 +82,10 @@ struct CapsuleAppearancePicker: View {
         .padding(.vertical, 8)
 
         switch style {
+        case .liquid:
+            LiquidCapsuleSwatch {
+                content
+            }
         case .solid:
             content
                 .background(Color(nsColor: .windowBackgroundColor), in: .capsule)

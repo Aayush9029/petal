@@ -39,6 +39,7 @@ private struct FloatingCapsuleChrome: ViewModifier {
         colorScheme == .dark ? Color(white: 0.12) : Color(white: 0.97)
     }
 
+    @ViewBuilder
     func body(content: Content) -> some View {
         let padded = content
             .blur(radius: blur)
@@ -46,6 +47,22 @@ private struct FloatingCapsuleChrome: ViewModifier {
             .padding(.leading, horizontalPadding)
             .padding(.trailing, trailingPadding ?? horizontalPadding)
             .padding(.vertical, verticalPadding)
+        if backgroundStyle == .liquid {
+            // LiquidCapsuleStage draws the glass behind every phase.
+            padded
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background {
+                    if let highlight {
+                        Squircle().fill(highlight)
+                    }
+                }
+        } else {
+            classicBackground(padded)
+        }
+    }
+
+    private func classicBackground(_ padded: some View) -> some View {
         background(
             padded.background {
                 if let highlight {
@@ -62,7 +79,7 @@ private struct FloatingCapsuleChrome: ViewModifier {
             switch backgroundStyle {
             case .liquidGlass:
                 liquidGlass(view).overlay { stroke }
-            case .solid:
+            case .solid, .liquid:
                 view.background { Capsule().fill(solidColor) }.overlay { stroke }
             }
         } else {
@@ -73,7 +90,7 @@ private struct FloatingCapsuleChrome: ViewModifier {
                 view
                     .background { CapsuleVisualEffectBackground().clipShape(Capsule()) }
                     .overlay { stroke }
-            case .solid:
+            case .solid, .liquid:
                 view.background { Capsule().fill(solidColor) }.overlay { stroke }
             }
         }

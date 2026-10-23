@@ -3,7 +3,7 @@ import Observation
 @MainActor
 @Observable
 public final class FloatingCapsuleState {
-    public enum Phase: Equatable {
+    public enum Phase: Equatable, Sendable {
         case hidden
         case recording
         case confirmCancel
@@ -30,4 +30,23 @@ public final class FloatingCapsuleState {
     public var onAccessibilityTapped: (() -> Void)?
 
     public init() {}
+}
+
+extension FloatingCapsuleState.Phase {
+    /// Stable identity of the content a phase shows.
+    var contentID: String {
+        switch self {
+        case .hidden: "hidden"
+        case .recording: "recording"
+        case .confirmCancel: "confirmCancel"
+        case .trimming: "trimming"
+        case .speeding: "speeding"
+        case .transcribing: "transcribing"
+        case .refining: "refining"
+        case .copiedToClipboard: "copied"
+        case .accessibilityPrompt: "accessibilityPrompt"
+        case .accessibilityEnabled: "accessibilityEnabled"
+        case .error: "error"
+        }
+    }
 }
