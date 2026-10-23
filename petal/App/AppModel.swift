@@ -1169,58 +1169,27 @@ final class AppModel {
                 )
 
                 pipelineStage = "persist"
-                let persistStart = now
-                let persistedPaths = await persistHistoryArtifacts(
+                historyWasPersisted = true
+                recordedAudioURL = nil
+                persistTranscriptHistoryInBackground(
                     audioURL: audioURL,
                     transcript: transcript,
+                    originalTranscript: shouldPersistOriginalVariant ? originalTranscript : nil,
                     timestamp: transcriptionStart,
                     mode: mode.rawValue,
-                    modelID: selectedModelOption.rawValue
-                )
-                let persistElapsed = now.timeIntervalSince(persistStart)
-                logClient.dumpDebug(
-                    "AppModel",
-                    "Persisted transcript artifacts",
-                    appDumpString(
-                        [
-                            "sessionID": historySessionID.uuidString,
-                            "elapsed": formatElapsedSeconds(persistElapsed),
-                            "audioPath": persistedPaths?.audioRelativePath ?? "nil",
-                            "transcriptPath": persistedPaths?.transcriptRelativePath ?? "nil"
-                        ]
-                    )
-                )
-
-                appendTranscriptHistory(
-                    transcript: transcript,
                     modelID: selectedModelOption.rawValue,
-                    mode: mode.rawValue,
                     audioDuration: audioDuration,
                     transcriptionElapsed: transcriptionElapsed,
                     pasteResult: pasteResult,
-                    audioRelativePath: persistedPaths?.audioRelativePath,
-                    transcriptRelativePath: persistedPaths?.transcriptRelativePath,
                     sessionID: historySessionID,
                     app: targetApp
                 )
-                historyWasPersisted = true
-
-                if shouldPersistOriginalVariant {
-                    pipelineStage = "persist-original"
-                    await appendOriginalTranscriptHistory(
-                        originalTranscript,
-                        audioURL: audioURL,
-                        modelID: selectedModelOption.rawValue,
-                        audioDuration: audioDuration,
-                        transcriptionElapsed: transcriptionElapsed,
-                        sessionID: historySessionID,
-                        artifactTimestamp: transcriptionStart
-                    )
-                }
 
                 switch pasteResult {
                 case .pasted:
                     transientMessage = nil
+                    sessionState = .idle
+                    await floatingCapsuleClient.hide()
                 case .copiedOnly:
                     transientMessage = "Accessibility access is needed to paste. Turn it on in System Settings, then try again."
                     await postPasteFallbackNotification()
@@ -2385,6 +2354,72 @@ final class AppModel {
             )
         )
         $transcriptHistoryDays.withLock { $0 = entry }
+    }
+
+    /// Audio transcoding can take seconds, so it runs after the capsule is gone and owns the temp recording until it finishes.
+    private func persistTranscriptHistoryInBackground(
+        audioURL: URL,
+        transcript: String,
+        originalTranscript: String?,
+        timestamp: Date,
+        mode: String,
+        modelID: String,
+        audioDuration: Double,
+        transcriptionElapsed: Double,
+        pasteResult: PasteResult,
+        sessionID: UUID,
+        app: FocusedApp?
+    ) {
+        Task {
+            defer { try? FileManager.default.removeItem(at: audioURL) }
+
+            let persistStart = now
+            let persistedPaths = await persistHistoryArtifacts(
+                audioURL: audioURL,
+                transcript: transcript,
+                timestamp: timestamp,
+                mode: mode,
+                modelID: modelID
+            )
+            let persistElapsed = now.timeIntervalSince(persistStart)
+            logClient.dumpDebug(
+                "AppModel",
+                "Persisted transcript artifacts",
+                appDumpString(
+                    [
+                        "sessionID": sessionID.uuidString,
+                        "elapsed": formatElapsedSeconds(persistElapsed),
+                        "audioPath": persistedPaths?.audioRelativePath ?? "nil",
+                        "transcriptPath": persistedPaths?.transcriptRelativePath ?? "nil"
+                    ]
+                )
+            )
+
+            appendTranscriptHistory(
+                transcript: transcript,
+                modelID: modelID,
+                mode: mode,
+                audioDuration: audioDuration,
+                transcriptionElapsed: transcriptionElapsed,
+                pasteResult: pasteResult,
+                audioRelativePath: persistedPaths?.audioRelativePath,
+                transcriptRelativePath: persistedPaths?.transcriptRelativePath,
+                sessionID: sessionID,
+                app: app
+            )
+
+            if let originalTranscript {
+                await appendOriginalTranscriptHistory(
+                    originalTranscript,
+                    audioURL: audioURL,
+                    modelID: modelID,
+                    audioDuration: audioDuration,
+                    transcriptionElapsed: transcriptionElapsed,
+                    sessionID: sessionID,
+                    artifactTimestamp: timestamp
+                )
+            }
+        }
     }
 
     /// Saves the speech model's text next to its cleanup, so History can show both.
