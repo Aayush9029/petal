@@ -80,11 +80,12 @@ struct ModelSelectorCard: View {
             }
             .padding(12)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-            .background(cardBackground)
+            .background(cardWash)
             .overlay {
-                RoundedRectangle(cornerRadius: Self.cornerRadius, style: .continuous)
+                cardShape
                     .strokeBorder(borderColor, lineWidth: isSelected || isWarming ? 2 : 1)
             }
+            .settingsGlass(in: cardShape, tint: washColor.opacity(isSelected ? 0.22 : 0.12))
             .contentShape(.rect(cornerRadius: Self.cornerRadius))
         }
         .buttonStyle(.plain)
@@ -100,19 +101,18 @@ struct ModelSelectorCard: View {
         .animation(.easeOut(duration: 0.12), value: isHovering)
     }
 
-    private var cardBackground: some View {
+    private var cardShape: RoundedRectangle {
         RoundedRectangle(cornerRadius: Self.cornerRadius, style: .continuous)
-            .fill(Color(nsColor: .controlBackgroundColor))
-            .overlay {
-                RoundedRectangle(cornerRadius: Self.cornerRadius, style: .continuous)
-                    .fill(
-                        LinearGradient(
-                            colors: [washColor.opacity(isSelected ? 0.2 : 0.12), washColor.opacity(0)],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
-            }
+    }
+
+    private var cardWash: some View {
+        cardShape.fill(
+            LinearGradient(
+                colors: [washColor.opacity(isSelected ? 0.2 : 0.14), washColor.opacity(0)],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+        )
     }
 
     private var washColor: Color {
@@ -123,9 +123,8 @@ struct ModelSelectorCard: View {
     private var borderColor: Color {
         if isWarming { return .orange }
         if isSelected { return .accentColor }
-        let base = Color(nsColor: .separatorColor)
         if contrast == .increased { return .primary.opacity(0.6) }
-        return isHovering ? .primary.opacity(0.22) : base.opacity(0.8)
+        return .primary.opacity(isHovering ? 0.2 : 0.07)
     }
 
     @ViewBuilder

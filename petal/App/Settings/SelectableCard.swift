@@ -21,7 +21,7 @@ struct SelectableCard<Content: View>: View {
                 .foregroundStyle(.primary)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(6)
-                .background(cardBackground)
+                .background(cardWash)
                 .overlay {
                     RoundedRectangle(cornerRadius: Self.cornerRadius, style: .continuous)
                         .strokeBorder(borderColor, lineWidth: isSelected ? 2 : 1)
@@ -37,6 +37,7 @@ struct SelectableCard<Content: View>: View {
                             .accessibilityHidden(true)
                     }
                 }
+                .settingsGlass(in: cardShape, tint: glassTint)
                 .contentShape(.rect(cornerRadius: Self.cornerRadius))
         }
         .buttonStyle(.plain)
@@ -49,22 +50,26 @@ struct SelectableCard<Content: View>: View {
     private var borderColor: Color {
         if isSelected { return .accentColor }
         if contrast == .increased { return .primary.opacity(0.55) }
-        return .primary.opacity(isHovering ? 0.2 : 0.09)
+        return .primary.opacity(isHovering ? 0.2 : 0.07)
     }
 
-    private var cardBackground: some View {
+    private var cardShape: RoundedRectangle {
         RoundedRectangle(cornerRadius: Self.cornerRadius, style: .continuous)
-            .fill(isBlack ? AnyShapeStyle(.black.opacity(colorScheme == .dark ? 0.35 : 0.06)) : AnyShapeStyle(Color(nsColor: .controlBackgroundColor)))
-            .overlay {
-                RoundedRectangle(cornerRadius: Self.cornerRadius, style: .continuous)
-                    .fill(
-                        LinearGradient(
-                            colors: [washColor.opacity(isSelected ? 0.2 : (isHovering ? 0.08 : 0.04)), washColor.opacity(isSelected ? 0.06 : 0)],
-                            startPoint: .top,
-                            endPoint: .bottom
-                        )
-                    )
-            }
+    }
+
+    private var glassTint: Color {
+        if isBlack { return .black.opacity(colorScheme == .dark ? 0.35 : 0.06) }
+        return washColor.opacity(isSelected ? 0.2 : 0.06)
+    }
+
+    private var cardWash: some View {
+        cardShape.fill(
+            LinearGradient(
+                colors: [washColor.opacity(isSelected ? 0.18 : (isHovering ? 0.1 : 0.06)), washColor.opacity(0)],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+        )
     }
 
     private var washColor: Color {

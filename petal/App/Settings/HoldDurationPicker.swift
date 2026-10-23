@@ -10,12 +10,14 @@ struct HoldDurationPicker: View {
     }
 
     var body: some View {
-        HStack(spacing: 8) {
-            ForEach(PushToTalkThreshold.allCases) { threshold in
-                SelectableCard(isSelected: selection == threshold) {
-                    onSelect(threshold)
-                } content: {
-                    card(threshold)
+        SettingsGlassContainer {
+            HStack(spacing: 8) {
+                ForEach(PushToTalkThreshold.allCases) { threshold in
+                    SelectableCard(isSelected: selection == threshold) {
+                        onSelect(threshold)
+                    } content: {
+                        card(threshold)
+                    }
                 }
             }
         }

@@ -300,9 +300,11 @@ struct TranscriptionPane: View {
     var body: some View {
         SettingsPaneLayout(tab: .transcription) {
             SettingsSection(title: "Speech Model") {
-                LazyVGrid(columns: [GridItem(.flexible(), spacing: 10), GridItem(.flexible())], spacing: 10) {
-                    ForEach(visibleModelOptions) { option in
-                        modelCard(for: option)
+                SettingsGlassContainer {
+                    LazyVGrid(columns: [GridItem(.flexible(), spacing: 10), GridItem(.flexible())], spacing: 10) {
+                        ForEach(visibleModelOptions) { option in
+                            modelCard(for: option)
+                        }
                     }
                 }
             }
@@ -451,7 +453,8 @@ struct HistoryPane: View {
                 .padding(.horizontal, 26)
                 .padding(.bottom, 12)
         }
-        .background(Color(nsColor: .windowBackgroundColor))
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background { SettingsDetailBackground().ignoresSafeArea() }
         .task {
             await viewModel.historyTask()
         }

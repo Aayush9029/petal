@@ -6,21 +6,23 @@ struct CloudProviderPicker: View {
     let onSelect: (CloudProvider) -> Void
 
     var body: some View {
-        HStack(spacing: 8) {
-            ForEach(CloudProvider.allCases) { provider in
-                SelectableCard(isSelected: selection == provider, showsCheckmark: true) {
-                    onSelect(provider)
-                } content: {
-                    VStack(spacing: 7) {
-                        CloudProviderIcon(provider: provider, size: 30)
-                        Text(provider.displayName)
-                            .font(.caption.weight(.semibold))
-                            .lineLimit(1)
+        SettingsGlassContainer {
+            HStack(spacing: 8) {
+                ForEach(CloudProvider.allCases) { provider in
+                    SelectableCard(isSelected: selection == provider, showsCheckmark: true) {
+                        onSelect(provider)
+                    } content: {
+                        VStack(spacing: 7) {
+                            CloudProviderIcon(provider: provider, size: 30)
+                            Text(provider.displayName)
+                                .font(.caption.weight(.semibold))
+                                .lineLimit(1)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 6)
                     }
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 6)
+                    .accessibilityLabel(provider.displayName)
                 }
-                .accessibilityLabel(provider.displayName)
             }
         }
     }
