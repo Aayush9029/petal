@@ -26,11 +26,16 @@ struct LiquidCapsuleStage: View {
                     .transition(.opacity)
             }
 
-            TimelineView(.animation(paused: isSettled)) { context in
-                let time = isSettled ? timeline.settledTime : context.date.timeIntervalSinceReferenceDate
+            // Once the motion settles, only the caustic shimmer changes, so a low frame rate is enough.
+            TimelineView(.animation(
+                minimumInterval: isSettled ? 1.0 / 30.0 : nil,
+                paused: isSettled && (reduceMotion || !timeline.isPresented)
+            )) { context in
+                let now = context.date.timeIntervalSinceReferenceDate
                 LiquidCapsuleScene(
-                    frame: timeline.frame(at: time),
-                    showsRipple: !reduceTransparency
+                    frame: timeline.frame(at: isSettled ? timeline.settledTime : now),
+                    showsRipple: !reduceTransparency,
+                    caustic: reduceMotion ? .zero : [now - (timeline.presentedAt ?? now), causticLevel]
                 ) {
                     pillContent
                 } secondary: {
@@ -81,6 +86,10 @@ struct LiquidCapsuleStage: View {
             }
             isSettled = true
         }
+    }
+
+    private var causticLevel: Double {
+        displayedPhase == .recording && timeline.isPresented ? state.level : 0
     }
 
     // MARK: - Content
@@ -182,13 +191,19 @@ struct LiquidCapsuleStage: View {
 struct LiquidCapsuleScene<Pill: View, Secondary: View>: View {
     let frame: LiquidCapsuleFrame
     var showsRipple = true
+    var caustic = SIMD2<Double>.zero
     @ViewBuilder let pill: Pill
     @ViewBuilder let secondary: Secondary
 
     var body: some View {
         ZStack(alignment: .topLeading) {
             if frame.isVisible {
-                LiquidGlassLayer(frame: frame, size: LiquidCapsuleChoreography.stageSize, showsRipple: showsRipple)
+                LiquidGlassLayer(
+                    frame: frame,
+                    size: LiquidCapsuleChoreography.stageSize,
+                    showsRipple: showsRipple,
+                    caustic: caustic
+                )
 
                 pill
                     .modifier(LiquidGlassContent(blob: frame.pill, opacity: frame.contentOpacity, blur: frame.contentBlur))

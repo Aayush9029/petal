@@ -93,6 +93,26 @@ struct LiquidCapsuleRenderTests {
         }
     }
 
+    @Test func renderCausticShimmer() throws {
+        let directory = URL(fileURLWithPath: try #require(ProcessInfo.processInfo.environment["PETAL_LIQUID_CAPTURE_DIR"]))
+            .appendingPathComponent("caustic")
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let frame = Self.timeline(at: 1.9).frame(at: 1.9)
+        for (time, level) in [(0.0, 0.0), (1.0, 0.0), (2.0, 0.0), (3.0, 0.0), (4.0, 0.0), (2.0, 0.9)] {
+            let scene = LiquidCapsuleScene(frame: frame, caustic: [time, level]) {
+                LiquidRecordingPill(level: 0.6, interaction: .idle) {}
+                    .fixedSize()
+                    .environment(\.colorScheme, .dark)
+            } secondary: {
+                EmptyView()
+            }
+            try write(
+                scene.background { background(.dark) },
+                to: directory.appendingPathComponent("caustic-t\(time)-level\(level).png")
+            )
+        }
+    }
+
     @ViewBuilder
     private func background(_ backdrop: Backdrop) -> some View {
         switch backdrop {

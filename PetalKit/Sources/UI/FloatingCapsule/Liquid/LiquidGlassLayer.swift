@@ -6,6 +6,8 @@ struct LiquidGlassLayer: View {
     let size: CGSize
     var showsRipple = true
     var scale = LiquidCapsuleChoreography.shaderScale
+    /// Shimmer time in seconds and audio level of the caustic arcs.
+    var caustic = SIMD2<Double>.zero
 
     private static let library = ShaderLibrary.bundle(.module)
 
@@ -33,7 +35,8 @@ struct LiquidGlassLayer: View {
             ),
             .float2(Float(ripple?.halfSize.width ?? 0), Float(ripple?.halfSize.height ?? 0)),
             .float4(Float(frame.glow.x), Float(frame.glow.y), Float(frame.glow.z), Float(frame.contentOpacity)),
-            .float2(Float(size.width), Float(size.height))
+            .float2(Float(size.width), Float(size.height)),
+            .float2(Float(caustic.x), Float(caustic.y))
         )
     }
 

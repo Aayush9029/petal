@@ -69,12 +69,19 @@ static float bloom(float2 p, float4 shape, float2 spread) {
 // The capsule floats over other apps and cannot read them, so the lens images
 // a fixed light field instead: a dim violet room with two bright lines that
 // cross under the glass, like the folded wallpaper of the original scene.
-static float3 environment(float2 p, float4 pill) {
+// The lines drift and breathe slowly (caustic.x = seconds), and brighten a
+// little with the microphone level (caustic.y), so the caustic arcs shimmer.
+static float3 environment(float2 p, float4 pill, float2 caustic) {
     float2 q = (p - pill.xy) / max(pill.w, 1e-3);
-    float lower = exp(-sq((q.y - 0.42 + 0.10 * q.x / max(pill.z / pill.w, 1.0)) / 0.09));
-    float upper = exp(-sq((q.y + 0.30 - 0.18 * q.x / max(pill.z / pill.w, 1.0)) / 0.07));
+    float aspect = max(pill.z / pill.w, 1.0);
+    float t = caustic.x;
+    float drift = 0.035 * sin(t * 1.1) + 0.015 * sin(t * 2.3 + 1.7);
+    float tilt = 0.10 + 0.05 * sin(t * 0.6 + 0.4);
+    float breathe = 1.0 + 0.14 * sin(t * 1.6) + 0.30 * saturate(caustic.y);
+    float lower = exp(-sq((q.y - 0.42 - drift + tilt * q.x / aspect) / 0.09));
+    float upper = exp(-sq((q.y + 0.30 + 0.6 * drift - 0.18 * q.x / aspect) / 0.07));
     float3 room = float3(0.16, 0.15, 0.26) + float3(0.06, 0.05, 0.10) * q.y;
-    return room + float3(0.70, 0.70, 1.15) * lower + float3(0.55, 0.52, 0.90) * upper;
+    return room + (float3(0.70, 0.70, 1.15) * lower + float3(0.55, 0.52, 0.90) * upper) * breathe;
 }
 
 /// Dark liquid glass, drawn with premultiplied alpha over a transparent window.
@@ -86,9 +93,10 @@ static float3 environment(float2 p, float4 pill) {
 /// - rippleHalf: half size of the shape that sent the ripple.
 /// - glow: label bloom colour (rgb) and strength (a).
 /// - canvas: drawable size, used to fade the ripple before it reaches the edges.
+/// - caustic: x = shimmer time in seconds, y = audio level.
 [[ stitchable ]] half4 petalLiquidGlass(float2 position, half4 color,
                                         float4 pill, float4 secondary, float4 optics,
-                                        float4 ripple, float2 rippleHalf, float4 glow, float2 canvas) {
+                                        float4 ripple, float2 rippleHalf, float4 glow, float2 canvas, float2 caustic) {
     float scale = optics.x;
     float line = max(scale, 0.8);
     Shapes shapes = { pill, secondary, optics.y };
@@ -155,7 +163,7 @@ static float3 environment(float2 p, float4 pill) {
         float s = (float(i) + 0.5) / float(kBands);
         float bend = 1.0 + 0.30 * (s - 0.5);
         float3 w = spectrum(s);
-        refracted += environment(position - n * lensDepth * slope * bend, pill) * w;
+        refracted += environment(position - n * lensDepth * slope * bend, pill, caustic) * w;
         weight += w;
     }
     refracted /= weight;
