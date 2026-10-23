@@ -30,24 +30,16 @@ struct HoldDurationPicker: View {
                     .font(.system(size: 12, weight: .semibold, design: .rounded))
                     .monospacedDigit()
                 Spacer(minLength: 0)
-                Image(systemName: "checkmark.circle.fill")
-                    .font(.system(size: 11))
-                    .foregroundStyle(Color.accentColor)
-                    .opacity(selection == threshold ? 1 : 0)
             }
 
             HoldDurationPreview(
                 seconds: threshold.seconds,
                 longestSeconds: longestSeconds,
-                tint: tint(isSelected: selection == threshold)
+                tint: .primary
             )
         }
         .padding(.horizontal, 4)
         .padding(.vertical, 2)
-    }
-
-    private func tint(isSelected: Bool) -> Color {
-        isSelected ? .accentColor : .primary
     }
 }
 

@@ -9,7 +9,7 @@ struct CloudProviderPicker: View {
         SettingsGlassContainer {
             HStack(spacing: 8) {
                 ForEach(CloudProvider.allCases) { provider in
-                    SelectableCard(isSelected: selection == provider, showsCheckmark: true) {
+                    SelectableCard(isSelected: selection == provider) {
                         onSelect(provider)
                     } content: {
                         VStack(spacing: 7) {

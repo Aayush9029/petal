@@ -15,25 +15,7 @@ struct ModelScoreMeter: View {
         var symbol: String {
             switch self {
             case .speed: "bolt.fill"
-            case .quality: "sparkles"
-            }
-        }
-
-        var fill: AnyShapeStyle {
-            switch self {
-            case .speed:
-                AnyShapeStyle(LinearGradient(colors: [.yellow, .orange], startPoint: .leading, endPoint: .trailing))
-            case .quality:
-                AnyShapeStyle(LinearGradient(
-                    colors: [
-                        Color(red: 1, green: 0.62, blue: 0.22),
-                        Color(red: 1, green: 0.25, blue: 0.48),
-                        Color(red: 0.73, green: 0.38, blue: 0.95),
-                        Color(red: 0.25, green: 0.68, blue: 1),
-                    ],
-                    startPoint: .leading,
-                    endPoint: .trailing
-                ))
+            case .quality: "sparkle"
             }
         }
     }
@@ -45,13 +27,12 @@ struct ModelScoreMeter: View {
         HStack(spacing: 4) {
             Image(systemName: kind.symbol)
                 .font(.system(size: 9, weight: .bold))
-                .foregroundStyle(kind.fill)
+                .foregroundStyle(.secondary)
             ZStack {
                 bars(activeCount: 5)
-                    .foregroundStyle(Color.secondary.opacity(0.22))
-                Rectangle()
-                    .fill(kind.fill)
-                    .mask { bars(activeCount: score) }
+                    .foregroundStyle(.quaternary)
+                bars(activeCount: score)
+                    .foregroundStyle(.primary)
             }
             .frame(width: 34, height: 10)
         }

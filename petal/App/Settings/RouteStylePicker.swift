@@ -23,10 +23,8 @@ struct RouteStylePicker: View {
     }
 
     private func card(_ style: RouterModel.Style, subtitle: String, action: @escaping () -> Void) -> some View {
-        SelectableCard(isSelected: selection == style, tint: style.tint, showsCheckmark: true, action: action) {
+        SelectableCard(isSelected: selection == style, action: action) {
             VStack(alignment: .leading, spacing: 2) {
-                SettingsIconTile(symbol: style.symbol, fill: style.tint, size: 26)
-                    .padding(.bottom, 6)
                 Text(style.title)
                     .font(.caption.weight(.semibold))
                     .lineLimit(1)

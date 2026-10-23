@@ -6,6 +6,7 @@ struct RouterFlowConnectors: View {
     /// Route cards plus the add card, which is always last.
     let slotCount: Int
     let activeSlot: Int?
+    var routeTint = Color.accentColor
     let isFlowing: Bool
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.controlActiveState) private var controlActiveState
@@ -16,7 +17,7 @@ struct RouterFlowConnectors: View {
         }
         .overlay {
             if isFlowing, let activeSlot {
-                RouterFlowHighlight(slot: activeSlot, isAnimating: isAnimating)
+                RouterFlowHighlight(slot: activeSlot, glow: routeTint, isAnimating: isAnimating)
             }
         }
         .frame(height: RouterFlowLayout.height(slots: slotCount))
@@ -53,13 +54,25 @@ struct RouterFlowConnectors: View {
 
         guard let activeSlot, isFlowing else { return }
 
-        let accent = Color.accentColor
+        let active = StrokeStyle(lineWidth: 1.75, lineCap: .round)
+        var voice = Path()
+        voice.move(to: CGPoint(x: spineX, y: RouterFlowLayout.hubSize))
+        voice.addLine(to: CGPoint(x: spineX, y: RouterFlowLayout.routerTop))
         context.stroke(
-            Path(RouterFlowLayout.activePath(slot: activeSlot, width: width)),
-            with: .color(accent.opacity(0.85)),
-            style: StrokeStyle(lineWidth: 1.75, lineCap: .round)
+            voice,
+            with: .linearGradient(
+                Gradient(colors: [.red, .pink]),
+                startPoint: CGPoint(x: spineX, y: RouterFlowLayout.hubSize),
+                endPoint: CGPoint(x: spineX, y: RouterFlowLayout.routerTop)
+            ),
+            style: active
         )
-        context.fill(port(at: RouterFlowLayout.edge(slot: activeSlot, width: width)), with: .color(accent))
+        context.stroke(
+            Path(RouterFlowLayout.routePath(slot: activeSlot, width: width)),
+            with: .color(routeTint.opacity(0.85)),
+            style: active
+        )
+        context.fill(port(at: RouterFlowLayout.edge(slot: activeSlot, width: width)), with: .color(routeTint))
     }
 
     private func stub(slot: Int, spineX: CGFloat, width: CGFloat) -> Path {
@@ -77,7 +90,7 @@ struct RouterFlowConnectors: View {
 
 #Preview {
     VStack(spacing: 30) {
-        RouterFlowConnectors(slotCount: 4, activeSlot: 1, isFlowing: true)
+        RouterFlowConnectors(slotCount: 4, activeSlot: 1, routeTint: .purple, isFlowing: true)
         RouterFlowConnectors(slotCount: 3, activeSlot: 0, isFlowing: false)
     }
     .frame(width: 420)

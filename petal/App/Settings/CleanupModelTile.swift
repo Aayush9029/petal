@@ -15,7 +15,7 @@ struct CleanupModelTile: View {
     let action: () -> Void
 
     var body: some View {
-        SelectableCard(isSelected: isSelected, tint: tint, showsCheckmark: true, action: action) {
+        SelectableCard(isSelected: isSelected, action: action) {
             VStack(spacing: 8) {
                 CleanupModelIcon(model: model, size: 40)
                     .shadow(color: tint.opacity(0.35), radius: isSelected ? 6 : 0, y: 2)

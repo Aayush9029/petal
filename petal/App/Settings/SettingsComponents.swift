@@ -10,63 +10,89 @@ struct SettingsPaneLayout<Content: View>: View {
             VStack(alignment: .leading, spacing: 22) {
                 content()
             }
-            .frame(maxWidth: 500, alignment: .leading)
-            .padding(.horizontal, 22)
+            .frame(width: SettingsLayout.contentWidth, alignment: .leading)
+            .padding(.horizontal, SettingsLayout.contentPadding)
             .padding(.top, 12)
             .padding(.bottom, 32)
         }
         .scrollIndicators(.hidden)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background { SettingsDetailBackground().ignoresSafeArea() }
+        .background { SettingsBackdrop() }
     }
 }
 
 struct RecordingOptionTile: View {
+    private static var cornerRadius: CGFloat { 14 }
+
     let title: String
     let description: String
     let symbol: String
-    var tint = Color.accentColor
+    let artwork: Image
     let isOn: Bool
     let action: () -> Void
+
+    @Environment(\.colorSchemeContrast) private var contrast
     @State private var isHovering = false
 
     var body: some View {
         Button(action: action) {
-            HStack(spacing: 10) {
-                SettingsIconTile(symbol: symbol, fill: tint, size: 30, isActive: isOn)
+            VStack(alignment: .leading, spacing: 9) {
+                artwork
+                    .resizable()
+                    .scaledToFill()
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 78)
+                    .overlay {
+                        Image(systemName: symbol)
+                            .symbolVariant(.fill)
+                            .font(.system(size: 26, weight: .semibold))
+                            .foregroundStyle(.white)
+                            .shadow(color: .black.opacity(0.25), radius: 4, y: 1)
+                    }
+                    .clipShape(.rect(cornerRadius: 9))
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text(title)
-                        .font(.subheadline.weight(.semibold))
+                        .font(.body.weight(.semibold))
                         .lineLimit(1)
-
                     Text(description)
                         .font(.caption)
                         .foregroundStyle(.secondary)
-                        .lineLimit(1)
+                        .lineLimit(2, reservesSpace: true)
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
-
-                Image(systemName: isOn ? "checkmark.circle.fill" : "circle")
-                    .font(.title3)
-                    .foregroundStyle(isOn ? tint : Color.secondary.opacity(0.45))
-                    .contentTransition(.symbolEffect(.replace))
+                .padding(.horizontal, 3)
             }
-            .padding(.horizontal, 14)
-            .frame(maxWidth: .infinity, minHeight: 58)
+            .padding(7)
+            .frame(maxWidth: .infinity, alignment: .leading)
             .background {
-                Rectangle()
-                    .fill(Color.primary.opacity(isHovering ? 0.055 : 0))
-                    .padding(.vertical, 2)
+                if isHovering, !isOn {
+                    cardShape.fill(.primary.opacity(0.05))
+                }
             }
-            .contentShape(.rect)
+            .settingsSelection(isOn, in: cardShape)
+            .overlay {
+                cardShape.strokeBorder(borderColor, lineWidth: isOn ? 2 : 1)
+            }
+            .settingsGlass(in: cardShape)
+            .contentShape(.rect(cornerRadius: Self.cornerRadius))
         }
         .buttonStyle(.plain)
         .onHover { isHovering = $0 }
         .animation(.easeOut(duration: 0.14), value: isHovering)
         .animation(.snappy(duration: 0.2), value: isOn)
+        .accessibilityElement(children: .combine)
         .accessibilityValue(isOn ? "On" : "Off")
-        .accessibilityHint(description)
+        .accessibilityAddTraits(isOn ? .isSelected : [])
+    }
+
+    private var cardShape: RoundedRectangle {
+        RoundedRectangle(cornerRadius: Self.cornerRadius, style: .continuous)
+    }
+
+    private var borderColor: Color {
+        if isOn { return .primary }
+        if contrast == .increased { return .primary.opacity(0.55) }
+        return .primary.opacity(isHovering ? 0.2 : 0.07)
     }
 }
 
