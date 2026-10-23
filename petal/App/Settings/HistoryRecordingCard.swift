@@ -22,11 +22,14 @@ struct HistoryRecordingCard: View {
                 modelIcon
 
                 Text(entry.timestamp, format: .dateTime.hour().minute())
-                    .font(.caption.weight(.semibold))
+                    .font(.subheadline.weight(.semibold))
+                    .monospacedDigit()
 
-                Text(durationText)
-                    .font(.caption.monospacedDigit())
-                    .foregroundStyle(.secondary)
+                if audioURL == nil {
+                    Text(durationText)
+                        .font(.caption.monospacedDigit())
+                        .foregroundStyle(.secondary)
+                }
 
                 if let app = entry.app {
                     appLabel(app)
@@ -43,9 +46,11 @@ struct HistoryRecordingCard: View {
                     Image(systemName: isShowingCopyConfirmation ? "checkmark" : "doc.on.doc")
                         .contentTransition(.symbolEffect(.replace))
                         .foregroundStyle(isShowingCopyConfirmation ? .green : .primary)
+                        .modifier(HistoryCardActionBackground())
                 }
                 .disabled(text.output.isEmpty)
                 .help(text.cleanup == nil ? "Copy transcript" : "Copy cleaned-up text")
+                .accessibilityLabel(text.cleanup == nil ? "Copy transcript" : "Copy cleaned-up text")
 
                 reprocessMenu
             }
@@ -57,7 +62,7 @@ struct HistoryRecordingCard: View {
                     SettingsCardDivider()
                     HistoryTextBlock(title: "Transcript", text: text.transcript) { onCopy(text.transcript) }
                 }
-                .background(.quaternary.opacity(0.4), in: .rect(cornerRadius: 10))
+                .background(.quaternary.opacity(0.4), in: .rect(cornerRadius: 10, style: .continuous))
             } else {
                 Text(displayTranscript)
                     .font(.subheadline)
@@ -73,10 +78,14 @@ struct HistoryRecordingCard: View {
                     } label: {
                         Image(systemName: playback.isPlaying(entry.id) ? "pause.fill" : "play.fill")
                             .font(.caption.weight(.bold))
-                            .frame(width: 26, height: 26)
-                            .background(Color.primary.opacity(0.08), in: .circle)
+                            .foregroundStyle(.white)
+                            .contentTransition(.symbolEffect(.replace))
+                            .frame(width: 28, height: 28)
+                            .background(Color.accentColor.gradient, in: .circle)
+                            .contentShape(.circle)
                     }
                     .buttonStyle(.plain)
+                    .accessibilityLabel(playback.isPlaying(entry.id) ? "Pause" : "Play")
 
                     HistoryWaveformView(
                         samples: playback.waveforms[entry.id, default: []],
@@ -84,21 +93,26 @@ struct HistoryRecordingCard: View {
                         onScrub: { playback.scrub(entryID: entry.id, audioURL: audioURL, to: $0) },
                         onPlay: { playback.playButtonTapped(entryID: entry.id, audioURL: audioURL) }
                     )
+
+                    Text(durationText)
+                        .font(.caption.monospacedDigit())
+                        .foregroundStyle(.secondary)
                 }
+                .padding(.leading, 2)
             }
         }
         .padding(14)
-        .background(Color(nsColor: .controlBackgroundColor), in: .rect(cornerRadius: 14))
+        .background(Color(nsColor: .controlBackgroundColor), in: .rect(cornerRadius: 16, style: .continuous))
         .overlay {
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
                 .strokeBorder(
                     playback.activeEntryID == entry.id
-                        ? Color.accentColor.opacity(0.7)
+                        ? Color.accentColor.opacity(0.8)
                         : Color(nsColor: .separatorColor).opacity(0.7),
-                    lineWidth: playback.activeEntryID == entry.id ? 1.5 : 1
+                    lineWidth: playback.activeEntryID == entry.id ? 2 : 1
                 )
         }
-        .contentShape(.rect(cornerRadius: 14))
+        .contentShape(.rect(cornerRadius: 16))
         .contextMenu {
             if let cleanup = text.cleanup {
                 Button("Copy Cleaned-Up Text", systemImage: "sparkles") { onCopy(cleanup) }
@@ -135,8 +149,10 @@ struct HistoryRecordingCard: View {
                     .disabled(!canCleanUp)
             } label: {
                 Image(systemName: "arrow.clockwise")
+                    .modifier(HistoryCardActionBackground())
             }
-            .menuStyle(.borderlessButton)
+            .menuStyle(.button)
+            .buttonStyle(.plain)
             .menuIndicator(.hidden)
             .fixedSize()
             .disabled(audioURL == nil)
@@ -146,12 +162,16 @@ struct HistoryRecordingCard: View {
 
     private func appLabel(_ app: FocusedApp) -> some View {
         HStack(spacing: 4) {
-            RouteIcon(trigger: .app(app.app), size: 14)
+            RouteIcon(trigger: .app(app.app), size: 16)
             Text(app.website ?? app.app.name)
                 .lineLimit(1)
         }
-        .font(.caption)
+        .font(.caption.weight(.medium))
         .foregroundStyle(.secondary)
+        .padding(.leading, 3)
+        .padding(.trailing, 8)
+        .frame(height: 22)
+        .background(Color.primary.opacity(0.06), in: .capsule)
         .help(app.website.map { "\(app.app.name) · \($0)" } ?? app.app.name)
     }
 
@@ -159,8 +179,8 @@ struct HistoryRecordingCard: View {
         ModelOption.from(modelID: entry.modelID).provider.icon
             .resizable()
             .scaledToFill()
-            .frame(width: 22, height: 22)
-            .clipShape(.rect(cornerRadius: 6))
+            .frame(width: 26, height: 26)
+            .clipShape(.rect(cornerRadius: 7))
             .overlay(alignment: .bottomTrailing) {
                 if isFailed {
                     Image(systemName: "exclamationmark.circle.fill")

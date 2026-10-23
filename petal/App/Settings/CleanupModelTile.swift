@@ -15,9 +15,10 @@ struct CleanupModelTile: View {
     let action: () -> Void
 
     var body: some View {
-        SelectableCard(isSelected: isSelected, action: action) {
-            VStack(spacing: 7) {
-                CleanupModelIcon(model: model, size: 32)
+        SelectableCard(isSelected: isSelected, tint: tint, showsCheckmark: true, action: action) {
+            VStack(spacing: 8) {
+                CleanupModelIcon(model: model, size: 40)
+                    .shadow(color: tint.opacity(0.35), radius: isSelected ? 6 : 0, y: 2)
                     .overlay(alignment: .topTrailing) {
                         if case let .downloading(progress)? = downloadState {
                             CircularDownloadProgress(fraction: progress.fraction)
@@ -39,7 +40,8 @@ struct CleanupModelTile: View {
                 }
             }
             .frame(maxWidth: .infinity)
-            .padding(.vertical, 6)
+            .padding(.top, 8)
+            .padding(.bottom, 4)
         }
         .disabled(!isAvailable)
         .opacity(isAvailable ? 1 : 0.5)
@@ -48,6 +50,15 @@ struct CleanupModelTile: View {
         .help(model.summary ?? "Paste your words as you said them.")
         .accessibilityLabel(model.displayName)
         .accessibilityValue(status ?? "")
+    }
+
+    private var tint: Color {
+        switch model {
+        case .off: .gray
+        case .appleIntelligence: .purple
+        case .petalW1: .pink
+        case .cloud: .blue
+        }
     }
 
     private var isFailed: Bool {

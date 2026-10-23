@@ -40,8 +40,7 @@ struct SettingsView: View {
                 .navigationTitle(selectedTab.title)
         }
         .navigationSplitViewStyle(.balanced)
-        .animation(.easeOut(duration: 0.16), value: selectedTab)
-    }
+        .animation(.easeOut(duration: 0.16), value: selectedTab)    }
 
     private var sidebarSelection: Binding<SettingsTab?> {
         Binding(get: { selectedTab }, set: { selectedTab = $0 ?? selectedTab })
@@ -86,7 +85,9 @@ struct GeneralPane: View {
             SettingsPanel {
                 SettingsControlRow(
                     title: "Recording Shortcut",
-                    description: viewModel.shortcutDescription
+                    description: viewModel.shortcutDescription,
+                    symbol: "keyboard",
+                    tint: .indigo
                 ) {
                     UnifiedShortcutRecorder(shortcut: viewModel.unifiedShortcutBinding)
                 }
@@ -94,7 +95,9 @@ struct GeneralPane: View {
                 SettingsCardDivider()
 
                 SettingsControlRow(
-                    title: "Hold Duration"
+                    title: "Hold Duration",
+                    symbol: "timer",
+                    tint: .orange
                 ) {
                     HoldDurationPicker(selection: viewModel.pushToTalkThreshold) { threshold in
                         viewModel.$pushToTalkThreshold.withLock { $0 = threshold }
@@ -106,7 +109,9 @@ struct GeneralPane: View {
 
                 SettingsControlRow(
                     title: "Paste Last Transcription",
-                    description: "Paste your most recent transcription again."
+                    description: "Paste your most recent transcription again.",
+                    symbol: "doc.on.clipboard",
+                    tint: .blue
                 ) {
                     KeyboardShortcuts.Recorder(for: .pasteLastTranscription) { viewModel.pasteLastTranscriptionShortcutRecorded($0) }
                 }
@@ -115,7 +120,9 @@ struct GeneralPane: View {
 
                 SettingsControlRow(
                     title: "Send Now",
-                    description: "While recording, press ⌃X then ⌃S to stop, paste, and press Return."
+                    description: "While recording, press ⌃X then ⌃S to stop, paste, and press Return.",
+                    symbol: "return",
+                    tint: .green
                 ) {
                     KeyCapsLabel(keys: ["⌃X", "⌃S"])
                 }
@@ -124,7 +131,9 @@ struct GeneralPane: View {
             SettingsPanel {
                 SettingsControlRow(
                     title: "Launch at Login",
-                    description: viewModel.launchAtLoginMessage ?? "Open Petal automatically when you log in."
+                    description: viewModel.launchAtLoginMessage ?? "Open Petal automatically when you log in.",
+                    symbol: "power",
+                    tint: .gray
                 ) {
                     SettingsSwitch(isOn: viewModel.launchAtLoginEnabled) { value in
                         Task { await viewModel.launchAtLoginToggled(value) }
@@ -158,7 +167,8 @@ struct GeneralPane: View {
                         permissionRow(
                             title: "Microphone",
                             description: "Required to hear and transcribe your voice.",
-                            symbol: "mic.fill"
+                            symbol: "mic.fill",
+                            tint: .pink
                         ) {
                             await viewModel.grantMicrophonePermissionButtonTapped()
                         }
@@ -172,7 +182,8 @@ struct GeneralPane: View {
                         permissionRow(
                             title: "Accessibility",
                             description: "Allows Petal to paste into the app you are using.",
-                            symbol: "accessibility"
+                            symbol: "accessibility",
+                            tint: .blue
                         ) {
                             await viewModel.grantAccessibilityPermissionButtonTapped()
                         }
@@ -199,9 +210,10 @@ struct GeneralPane: View {
         title: String,
         description: String,
         symbol: String,
+        tint: Color,
         action: @escaping () async -> Void
     ) -> some View {
-        SettingsControlRow(title: title, description: description, symbol: symbol) {
+        SettingsControlRow(title: title, description: description, symbol: symbol, tint: tint) {
             SettingsActionButton(title: "Enable") {
                 Task { await action() }
             }
@@ -215,7 +227,7 @@ struct RecordingPane: View {
     var body: some View {
         SettingsPaneLayout(tab: .recording) {
             SettingsPanel {
-                SettingsControlRow(title: "Microphone", symbol: "mic") {
+                SettingsControlRow(title: "Microphone", symbol: "mic", tint: .pink) {
                     SettingsMenuPicker(
                         values: viewModel.audioInputDevices.map(\.id),
                         selection: viewModel.selectedAudioInputID,
@@ -233,6 +245,7 @@ struct RecordingPane: View {
                         title: "Trim Silence",
                         description: "Remove quiet gaps from recordings.",
                         symbol: "scissors",
+                        tint: .orange,
                         isOn: viewModel.trimSilenceEnabled
                     ) { viewModel.$trimSilenceEnabled.withLock { $0.toggle() } }
 
@@ -242,6 +255,7 @@ struct RecordingPane: View {
                         title: "Auto Speed-up",
                         description: "Accelerate long recordings automatically.",
                         symbol: "hare.fill",
+                        tint: .green,
                         isOn: viewModel.autoSpeedEnabled
                     ) { viewModel.$autoSpeedEnabled.withLock { $0.toggle() } }
 
@@ -251,6 +265,7 @@ struct RecordingPane: View {
                         title: "Restore Clipboard",
                         description: "Put previous clipboard content back.",
                         symbol: "clipboard",
+                        tint: .blue,
                         isOn: viewModel.restoreClipboardAfterPaste
                     ) { viewModel.$restoreClipboardAfterPaste.withLock { $0.toggle() } }
 
@@ -260,6 +275,7 @@ struct RecordingPane: View {
                         title: "Lower System Audio",
                         description: "Quiet other audio while recording.",
                         symbol: "speaker.wave.1",
+                        tint: .purple,
                         isOn: viewModel.duckSystemAudioDuringRecording
                     ) { viewModel.$duckSystemAudioDuringRecording.withLock { $0.toggle() } }
                 }
@@ -283,11 +299,10 @@ struct TranscriptionPane: View {
 
     var body: some View {
         SettingsPaneLayout(tab: .transcription) {
-            SettingsPanelSection(title: "Speech Model") {
-                ForEach(Array(visibleModelOptions.enumerated()), id: \.element) { index, option in
-                    modelCard(for: option)
-                    if index < visibleModelOptions.count - 1 {
-                        SettingsCardDivider()
+            SettingsSection(title: "Speech Model") {
+                LazyVGrid(columns: [GridItem(.flexible(), spacing: 10), GridItem(.flexible())], spacing: 10) {
+                    ForEach(visibleModelOptions) { option in
+                        modelCard(for: option)
                     }
                 }
             }
@@ -391,7 +406,7 @@ struct HistoryPane: View {
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else {
                     ScrollView {
-                        LazyVStack(alignment: .leading, spacing: 12) {
+                        LazyVStack(alignment: .leading, spacing: 12, pinnedViews: [.sectionHeaders]) {
                             ForEach(days) { day in
                                 Section {
                                     ForEach(day.entries) { entry in
@@ -417,10 +432,7 @@ struct HistoryPane: View {
                                         )
                                     }
                                 } header: {
-                                    Text(dayTitle(day))
-                                        .font(.subheadline.weight(.semibold))
-                                        .foregroundStyle(.secondary)
-                                        .padding(.leading, 4)
+                                    HistoryDayHeader(title: dayTitle(day), count: day.entries.count)
                                 }
                             }
                         }
@@ -448,11 +460,7 @@ struct HistoryPane: View {
     @ViewBuilder
     private var emptyState: some View {
         if searchText.isEmpty {
-            ContentUnavailableView(
-                "No Recordings",
-                systemImage: "waveform",
-                description: Text("Your saved recordings will appear here.")
-            )
+            HistoryEmptyState()
         } else {
             ContentUnavailableView.search(text: searchText)
         }
@@ -506,7 +514,8 @@ struct AdvancedPane: View {
                 SettingsControlRow(
                     title: "Save History",
                     description: "Choose what Petal keeps after transcription.",
-                    symbol: "archivebox"
+                    symbol: "archivebox",
+                    tint: .brown
                 ) {
                     SettingsMenuPicker(
                         values: HistoryRetentionMode.allCases,
@@ -521,13 +530,15 @@ struct AdvancedPane: View {
                     title: "Extra Compression",
                     description: "Use smaller audio files with slightly lower fidelity.",
                     symbol: "arrow.down.right.and.arrow.up.left",
+                    tint: .teal,
                     isOn: viewModel.compressHistoryAudio
                 ) { value in viewModel.$compressHistoryAudio.withLock { $0 = value } }
                 SettingsCardDivider()
                 SettingsControlRow(
                     title: "History Folder",
                     description: viewModel.historyDirectoryDisplayPath,
-                    symbol: "folder"
+                    symbol: "folder",
+                    tint: .blue
                 ) {
                     SettingsActionButton(title: "Open") {
                         viewModel.openHistoryInFinder()
@@ -539,7 +550,8 @@ struct AdvancedPane: View {
                 SettingsControlRow(
                     title: "Remove Saved Audio",
                     description: "Keep transcripts but delete their recording files.",
-                    symbol: "waveform.badge.minus"
+                    symbol: "waveform.badge.minus",
+                    tint: .orange
                 ) {
                     SettingsActionButton(title: "Delete…", tint: .red) {
                         historyAlert = .deleteMedia
@@ -551,7 +563,8 @@ struct AdvancedPane: View {
                 SettingsControlRow(
                     title: "Reset History",
                     description: "Permanently delete transcripts and saved audio.",
-                    symbol: "trash"
+                    symbol: "trash",
+                    tint: .red
                 ) {
                     SettingsActionButton(title: "Delete All…", tint: .red) {
                         historyAlert = .deleteAll
@@ -564,13 +577,15 @@ struct AdvancedPane: View {
                     title: "Diagnostic Logs",
                     description: "Record local details that help troubleshoot Petal.",
                     symbol: "doc.text.magnifyingglass",
+                    tint: .gray,
                     isOn: viewModel.logsEnabled
                 ) { value in viewModel.$logsEnabled.withLock { $0 = value } }
                 SettingsCardDivider()
                 SettingsControlRow(
                     title: "Export Logs",
                     description: "Save a copy to share while troubleshooting.",
-                    symbol: "square.and.arrow.up"
+                    symbol: "square.and.arrow.up",
+                    tint: .indigo
                 ) {
                     SettingsActionButton(title: "Export…") {
                         viewModel.exportLogs()

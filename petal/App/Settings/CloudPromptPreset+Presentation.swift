@@ -1,4 +1,5 @@
 import Shared
+import SwiftUI
 
 extension CloudPromptPreset {
     var symbol: String {
@@ -9,6 +10,17 @@ extension CloudPromptPreset {
         case .professional: "briefcase"
         case .aiPrompt: "brain"
         case .assistant: "bubble.left.and.text.bubble.right"
+        }
+    }
+
+    var tint: Color {
+        switch self {
+        case .cleanUp: .blue
+        case .email: .cyan
+        case .notes: .yellow
+        case .professional: .brown
+        case .aiPrompt: .pink
+        case .assistant: .green
         }
     }
 

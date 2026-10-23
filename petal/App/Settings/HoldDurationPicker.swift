@@ -5,8 +5,6 @@ struct HoldDurationPicker: View {
     let selection: PushToTalkThreshold
     let onSelect: (PushToTalkThreshold) -> Void
 
-    @Environment(\.colorScheme) private var colorScheme
-
     private var longestSeconds: Double {
         PushToTalkThreshold.allCases.map(\.seconds).max() ?? 1
     }
@@ -32,7 +30,7 @@ struct HoldDurationPicker: View {
                 Spacer(minLength: 0)
                 Image(systemName: "checkmark.circle.fill")
                     .font(.system(size: 11))
-                    .symbolRenderingMode(.hierarchical)
+                    .foregroundStyle(Color.accentColor)
                     .opacity(selection == threshold ? 1 : 0)
             }
 
@@ -47,8 +45,7 @@ struct HoldDurationPicker: View {
     }
 
     private func tint(isSelected: Bool) -> Color {
-        guard isSelected else { return .primary }
-        return colorScheme == .dark ? .black : .white
+        isSelected ? .accentColor : .primary
     }
 }
 

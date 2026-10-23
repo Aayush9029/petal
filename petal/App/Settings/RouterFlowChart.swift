@@ -69,14 +69,11 @@ struct RouterFlowChart<AddButton: View>: View {
 
     private var sourceNode: some View {
         Image(systemName: "waveform")
-            .font(.system(size: 15, weight: .semibold))
-            .foregroundStyle(isFlowing ? AnyShapeStyle(Color.accentColor) : AnyShapeStyle(.secondary))
+            .font(.system(size: 16, weight: .bold))
+            .foregroundStyle(isFlowing ? AnyShapeStyle(.white) : AnyShapeStyle(.secondary))
             .frame(width: RouterFlowLayout.hubSize, height: RouterFlowLayout.hubSize)
-            .background(Color(nsColor: .controlBackgroundColor), in: .circle)
-            .overlay {
-                Circle()
-                    .strokeBorder(Color(nsColor: .separatorColor), lineWidth: 1)
-            }
+            .background(isFlowing ? AnyShapeStyle(SettingsTab.recording.fill.gradient) : AnyShapeStyle(Color.secondary.opacity(0.15)), in: .circle)
+            .shadow(color: SettingsTab.recording.fill.opacity(isFlowing ? 0.35 : 0), radius: 6, y: 2)
             .overlay(alignment: .bottomTrailing) {
                 if let selectedTrigger {
                     RouteIcon(trigger: selectedTrigger, size: 18)
@@ -92,16 +89,16 @@ struct RouterFlowChart<AddButton: View>: View {
     }
 
     private var routerNode: some View {
-        Image(systemName: "arrow.triangle.branch")
-            .font(.system(size: 15, weight: .medium))
-            .foregroundStyle(.secondary)
+        Image(systemName: SettingsTab.router.symbol)
+            .font(.system(size: 16, weight: .bold))
+            .foregroundStyle(isFlowing ? AnyShapeStyle(.white) : AnyShapeStyle(.secondary))
             .rotationEffect(.degrees(180))
             .frame(width: RouterFlowLayout.hubSize, height: RouterFlowLayout.hubSize)
-            .background(Color(nsColor: .controlBackgroundColor), in: .rect(cornerRadius: 11))
-            .overlay {
-                RoundedRectangle(cornerRadius: 11, style: .continuous)
-                    .strokeBorder(Color(nsColor: .separatorColor), lineWidth: 1)
-            }
+            .background(
+                isFlowing ? AnyShapeStyle(SettingsTab.router.fill.gradient) : AnyShapeStyle(Color.secondary.opacity(0.15)),
+                in: .rect(cornerRadius: 12, style: .continuous)
+            )
+            .shadow(color: SettingsTab.router.fill.opacity(isFlowing ? 0.35 : 0), radius: 6, y: 2)
             .overlay(alignment: .leading) {
                 caption(routerCaption)
                     .offset(x: RouterFlowLayout.hubSize + 10)
