@@ -1,7 +1,7 @@
 import SwiftUI
 
-/// A still liquid capsule behind arbitrary content, for previews of the style.
-public struct LiquidCapsuleSwatch<Content: View>: View {
+/// A still Future capsule behind arbitrary content, for previews of the style.
+public struct FutureCapsuleSwatch<Content: View>: View {
     private let content: Content
     private let margin: CGFloat = 12
 
@@ -15,7 +15,7 @@ public struct LiquidCapsuleSwatch<Content: View>: View {
             .background {
                 GeometryReader { proxy in
                     let canvas = CGSize(width: proxy.size.width + 2 * margin, height: proxy.size.height + 2 * margin)
-                    LiquidGlassLayer(
+                    FutureGlassLayer(
                         frame: .still(pill: .init(
                             center: CGPoint(x: canvas.width / 2, y: canvas.height / 2),
                             size: proxy.size
@@ -30,9 +30,9 @@ public struct LiquidCapsuleSwatch<Content: View>: View {
     }
 }
 
-extension LiquidCapsuleFrame {
+extension CapsuleFrame {
     static func still(pill: Blob) -> Self {
-        LiquidCapsuleFrame(
+        CapsuleFrame(
             pill: pill,
             secondary: .zero,
             contentOpacity: 1,
@@ -40,7 +40,7 @@ extension LiquidCapsuleFrame {
             secondaryOpacity: 0,
             secondaryBlur: 0,
             ripple: nil,
-            glow: FloatingCapsuleState.Phase.recording.liquidGlow,
+            glow: FloatingCapsuleState.Phase.recording.capsuleGlow,
             visibility: 1,
             isSplit: false,
             isVisible: true

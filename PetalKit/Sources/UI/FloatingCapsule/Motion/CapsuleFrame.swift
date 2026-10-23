@@ -1,7 +1,7 @@
 import CoreGraphics
 
-/// One rendered instant of the liquid capsule, in points of the stage.
-struct LiquidCapsuleFrame: Equatable, Sendable {
+/// One rendered instant of the floating capsule, in points of the stage.
+struct CapsuleFrame: Equatable, Sendable {
     var pill: Blob
     var secondary: Blob
     var contentOpacity: Double
@@ -11,6 +11,12 @@ struct LiquidCapsuleFrame: Equatable, Sendable {
     var ripple: Ripple?
     var glow: SIMD3<Double>
     var visibility: Double
+    /// How soft the glass edges and fill are, from 0 (crisp) to 1, while the drop forms, pulses, or leaves.
+    var diffusion: Double = 0
+    var isDismissing = false
+    /// 0 to 1: the stop drop glows red, and the Transcribe pill brightens.
+    var stopHover: Double = 0
+    var transcribeHover: Double = 0
     var isSplit: Bool
     var isVisible: Bool
 
@@ -37,7 +43,14 @@ struct LiquidCapsuleFrame: Equatable, Sendable {
         var strength: Double
     }
 
-    static let hidden = LiquidCapsuleFrame(
+    /// The same instant with only the ripple drawn, for glass that the system draws.
+    var rippleOnly: CapsuleFrame {
+        var frame = self
+        frame.visibility = 0
+        return frame
+    }
+
+    static let hidden = CapsuleFrame(
         pill: .zero,
         secondary: .zero,
         contentOpacity: 0,

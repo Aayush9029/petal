@@ -1,5 +1,5 @@
-/// How the liquid capsule moves when the capsule phase changes.
-enum LiquidCapsuleCue: Equatable, Sendable {
+/// How the floating capsule moves when the capsule phase changes.
+enum CapsuleCue: Equatable, Sendable {
     case none
     /// A drop appears, rises, and sends a ripple.
     case present
@@ -49,8 +49,8 @@ enum LiquidCapsuleCue: Equatable, Sendable {
 }
 
 extension FloatingCapsuleState.Phase {
-    /// Colour of the bloom the label casts inside the liquid glass.
-    var liquidGlow: SIMD3<Double> {
+    /// Colour of the bloom the label casts inside the Future glass.
+    var capsuleGlow: SIMD3<Double> {
         switch self {
         case .hidden, .recording, .confirmCancel:
             return [0.30, 0.12, 0.19]

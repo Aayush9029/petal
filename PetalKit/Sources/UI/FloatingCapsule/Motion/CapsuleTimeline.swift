@@ -3,17 +3,19 @@ import Foundation
 
 /// The events of one capsule session. Frames are a pure function of these
 /// events and the time, so any instant can be rendered or tested on its own.
-struct LiquidCapsuleTimeline: Equatable, Sendable {
-    private typealias Curve = LiquidCapsuleChoreography
+struct CapsuleTimeline: Equatable, Sendable {
+    private typealias Curve = CapsuleChoreography
 
-    static let defaultSize = CGSize(width: 198, height: LiquidCapsuleChoreography.pillHeight)
+    static let defaultSize = CGSize(width: 198, height: CapsuleChoreography.pillHeight)
 
     private(set) var presentedAt: Double?
     private(set) var dismissedAt: Double?
     private(set) var pulseAt: Double?
-    private var width = LiquidSpring(defaultSize.width, omega: 11)
-    private var height = LiquidSpring(defaultSize.height, omega: 11)
-    private var split = LiquidSpring(0, omega: 12)
+    private var width = CapsuleSpring(defaultSize.width, omega: 11)
+    private var height = CapsuleSpring(defaultSize.height, omega: 11)
+    private var split = CapsuleSpring(0, omega: 12)
+    private var stopHover = CapsuleSpring(0, omega: 14)
+    private var transcribeHover = CapsuleSpring(0, omega: 14)
     private var glowFrom = SIMD3<Double>.zero
     private var glowTo = SIMD3<Double>.zero
     private var glowStart = -Double.infinity
@@ -22,7 +24,10 @@ struct LiquidCapsuleTimeline: Equatable, Sendable {
     var isPresented: Bool { presentedAt != nil && dismissedAt == nil }
 
     var lastEventTime: Double {
-        [presentedAt, dismissedAt, pulseAt, width.start, height.start, split.start, glowStart]
+        [
+            presentedAt, dismissedAt, pulseAt, width.start, height.start, split.start,
+            stopHover.start, transcribeHover.start, glowStart,
+        ]
             .compactMap { $0 }
             .filter(\.isFinite)
             .max() ?? 0
@@ -47,6 +52,8 @@ struct LiquidCapsuleTimeline: Equatable, Sendable {
         width.retarget(size.width, at: time, snap: true)
         height.retarget(size.height, at: time, snap: true)
         split.retarget(0, at: time, snap: true)
+        stopHover.retarget(0, at: time, snap: true)
+        transcribeHover.retarget(0, at: time, snap: true)
         glowFrom = glow
         glowTo = glow
         glowStart = time
@@ -62,6 +69,13 @@ struct LiquidCapsuleTimeline: Equatable, Sendable {
     mutating func setSplit(_ isSplit: Bool, at time: Double) {
         guard isPresented else { return }
         split.retarget(isSplit ? 1 : 0, at: time)
+    }
+
+    /// The pointer is over the stop drop or over the Transcribe pill.
+    mutating func setHover(stop: Bool, transcribe: Bool, at time: Double) {
+        guard isPresented else { return }
+        stopHover.retarget(stop ? 1 : 0, at: time)
+        transcribeHover.retarget(transcribe ? 1 : 0, at: time)
     }
 
     mutating func pulse(at time: Double) {
@@ -85,7 +99,7 @@ struct LiquidCapsuleTimeline: Equatable, Sendable {
         glowFrom + (glowTo - glowFrom) * Curve.smoothstep(0, 0.35, time - glowStart)
     }
 
-    func frame(at time: Double) -> LiquidCapsuleFrame {
+    func frame(at time: Double) -> CapsuleFrame {
         guard let presentedAt, time >= presentedAt else { return .hidden }
         let t = time - presentedAt
         let rest = Curve.restCenter
@@ -103,11 +117,18 @@ struct LiquidCapsuleTimeline: Equatable, Sendable {
         var pillX = rest.x - pairShift * splitValue
         var y = rest.y + Curve.riseDistance * rise
 
-        let tuckedX = rest.x + targetWidth / 2 - secondarySize.width / 2
+        // Tucked, the drop is a small bead at the centre of the pill's end cap,
+        // fully inside the glass, so it can appear and vanish without a visible change.
+        let tucked = Curve.tuckedScale * targetHeight
+        let tuckedX = rest.x + targetWidth / 2 - targetHeight / 2
         let splitX = rest.x - pairShift + targetWidth / 2 + Curve.gap + secondarySize.width / 2
         var secondaryX = tuckedX + (splitX - tuckedX) * splitValue
-        var secondary = split.to > 0 || splitValue > 0.01
-            ? CGSize(width: secondarySize.width * grow, height: secondarySize.height * grow)
+        let swell = Curve.smoothstep(0, 0.6, splitValue)
+        var secondary = split.to > 0 || splitValue > 0.002
+            ? CGSize(
+                width: (tucked + (secondarySize.width - tucked) * swell) * grow,
+                height: (tucked + (secondarySize.height - tucked) * swell) * grow
+            )
             : .zero
 
         if let pulseAt, !reduceMotion, time > pulseAt {
@@ -124,6 +145,10 @@ struct LiquidCapsuleTimeline: Equatable, Sendable {
         var secondaryOpacity = Curve.smoothstep(0.55, 0.95, splitValue)
         var secondaryBlur = reduceMotion ? 0 : 6 * (1 - secondaryOpacity)
         var visibility = reduceMotion ? Curve.smoothstep(0, Curve.reducedMotionFade, t) : 1
+        var diffusion = reduceMotion ? 0 : 1 - Curve.smoothstep(0.0, 0.45, t)
+        if let pulseAt, !reduceMotion, time > pulseAt {
+            diffusion = max(diffusion, 0.6 * exp(-(time - pulseAt) * 5))
+        }
         var isVisible = pillWidth > 0.25
 
         if let dismissedAt, time >= dismissedAt {
@@ -152,10 +177,11 @@ struct LiquidCapsuleTimeline: Equatable, Sendable {
                 secondaryOpacity *= 1 - Curve.smoothstep(0.0, 0.10, elapsed)
                 secondaryBlur = max(secondaryBlur, 6 * Curve.smoothstep(0.0, 0.10, elapsed))
                 isVisible = pillWidth > 0.25 && elapsed < Curve.dismissDuration
+                diffusion = max(diffusion, Curve.smoothstep(0.0, 0.25, elapsed))
             }
         }
 
-        return LiquidCapsuleFrame(
+        return CapsuleFrame(
             pill: .init(center: CGPoint(x: pillX, y: y), size: CGSize(width: pillWidth, height: pillHeight)),
             secondary: .init(center: CGPoint(x: secondaryX, y: y), size: secondary),
             contentOpacity: contentOpacity,
@@ -165,12 +191,16 @@ struct LiquidCapsuleTimeline: Equatable, Sendable {
             ripple: reduceMotion ? nil : ripple(at: time, presentedAt: presentedAt, pillX: pillX),
             glow: glowValue(at: time),
             visibility: visibility,
+            diffusion: diffusion,
+            isDismissing: dismissedAt.map { time >= $0 } ?? false,
+            stopHover: reduceMotion ? stopHover.to : stopHover.value(at: time),
+            transcribeHover: reduceMotion ? transcribeHover.to : transcribeHover.value(at: time),
             isSplit: splitValue > 0.9 && dismissedAt == nil,
             isVisible: isVisible
         )
     }
 
-    private func ripple(at time: Double, presentedAt: Double, pillX: CGFloat) -> LiquidCapsuleFrame.Ripple? {
+    private func ripple(at time: Double, presentedAt: Double, pillX: CGFloat) -> CapsuleFrame.Ripple? {
         let halfSize = CGSize(width: width.to / 2, height: height.to / 2)
         if let pulseAt, time >= pulseAt {
             return .init(center: CGPoint(x: pillX, y: Curve.restCenter.y), halfSize: halfSize, age: time - pulseAt, strength: 0.55)

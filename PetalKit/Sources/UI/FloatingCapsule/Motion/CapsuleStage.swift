@@ -1,19 +1,38 @@
+import Shared
 import SwiftUI
 
-/// The floating capsule in the liquid style: one dark glass drop, drawn by
-/// `LiquidGlass.metal`, that carries the content of every phase.
-struct LiquidCapsuleStage: View {
-    private typealias Curve = LiquidCapsuleChoreography
+/// The floating capsule as one glass drop that carries the content of every
+/// phase and moves like liquid: it drops in, splits, pulses, and lifts away.
+struct CapsuleStage: View {
+    private typealias Curve = CapsuleChoreography
+
+    enum Material: Equatable {
+        /// Dark glass drawn by `FutureGlass.metal`.
+        case future
+        /// System Liquid Glass, macOS 26 and later.
+        case systemGlass
+
+        init?(style: FloatingCapsuleBackgroundStyle) {
+            switch style {
+            case .future:
+                self = .future
+            case .liquidGlass:
+                guard #available(macOS 26.0, *) else { return nil }
+                self = .systemGlass
+            }
+        }
+    }
 
     @Bindable var state: FloatingCapsuleState
+    let material: Material
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
 
-    @State private var timeline = LiquidCapsuleTimeline()
+    @State private var timeline = CapsuleTimeline()
     @State private var isSettled = true
     @State private var displayedPhase = FloatingCapsuleState.Phase.hidden
     @State private var contentSizes: [String: CGSize] = [:]
-    @State private var interaction = LiquidRecordingInteraction.idle
+    @State private var interaction = CapsuleRecordingInteraction.idle
     @State private var secondaryConfirmsDelete = false
     @State private var isPillHovered = false
     @State private var isSecondaryHovered = false
@@ -32,8 +51,9 @@ struct LiquidCapsuleStage: View {
                 paused: isSettled && (reduceMotion || !timeline.isPresented)
             )) { context in
                 let now = context.date.timeIntervalSinceReferenceDate
-                LiquidCapsuleScene(
+                CapsuleScene(
                     frame: timeline.frame(at: isSettled ? timeline.settledTime : now),
+                    material: material,
                     showsRipple: !reduceTransparency,
                     caustic: reduceMotion ? .zero : [now - (timeline.presentedAt ?? now), causticLevel]
                 ) {
@@ -58,6 +78,9 @@ struct LiquidCapsuleStage: View {
                 secondaryConfirmsDelete = interaction == .confirmingCancel
             }
             update { $0.setSplit(interaction.showsSecondary && displayedPhase == .recording, at: $1) }
+        }
+        .onChange(of: hoverTargets) { _, targets in
+            update { $0.setHover(stop: targets.stop, transcribe: targets.transcribe, at: $1) }
         }
         .onChange(of: isPillHovered || isSecondaryHovered) { _, isHovering in
             guard displayedPhase == .recording else { return }
@@ -88,6 +111,19 @@ struct LiquidCapsuleStage: View {
         }
     }
 
+    private struct HoverTargets: Equatable {
+        var stop: Bool
+        var transcribe: Bool
+    }
+
+    private var hoverTargets: HoverTargets {
+        let isRecording = displayedPhase == .recording
+        return HoverTargets(
+            stop: isRecording && isSecondaryHovered && interaction.showsSecondary,
+            transcribe: isRecording && isPillHovered && interaction == .hovered
+        )
+    }
+
     private var causticLevel: Double {
         displayedPhase == .recording && timeline.isPresented ? state.level : 0
     }
@@ -106,14 +142,15 @@ struct LiquidCapsuleStage: View {
                 .id(displayedPhase.contentID)
                 .transition(.blurReplace)
         }
-        .environment(\.colorScheme, .dark)
+        .environment(\.capsuleStageDrawsGlass, true)
+        .modifier(DarkContentOnFutureGlass(material: material))
         .onHover { isPillHovered = $0 }
     }
 
     @ViewBuilder
     private func phaseView(_ phase: FloatingCapsuleState.Phase) -> some View {
         if phase == .recording {
-            LiquidRecordingPill(level: state.level, interaction: interaction) {
+            CapsuleRecordingPill(level: state.level, interaction: interaction) {
                 guard interaction != .submitted else { return }
                 interaction = .submitted
                 state.onRecordingTapped?()
@@ -148,7 +185,7 @@ struct LiquidCapsuleStage: View {
     // MARK: - Events
 
     private func phaseChanged(from old: FloatingCapsuleState.Phase, to new: FloatingCapsuleState.Phase) {
-        let cue = LiquidCapsuleCue.transition(from: old, to: new)
+        let cue = CapsuleCue.transition(from: old, to: new)
         if new != .recording {
             interaction = .idle
         }
@@ -157,15 +194,15 @@ struct LiquidCapsuleStage: View {
             return
         case .present:
             displayedPhase = new
-            let size = contentSizes[new.contentID] ?? LiquidCapsuleTimeline.defaultSize
-            update { $0.present(size: size, glow: new.liquidGlow, at: $1) }
+            let size = contentSizes[new.contentID] ?? CapsuleTimeline.defaultSize
+            update { $0.present(size: size, glow: new.capsuleGlow, at: $1) }
         case .resize, .pulse:
             withAnimation(.smooth(duration: 0.3)) {
                 displayedPhase = new
             }
             update { timeline, now in
                 timeline.setSplit(false, at: now)
-                timeline.setGlow(new.liquidGlow, at: now)
+                timeline.setGlow(new.capsuleGlow, at: now)
                 if let size = contentSizes[new.contentID] {
                     timeline.resize(to: size, at: now)
                 }
@@ -178,7 +215,7 @@ struct LiquidCapsuleStage: View {
         }
     }
 
-    private func update(_ change: (inout LiquidCapsuleTimeline, Double) -> Void) {
+    private func update(_ change: (inout CapsuleTimeline, Double) -> Void) {
         var next = timeline
         change(&next, Date.now.timeIntervalSinceReferenceDate)
         guard next != timeline else { return }
@@ -187,9 +224,23 @@ struct LiquidCapsuleStage: View {
     }
 }
 
+/// Future glass is near black in every appearance; system glass follows the appearance.
+private struct DarkContentOnFutureGlass: ViewModifier {
+    let material: CapsuleStage.Material
+
+    func body(content: Content) -> some View {
+        if material == .future {
+            content.environment(\.colorScheme, .dark)
+        } else {
+            content
+        }
+    }
+}
+
 /// Places the glass and the content of one frame on the stage.
-struct LiquidCapsuleScene<Pill: View, Secondary: View>: View {
-    let frame: LiquidCapsuleFrame
+struct CapsuleScene<Pill: View, Secondary: View>: View {
+    let frame: CapsuleFrame
+    var material = CapsuleStage.Material.future
     var showsRipple = true
     var caustic = SIMD2<Double>.zero
     @ViewBuilder let pill: Pill
@@ -198,19 +249,14 @@ struct LiquidCapsuleScene<Pill: View, Secondary: View>: View {
     var body: some View {
         ZStack(alignment: .topLeading) {
             if frame.isVisible {
-                LiquidGlassLayer(
-                    frame: frame,
-                    size: LiquidCapsuleChoreography.stageSize,
-                    showsRipple: showsRipple,
-                    caustic: caustic
-                )
+                glass
 
                 pill
-                    .modifier(LiquidGlassContent(blob: frame.pill, opacity: frame.contentOpacity, blur: frame.contentBlur))
+                    .modifier(CapsuleBlobContent(blob: frame.pill, opacity: frame.contentOpacity, blur: frame.contentBlur))
 
                 if frame.secondary.size.width > 0 {
                     secondary
-                        .modifier(LiquidGlassContent(
+                        .modifier(CapsuleBlobContent(
                             blob: frame.secondary,
                             opacity: frame.secondaryOpacity,
                             blur: frame.secondaryBlur
@@ -221,16 +267,29 @@ struct LiquidCapsuleScene<Pill: View, Secondary: View>: View {
             }
         }
         .frame(
-            width: LiquidCapsuleChoreography.stageSize.width,
-            height: LiquidCapsuleChoreography.stageSize.height,
+            width: CapsuleChoreography.stageSize.width,
+            height: CapsuleChoreography.stageSize.height,
             alignment: .topLeading
         )
     }
 }
 
+extension CapsuleScene {
+    @ViewBuilder
+    private var glass: some View {
+        let size = CapsuleChoreography.stageSize
+        if material == .systemGlass, #available(macOS 26.0, *) {
+            FutureGlassLayer(frame: frame.rippleOnly, size: size, showsRipple: showsRipple)
+            SystemGlassLayer(frame: frame, size: size, caustic: caustic)
+        } else {
+            FutureGlassLayer(frame: frame, size: size, showsRipple: showsRipple, caustic: caustic)
+        }
+    }
+}
+
 /// Centers content on a glass blob and clips it to the blob's current squircle.
-private struct LiquidGlassContent: ViewModifier {
-    var blob: LiquidCapsuleFrame.Blob
+private struct CapsuleBlobContent: ViewModifier {
+    var blob: CapsuleFrame.Blob
     var opacity: Double
     var blur: Double
 

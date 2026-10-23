@@ -10,9 +10,8 @@ struct CapsuleAppearancePicker: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            appearanceOption(.liquid, label: "Liquid")
+            appearanceOption(.future, label: "Future")
             appearanceOption(.liquidGlass, label: "Glass")
-            appearanceOption(.solid, label: "Opaque")
         }
     }
 
@@ -82,19 +81,14 @@ struct CapsuleAppearancePicker: View {
         .padding(.vertical, 8)
 
         switch style {
-        case .liquid:
-            LiquidCapsuleSwatch {
+        case .future:
+            FutureCapsuleSwatch {
                 content
             }
-        case .solid:
-            content
-                .background(Color(nsColor: .windowBackgroundColor), in: .capsule)
-                .overlay { Capsule().strokeBorder(.white.opacity(0.2), lineWidth: 1) }
         case .liquidGlass:
             if #available(macOS 26.0, *) {
                 content
-                    .glassEffect(in: .capsule)
-                    .overlay { Capsule().strokeBorder(.white.opacity(0.28), lineWidth: 1) }
+                    .glassEffect(in: Squircle())
             } else {
                 content
                     .background(.ultraThinMaterial, in: .capsule)

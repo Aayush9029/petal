@@ -1,19 +1,20 @@
 import CoreGraphics
+import Shared
 import Testing
 @testable import UI
 
-@Suite struct LiquidCapsuleChoreographyTests {
-    private typealias Curve = LiquidCapsuleChoreography
+@Suite struct CapsuleChoreographyTests {
+    private typealias Curve = CapsuleChoreography
     private let size = CGSize(width: 198, height: 50)
 
-    private func presented(at time: Double = 0) -> LiquidCapsuleTimeline {
-        var timeline = LiquidCapsuleTimeline()
+    private func presented(at time: Double = 0) -> CapsuleTimeline {
+        var timeline = CapsuleTimeline()
         timeline.present(size: size, glow: [0.3, 0.12, 0.19], at: time)
         return timeline
     }
 
     @Test func hiddenUntilPresented() {
-        let timeline = LiquidCapsuleTimeline()
+        let timeline = CapsuleTimeline()
         #expect(!timeline.frame(at: 10).isVisible)
         #expect(!presented(at: 1).frame(at: 0.5).isVisible)
     }
@@ -81,6 +82,47 @@ import Testing
         #expect(abs(frame.pill.center.x - Curve.restCenter.x) < 0.5)
     }
 
+    @Test func mergeEndsInsideThePillWithoutAJump() {
+        var timeline = presented()
+        timeline.setSplit(true, at: 2)
+        timeline.setSplit(false, at: 3)
+        var previous = timeline.frame(at: 3)
+        var time = 3.0
+        while time < 4 {
+            time += 1.0 / 240
+            let frame = timeline.frame(at: time)
+            let step = abs(frame.secondary.size.width - previous.secondary.size.width)
+                + abs(frame.secondary.center.x - previous.secondary.center.x)
+            if frame.secondary.size == .zero {
+                // The drop may only vanish once it is a bead inside the end cap.
+                let bead = previous.secondary.rect
+                let cap = previous.pill.rect.insetBy(dx: 10, dy: 10)
+                #expect(previous.secondary.size == .zero || cap.contains(bead))
+            } else {
+                #expect(step < 4)
+            }
+            previous = frame
+        }
+        #expect(previous.secondary.size == .zero)
+    }
+
+    @Test func hoverGlowsEaseInAndOut() {
+        var timeline = presented()
+        timeline.setSplit(true, at: 1)
+        timeline.setHover(stop: true, transcribe: false, at: 2)
+        let rising = timeline.frame(at: 2.05).stopHover
+        #expect(rising > 0 && rising < 1)
+        #expect(timeline.frame(at: 2.8).stopHover > 0.99)
+        #expect(timeline.frame(at: 2.8).transcribeHover == 0)
+        timeline.setHover(stop: false, transcribe: true, at: 3)
+        let falling = timeline.frame(at: 3.05)
+        #expect(falling.stopHover > 0 && falling.stopHover < 1)
+        #expect(falling.transcribeHover > 0)
+        #expect(!timeline.isSettled(at: 3.5))
+        timeline.reduceMotion = true
+        #expect(timeline.frame(at: 3.01).transcribeHover == 1)
+    }
+
     @Test func pulseWobblesAndRipplesThenSettles() throws {
         var timeline = presented()
         timeline.pulse(at: 4)
@@ -106,6 +148,36 @@ import Testing
         var timeline = presented()
         timeline.resize(to: CGSize(width: 240, height: 50), at: 0.03)
         #expect(abs(timeline.frame(at: 2).pill.size.width - 240) < 0.01)
+    }
+
+    @Test func diffusionSoftensFormingPulsingAndLeaving() {
+        var timeline = presented()
+        #expect(timeline.frame(at: 0.05).diffusion > 0.8)
+        #expect(timeline.frame(at: 1).diffusion == 0)
+        timeline.pulse(at: 2)
+        #expect(timeline.frame(at: 2.05).diffusion > 0.3)
+        #expect(timeline.frame(at: 3).diffusion < 0.01)
+        timeline.dismiss(at: 4)
+        #expect(!timeline.frame(at: 3.9).isDismissing)
+        #expect(timeline.frame(at: 4.3).isDismissing)
+        #expect(timeline.frame(at: 4.3).diffusion == 1)
+        timeline.reduceMotion = true
+        #expect(timeline.frame(at: 4.05).diffusion == 0)
+    }
+
+    @Test(arguments: [
+        ("future", FloatingCapsuleBackgroundStyle.future),
+        ("liquid", .future),
+        ("liquidGlass", .liquidGlass),
+        ("solid", .liquidGlass),
+    ])
+    func savedStylesMigrate(rawValue: String, style: FloatingCapsuleBackgroundStyle) {
+        #expect(FloatingCapsuleBackgroundStyle(rawValue: rawValue) == style)
+    }
+
+    @Test func stylesSaveTheirCurrentNames() {
+        #expect(FloatingCapsuleBackgroundStyle.allCases.map(\.rawValue) == ["future", "liquidGlass"])
+        #expect(FloatingCapsuleBackgroundStyle(rawValue: "unknown") == nil)
     }
 
     @Test func dismissMergesShrinksAndLifts() {
@@ -170,7 +242,7 @@ import Testing
     }
 
     @Test(arguments: [
-        (FloatingCapsuleState.Phase.hidden, FloatingCapsuleState.Phase.recording, LiquidCapsuleCue.present),
+        (FloatingCapsuleState.Phase.hidden, FloatingCapsuleState.Phase.recording, CapsuleCue.present),
         (.hidden, .error("x"), .present),
         (.recording, .hidden, .dismiss),
         (.copiedToClipboard, .hidden, .dismiss),
@@ -189,19 +261,20 @@ import Testing
     func phaseTransitionsMapToCues(
         old: FloatingCapsuleState.Phase,
         new: FloatingCapsuleState.Phase,
-        cue: LiquidCapsuleCue
+        cue: CapsuleCue
     ) {
-        #expect(LiquidCapsuleCue.transition(from: old, to: new) == cue)
+        #expect(CapsuleCue.transition(from: old, to: new) == cue)
     }
 
-    @Test func liquidPanelKeepsCapsuleAtClassicHeight() {
-        let liquidBottom = FloatingCapsuleLayout.bottomOffset(style: .liquid) + Curve.bottomInset
-        let classicBottom = FloatingCapsuleLayout.bottomOffset(style: .solid) + 4
-        #expect(liquidBottom == classicBottom)
-        #expect(!FloatingCapsuleLayout.usesWindowShadow(style: .liquid))
-        #expect(FloatingCapsuleLayout.dismissDuration(style: .solid, reduceMotion: false) == 0)
-        #expect(FloatingCapsuleLayout.dismissDuration(style: .liquid, reduceMotion: false) >= Curve.dismissDuration)
-        let transcript = FloatingCapsuleLayout.panelSize(style: .liquid, showsLiveTranscript: true)
+    @Test func stagePanelKeepsCapsuleAtClassicHeight() {
+        let stageBottom = FloatingCapsuleLayout.bottomOffset(style: .future) + Curve.bottomInset
+        #expect(stageBottom == 40)
+        #expect(!FloatingCapsuleLayout.usesWindowShadow(style: .future))
+        #expect(FloatingCapsuleLayout.dismissDuration(style: .future, reduceMotion: false) >= Curve.dismissDuration)
+        if #available(macOS 26.0, *) {
+            #expect(FloatingCapsuleLayout.usesStage(style: .liquidGlass))
+        }
+        let transcript = FloatingCapsuleLayout.panelSize(style: .future, showsLiveTranscript: true)
         #expect(transcript.height > Curve.stageSize.height)
     }
 }

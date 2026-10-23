@@ -23,7 +23,7 @@ final class SettingsViewModel {
     @ObservationIgnored @Shared(.transcriptionMode) var transcriptionMode: TranscriptionMode = .verbatim
     @ObservationIgnored @Shared(.smartPrompt) var smartPrompt = TranscriptionMode.defaultSmartPrompt
     @ObservationIgnored @Shared(.historyRetentionMode) var historyRetentionMode: HistoryRetentionMode = .both
-    @ObservationIgnored @Shared(.floatingCapsuleBackgroundStyle) var floatingCapsuleBackgroundStyle: FloatingCapsuleBackgroundStyle = .liquid
+    @ObservationIgnored @Shared(.floatingCapsuleBackgroundStyle) var floatingCapsuleBackgroundStyle: FloatingCapsuleBackgroundStyle = .future
     @ObservationIgnored @Shared(.compressHistoryAudio) var compressHistoryAudio = true
     @ObservationIgnored @Shared(.cleanupMinimumWords) var cleanupMinimumWords: CleanupMinimumWords = .three
     @ObservationIgnored @Shared(.cleanupModel) var cleanupModel: CleanupModel = .off

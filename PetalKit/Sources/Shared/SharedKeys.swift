@@ -81,7 +81,7 @@ public extension SharedKey where Self == AppStorageKey<HistoryRetentionMode>.Def
 
 public extension SharedKey where Self == AppStorageKey<FloatingCapsuleBackgroundStyle>.Default {
     static var floatingCapsuleBackgroundStyle: Self {
-        Self[.appStorage("floating_capsule_background_style"), default: .liquid]
+        Self[.appStorage("floating_capsule_background_style"), default: .future]
     }
 }
 

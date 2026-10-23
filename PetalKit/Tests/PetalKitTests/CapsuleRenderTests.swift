@@ -4,12 +4,12 @@ import SwiftUI
 import Testing
 @testable import UI
 
-/// Renders liquid capsule frames offscreen for visual review.
-/// Run with `TEST_RUNNER_PETAL_LIQUID_CAPTURE_DIR=<dir> xcodebuild test …`.
+/// Renders stage capsule frames offscreen for visual review.
+/// Run with `TEST_RUNNER_PETAL_CAPSULE_CAPTURE_DIR=<dir> xcodebuild test …`.
 @MainActor
-@Suite(.enabled(if: ProcessInfo.processInfo.environment["PETAL_LIQUID_CAPTURE_DIR"] != nil))
-struct LiquidCapsuleRenderTests {
-    private typealias Curve = LiquidCapsuleChoreography
+@Suite(.enabled(if: ProcessInfo.processInfo.environment["PETAL_CAPSULE_CAPTURE_DIR"] != nil))
+struct CapsuleRenderTests {
+    private typealias Curve = CapsuleChoreography
 
     private enum Backdrop: String, CaseIterable {
         case light
@@ -21,20 +21,23 @@ struct LiquidCapsuleRenderTests {
         var name: String
         var time: Double
         var phase: FloatingCapsuleState.Phase
-        var interaction: LiquidRecordingInteraction = .idle
+        var interaction: CapsuleRecordingInteraction = .idle
     }
 
     /// The session as it is known at `time`: events that have not happened yet are left out.
-    private static func timeline(at time: Double) -> LiquidCapsuleTimeline {
-        let events: [(Double, (inout LiquidCapsuleTimeline, Double) -> Void)] = [
-            (0, { $0.present(size: LiquidCapsuleTimeline.defaultSize, glow: FloatingCapsuleState.Phase.recording.liquidGlow, at: $1) }),
+    private static func timeline(at time: Double) -> CapsuleTimeline {
+        let events: [(Double, (inout CapsuleTimeline, Double) -> Void)] = [
+            (0, { $0.present(size: CapsuleTimeline.defaultSize, glow: FloatingCapsuleState.Phase.recording.capsuleGlow, at: $1) }),
             (2, { $0.setSplit(true, at: $1) }),
+            (2.5, { $0.setHover(stop: false, transcribe: true, at: $1) }),
+            (2.8, { $0.setHover(stop: true, transcribe: false, at: $1) }),
+            (3.3, { $0.setHover(stop: false, transcribe: false, at: $1) }),
             (3.5, { $0.setSplit(false, at: $1) }),
-            (4, { $0.pulse(at: $1); $0.setGlow(FloatingCapsuleState.Phase.transcribing.liquidGlow, at: $1) }),
-            (6, { $0.pulse(at: $1); $0.setGlow(FloatingCapsuleState.Phase.copiedToClipboard.liquidGlow, at: $1) }),
+            (4, { $0.pulse(at: $1); $0.setGlow(FloatingCapsuleState.Phase.transcribing.capsuleGlow, at: $1) }),
+            (6, { $0.pulse(at: $1); $0.setGlow(FloatingCapsuleState.Phase.copiedToClipboard.capsuleGlow, at: $1) }),
             (8, { $0.dismiss(at: $1) }),
         ]
-        var timeline = LiquidCapsuleTimeline()
+        var timeline = CapsuleTimeline()
         for (eventTime, apply) in events where eventTime <= time {
             apply(&timeline, eventTime)
         }
@@ -49,7 +52,9 @@ struct LiquidCapsuleRenderTests {
         Shot(name: "05-recording", time: 1.80, phase: .recording),
         Shot(name: "06-split-neck", time: 2.10, phase: .recording, interaction: .hovered),
         Shot(name: "07-split", time: 2.20, phase: .recording, interaction: .hovered),
-        Shot(name: "08-split-settled", time: 3.00, phase: .recording, interaction: .hovered),
+        Shot(name: "08a-transcribe-hover", time: 2.75, phase: .recording, interaction: .hovered),
+        Shot(name: "08b-stop-hover", time: 3.20, phase: .recording, interaction: .hovered),
+        Shot(name: "08c-hover-out", time: 3.45, phase: .recording, interaction: .hovered),
         Shot(name: "09-merge", time: 3.62, phase: .recording),
         Shot(name: "10-pulse", time: 4.10, phase: .transcribing),
         Shot(name: "11-pulse-ripple", time: 4.35, phase: .transcribing),
@@ -61,24 +66,31 @@ struct LiquidCapsuleRenderTests {
     ]
 
     @Test func renderFrames() throws {
-        let directory = URL(fileURLWithPath: try #require(ProcessInfo.processInfo.environment["PETAL_LIQUID_CAPTURE_DIR"]))
+        let directory = URL(fileURLWithPath: try #require(ProcessInfo.processInfo.environment["PETAL_CAPSULE_CAPTURE_DIR"]))
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         let state = FloatingCapsuleState()
         state.level = 0.6
 
+        var materials: [(String, CapsuleStage.Material)] = [("future", .future)]
+        if #available(macOS 26.0, *) {
+            materials.append(("glass", .systemGlass))
+        }
+        for (materialName, material) in materials {
         for backdrop in Backdrop.allCases {
             for shot in Self.shots {
                 state.phase = shot.phase
-                let scene = LiquidCapsuleScene(frame: Self.timeline(at: shot.time).frame(at: shot.time)) {
+                let scheme: ColorScheme = material == .future || backdrop != .light ? .dark : .light
+                let scene = CapsuleScene(frame: Self.timeline(at: shot.time).frame(at: shot.time), material: material) {
                     Group {
                         if shot.phase == .recording {
-                            LiquidRecordingPill(level: 0.6, interaction: shot.interaction) {}
+                            CapsuleRecordingPill(level: 0.6, interaction: shot.interaction) {}
                         } else {
                             FloatingCapsulePhaseContent(state: state, phase: shot.phase, blur: 0)
                         }
                     }
                     .fixedSize()
-                    .environment(\.colorScheme, .dark)
+                    .environment(\.capsuleStageDrawsGlass, true)
+                    .environment(\.colorScheme, scheme)
                 } secondary: {
                     Image(systemName: "stop.fill")
                         .font(.system(size: 15, weight: .bold))
@@ -88,19 +100,20 @@ struct LiquidCapsuleRenderTests {
                 let view = scene
                     .background { background(backdrop) }
                     .environment(\.colorScheme, backdrop == .light ? .light : .dark)
-                try write(view, to: directory.appendingPathComponent("\(backdrop.rawValue)-\(shot.name).png"))
+                try write(view, to: directory.appendingPathComponent("\(materialName)-\(backdrop.rawValue)-\(shot.name).png"))
             }
+        }
         }
     }
 
     @Test func renderCausticShimmer() throws {
-        let directory = URL(fileURLWithPath: try #require(ProcessInfo.processInfo.environment["PETAL_LIQUID_CAPTURE_DIR"]))
+        let directory = URL(fileURLWithPath: try #require(ProcessInfo.processInfo.environment["PETAL_CAPSULE_CAPTURE_DIR"]))
             .appendingPathComponent("caustic")
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         let frame = Self.timeline(at: 1.9).frame(at: 1.9)
         for (time, level) in [(0.0, 0.0), (1.0, 0.0), (2.0, 0.0), (3.0, 0.0), (4.0, 0.0), (2.0, 0.9)] {
-            let scene = LiquidCapsuleScene(frame: frame, caustic: [time, level]) {
-                LiquidRecordingPill(level: 0.6, interaction: .idle) {}
+            let scene = CapsuleScene(frame: frame, caustic: [time, level]) {
+                CapsuleRecordingPill(level: 0.6, interaction: .idle) {}
                     .fixedSize()
                     .environment(\.colorScheme, .dark)
             } secondary: {

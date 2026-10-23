@@ -1,6 +1,6 @@
 import SwiftUI
 
-enum LiquidRecordingInteraction: Hashable {
+enum CapsuleRecordingInteraction: Hashable {
     case idle
     case hovered
     case confirmingCancel
@@ -12,11 +12,11 @@ enum LiquidRecordingInteraction: Hashable {
     }
 }
 
-/// The recording pill of the liquid capsule. The stop button lives in the
-/// secondary drop that splits off the pill, see ``LiquidCapsuleStage``.
-struct LiquidRecordingPill: View {
+/// The recording pill of the stage capsule. The stop button lives in the
+/// secondary drop that splits off the pill, see ``CapsuleStage``.
+struct CapsuleRecordingPill: View {
     let level: Double
-    let interaction: LiquidRecordingInteraction
+    let interaction: CapsuleRecordingInteraction
     let transcribe: () -> Void
 
     @State private var isTranscribeHovering = false

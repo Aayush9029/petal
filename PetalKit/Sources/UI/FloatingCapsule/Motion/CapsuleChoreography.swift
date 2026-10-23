@@ -1,15 +1,17 @@
 import CoreGraphics
 import Foundation
 
-/// Stage geometry and motion curves of the liquid capsule, adapted from the
+/// Stage geometry and motion curves of the floating capsule, adapted from the
 /// Liquid Circle reference with every distance scaled to the capsule height.
-enum LiquidCapsuleChoreography {
+enum CapsuleChoreography {
     static let stageSize = CGSize(width: 440, height: 150)
     static let pillHeight: CGFloat = 50
     static let bottomInset: CGFloat = 44
     static let restCenter = CGPoint(x: stageSize.width / 2, y: stageSize.height - bottomInset - pillHeight / 2)
     static let secondarySize = CGSize(width: 52, height: 49)
     static let gap: CGFloat = 7
+    /// Size of the tucked stop drop relative to the pill height.
+    static let tuckedScale: CGFloat = 0.5
     static let riseDistance: CGFloat = 30
     static let liftDistance: CGFloat = 38
     /// Points per point of the 98-point-tall Liquid Circle pill.
@@ -45,7 +47,7 @@ enum LiquidCapsuleChoreography {
 }
 
 /// A value that springs from `from` to `to`, starting at `start`.
-struct LiquidSpring: Equatable, Sendable {
+struct CapsuleSpring: Equatable, Sendable {
     var from: Double
     var to: Double
     var start: Double
@@ -59,7 +61,7 @@ struct LiquidSpring: Equatable, Sendable {
     }
 
     func value(at time: Double) -> Double {
-        from + (to - from) * LiquidCapsuleChoreography.criticallyDamped(time - start, omega: omega)
+        from + (to - from) * CapsuleChoreography.criticallyDamped(time - start, omega: omega)
     }
 
     mutating func retarget(_ target: Double, at time: Double, snap: Bool = false) {

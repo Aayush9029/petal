@@ -1,16 +1,33 @@
 public enum FloatingCapsuleBackgroundStyle: String, CaseIterable, Identifiable, Sendable, Codable {
-    case liquid
+    case future
     case liquidGlass
-    case solid
+
+    /// Reads saved values of earlier builds: "liquid" became Future, and the
+    /// removed "solid" style moves to Glass.
+    public init?(rawValue: String) {
+        switch rawValue {
+        case "future", "liquid":
+            self = .future
+        case "liquidGlass", "solid":
+            self = .liquidGlass
+        default:
+            return nil
+        }
+    }
+
+    public var rawValue: String {
+        switch self {
+        case .future: "future"
+        case .liquidGlass: "liquidGlass"
+        }
+    }
 
     public var id: String { rawValue }
 
     public var displayName: String {
         switch self {
-        case .liquid:
-            return "Liquid"
-        case .solid:
-            return "Solid"
+        case .future:
+            return "Future"
         case .liquidGlass:
             return "Liquid Glass"
         }
@@ -18,12 +35,10 @@ public enum FloatingCapsuleBackgroundStyle: String, CaseIterable, Identifiable, 
 
     public var description: String {
         switch self {
-        case .liquid:
+        case .future:
             return "Dark glass that rises, ripples, and splits like a drop of liquid."
-        case .solid:
-            return "An opaque background."
         case .liquidGlass:
-            return "A translucent Liquid Glass background."
+            return "Clear Liquid Glass that morphs and merges like a drop of liquid."
         }
     }
 }
