@@ -7,7 +7,7 @@ import SwiftUI
 struct SystemGlassLayer: View {
     let frame: CapsuleFrame
     let size: CGSize
-    var caustic = SIMD2<Double>.zero
+    var light = CapsuleLight()
 
     @Namespace private var namespace
 
@@ -26,7 +26,7 @@ struct SystemGlassLayer: View {
                         .glassEffectID("pill", in: namespace)
 
                     if frame.secondary.size.width > 0 {
-                        glass(frame.secondary, tint: .red.opacity(0.42 * frame.stopHover))
+                        glass(frame.secondary, tint: .red.opacity(0.62 * frame.stopHover))
                             .glassEffectID("secondary", in: namespace)
                             .glassEffectUnion(id: frame.isDismissing ? "pill" : "secondary", namespace: namespace)
                             .glassEffectTransition(.matchedGeometry)
@@ -68,14 +68,14 @@ struct SystemGlassLayer: View {
         }
     }
 
-    /// A soft red bloom that spreads from the stop drop while the pointer is over it.
+    /// A faint red glow just around the stop drop while the pointer is over it.
     @ViewBuilder
     private func stopHalo(_ blob: CapsuleFrame.Blob) -> some View {
         if frame.stopHover > 0.01, blob.size.width > 0 {
             Squircle()
-                .fill(.red.opacity(0.35 * frame.stopHover))
-                .frame(width: blob.size.width + 8, height: blob.size.height + 8)
-                .blur(radius: 9)
+                .fill(.red.opacity(0.08 * frame.stopHover))
+                .frame(width: blob.size.width + 4, height: blob.size.height + 4)
+                .blur(radius: 5)
                 .position(blob.center)
         }
     }
@@ -86,7 +86,7 @@ struct SystemGlassLayer: View {
             Self.shape(frame.pill),
             Self.shape(frame.secondary),
             .float4(scale, 20 * scale, Float(1 - 0.6 * frame.diffusion), 0),
-            .float2(Float(caustic.x), Float(caustic.y))
+            .float4(Float(light.time), Float(light.level), Float(frame.danger), Float(light.strength))
         )
     }
 

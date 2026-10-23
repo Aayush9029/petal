@@ -112,7 +112,7 @@ struct CapsuleRenderTests {
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         let frame = Self.timeline(at: 1.9).frame(at: 1.9)
         for (time, level) in [(0.0, 0.0), (1.0, 0.0), (2.0, 0.0), (3.0, 0.0), (4.0, 0.0), (2.0, 0.9)] {
-            let scene = CapsuleScene(frame: frame, caustic: [time, level]) {
+            let scene = CapsuleScene(frame: frame, light: CapsuleLight(time: time, level: level, strength: 0.5)) {
                 CapsuleRecordingPill(level: 0.6, interaction: .idle) {}
                     .fixedSize()
                     .environment(\.colorScheme, .dark)
@@ -123,6 +123,78 @@ struct CapsuleRenderTests {
                 scene.background { background(.dark) },
                 to: directory.appendingPathComponent("caustic-t\(time)-level\(level).png")
             )
+        }
+    }
+
+    /// Processing spin, delete confirmation, and the delete burst, for both glass materials.
+    @Test func renderSpinConfirmAndBurst() throws {
+        let directory = URL(fileURLWithPath: try #require(ProcessInfo.processInfo.environment["PETAL_CAPSULE_CAPTURE_DIR"]))
+            .appendingPathComponent("states")
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let state = FloatingCapsuleState()
+        state.phase = .transcribing
+
+        var spin = CapsuleTimeline()
+        spin.present(size: CapsuleTimeline.defaultSize, glow: FloatingCapsuleState.Phase.transcribing.capsuleGlow, at: 0)
+        spin.setOrbit(true, at: 0)
+        var confirm = CapsuleTimeline()
+        confirm.present(size: CapsuleTimeline.defaultSize, glow: FloatingCapsuleState.Phase.recording.capsuleGlow, at: 0)
+        confirm.setSplit(true, at: 1)
+        confirm.setDanger(true, at: 2)
+        confirm.setGlow([0.36, 0.06, 0.08], at: 2)
+        var burst = confirm
+        burst.dismiss(at: 3, style: .burst)
+
+        var shots: [(String, CapsuleTimeline, Double, Bool)] = []
+        for time in [0.4, 0.8, 1.2, 1.6, 2.0, 2.4, 2.8, 3.2] {
+            shots.append(("spin-\(time)", spin, time, false))
+        }
+        for time in [1.95, 2.10, 2.25, 2.6] {
+            shots.append(("confirm-\(time)", confirm, time, true))
+        }
+        for time in [3.0, 3.04, 3.08, 3.14, 3.22, 3.32, 3.42, 3.5] {
+            shots.append(("burst-\(time)", burst, time, true))
+        }
+
+        var materials: [(String, CapsuleStage.Material)] = [("future", .future)]
+        if #available(macOS 26.0, *) {
+            materials.append(("glass", .systemGlass))
+        }
+        for (materialName, material) in materials {
+            for backdrop in [Backdrop.light, .dark] {
+                let strength = material == .systemGlass ? 0.2 : (backdrop == .dark ? 0.5 : 0.7)
+                for (name, timeline, time, recording) in shots {
+                    let orbit = timeline.orbit(at: time)
+                    let light = CapsuleLight(
+                        time: time,
+                        strength: strength,
+                        orbitTurns: orbit.turns,
+                        orbitStrength: orbit.strength
+                    )
+                    let scheme: ColorScheme = material == .future || backdrop == .dark ? .dark : .light
+                    let scene = CapsuleScene(frame: timeline.frame(at: time), material: material, light: light) {
+                        Group {
+                            if recording {
+                                CapsuleRecordingPill(level: 0.6, interaction: .confirmingCancel) {}
+                            } else {
+                                FloatingCapsulePhaseContent(state: state, phase: .transcribing, blur: 0)
+                            }
+                        }
+                        .fixedSize()
+                        .environment(\.capsuleStageDrawsGlass, true)
+                        .environment(\.colorScheme, scheme)
+                    } secondary: {
+                        Image(systemName: "trash.fill")
+                            .font(.system(size: 15, weight: .bold))
+                            .foregroundStyle(.red)
+                            .frame(width: Curve.secondarySize.width, height: Curve.secondarySize.height)
+                    }
+                    try write(
+                        scene.background { background(backdrop) }.environment(\.colorScheme, scheme),
+                        to: directory.appendingPathComponent("\(materialName)-\(backdrop.rawValue)-\(name).png")
+                    )
+                }
+            }
         }
     }
 

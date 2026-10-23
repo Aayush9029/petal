@@ -59,6 +59,14 @@ enum CapsuleCue: Equatable, Sendable {
 }
 
 extension FloatingCapsuleState.Phase {
+    /// Trimming, speeding, transcribing, and refining: the highlight orbits the rim.
+    var isProcessing: Bool {
+        switch self {
+        case .trimming, .speeding, .transcribing, .refining: true
+        default: false
+        }
+    }
+
     /// Colour of the bloom the label casts inside the Future glass.
     var capsuleGlow: SIMD3<Double> {
         switch self {

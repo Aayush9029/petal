@@ -6,8 +6,9 @@ struct FutureGlassLayer: View {
     let size: CGSize
     var showsRipple = true
     var scale = CapsuleChoreography.shaderScale
-    /// Shimmer time in seconds and audio level of the caustic arcs.
-    var caustic = SIMD2<Double>.zero
+    var light = CapsuleLight()
+    /// Clear droplets for a burst over system glass, dark ones over Future glass.
+    var clearDroplets = false
 
     private static let library = ShaderLibrary.bundle(.module)
 
@@ -36,8 +37,10 @@ struct FutureGlassLayer: View {
             .float2(Float(ripple?.halfSize.width ?? 0), Float(ripple?.halfSize.height ?? 0)),
             .float4(Float(frame.glow.x), Float(frame.glow.y), Float(frame.glow.z), Float(frame.contentOpacity)),
             .float2(Float(size.width), Float(size.height)),
-            .float2(Float(caustic.x), Float(caustic.y)),
-            .float2(Float(frame.stopHover), Float(frame.transcribeHover))
+            .float4(Float(light.time), Float(light.level), Float(frame.danger), Float(light.strength)),
+            .float2(Float(frame.stopHover), Float(frame.transcribeHover)),
+            .float4(Float(light.orbitTurns), Float(light.orbitStrength), light.orbitIsStill ? 1 : 0, 0),
+            .float4(Float(frame.burstAge ?? 0), frame.burstAge == nil ? 0 : 1, clearDroplets ? 1 : 0, 0)
         )
     }
 

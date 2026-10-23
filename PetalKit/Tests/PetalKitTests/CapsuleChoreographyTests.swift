@@ -82,6 +82,82 @@ import Testing
         #expect(abs(frame.pill.center.x - Curve.restCenter.x) < 0.5)
     }
 
+    @Test func orbitEasesInLoopsWithoutASeamAndEasesOut() {
+        var timeline = presented()
+        #expect(timeline.orbit(at: 1).strength == 0)
+        timeline.setOrbit(true, at: 1)
+        #expect(timeline.isOrbiting)
+        var previous = timeline.orbit(at: 1)
+        var previousStep = 0.0
+        var time = 1.0
+        while time < 6 {
+            time += 1.0 / 120
+            let orbit = timeline.orbit(at: time)
+            #expect(orbit.turns >= 0 && orbit.turns < 1)
+            var step = orbit.turns - previous.turns
+            if step < -0.5 { step += 1 }
+            #expect(step >= -1e-9)
+            #expect(step <= Curve.orbitTurnsPerSecond / 120 + 1e-9)
+            // The speed never jumps between frames.
+            #expect(abs(step - previousStep) < 0.0015)
+            previous = orbit
+            previousStep = step
+        }
+        #expect(abs(previousStep - Curve.orbitTurnsPerSecond / 120) < 1e-6)
+        #expect(timeline.orbit(at: 3).strength == 1)
+
+        timeline.setOrbit(false, at: 6)
+        #expect(!timeline.isOrbiting)
+        let coasting = timeline.orbit(at: 6.2)
+        #expect(coasting.strength > 0 && coasting.strength < 1)
+        let rest = timeline.orbit(at: 6 + Curve.orbitRamp)
+        #expect(rest.strength == 0)
+        #expect(abs(timeline.orbit(at: 9).turns - rest.turns) < 1e-9)
+    }
+
+    @Test func deleteConfirmTurnsRedAndBack() {
+        var timeline = presented()
+        timeline.setDanger(true, at: 1)
+        let mid = timeline.frame(at: 1.1).danger
+        #expect(mid > 0 && mid < 1)
+        #expect(timeline.frame(at: 2).danger > 0.99)
+        timeline.setDanger(false, at: 2)
+        #expect(timeline.frame(at: 3.5).danger < 0.01)
+    }
+
+    @Test func discardBurstsInsteadOfShrinking() throws {
+        var timeline = presented()
+        timeline.setSplit(true, at: 1)
+        timeline.dismiss(at: 3, style: .burst)
+        let start = timeline.frame(at: 3)
+        let pop = timeline.frame(at: 3.12)
+        #expect(pop.pill.size.width > start.pill.size.width)
+        #expect(pop.visibility < 0.5)
+        #expect(pop.contentOpacity == 0)
+        #expect(try #require(pop.burstAge) > 0.09)
+        #expect(try #require(pop.ripple).strength == 1)
+        #expect(!timeline.frame(at: 3.001 + Curve.burstDuration).isVisible)
+        #expect(abs(timeline.settledTime - (3 + Curve.burstDuration)) < 1e-9)
+        #expect(Curve.burstDuration <= Curve.dismissDuration)
+
+        var finished = presented()
+        finished.dismiss(at: 3)
+        #expect(finished.frame(at: 3.1).burstAge == nil)
+
+        var reduced = presented()
+        reduced.reduceMotion = true
+        reduced.dismiss(at: 3, style: .burst)
+        #expect(reduced.frame(at: 3.05).burstAge == nil)
+    }
+
+    @Test func processingPhasesOrbit() {
+        #expect(FloatingCapsuleState.Phase.transcribing.isProcessing)
+        #expect(FloatingCapsuleState.Phase.refining.isProcessing)
+        #expect(FloatingCapsuleState.Phase.trimming.isProcessing)
+        #expect(!FloatingCapsuleState.Phase.recording.isProcessing)
+        #expect(!FloatingCapsuleState.Phase.copiedToClipboard.isProcessing)
+    }
+
     @Test func mergeEndsInsideThePillWithoutAJump() {
         var timeline = presented()
         timeline.setSplit(true, at: 2)

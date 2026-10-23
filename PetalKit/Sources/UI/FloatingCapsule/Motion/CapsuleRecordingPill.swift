@@ -66,7 +66,7 @@ struct CapsuleRecordingPill: View {
                 .font(.callout.weight(.semibold))
                 .padding(.horizontal, 12)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background(Color.white.opacity(isTranscribeHovering ? 0.14 : 0.06), in: Squircle())
+                .background { thinGlass }
                 .contentShape(Squircle())
         }
         .buttonStyle(.plain)
@@ -74,5 +74,26 @@ struct CapsuleRecordingPill: View {
         .animation(.easeOut(duration: 0.12), value: isTranscribeHovering)
         .help("Stop recording and transcribe")
         .accessibilityHint("Stops recording and starts transcription")
+    }
+
+    /// A thin pane of glass: a faint top-lit fill and a hairline edge.
+    private var thinGlass: some View {
+        let lift = isTranscribeHovering ? 1.8 : 1.0
+        return Squircle()
+            .fill(LinearGradient(
+                colors: [.white.opacity(0.06 * lift), .white.opacity(0.015 * lift)],
+                startPoint: .top,
+                endPoint: .bottom
+            ))
+            .overlay {
+                Squircle().stroke(
+                    LinearGradient(
+                        colors: [.white.opacity(0.16 * lift), .white.opacity(0.04 * lift)],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    ),
+                    lineWidth: 0.5
+                )
+            }
     }
 }

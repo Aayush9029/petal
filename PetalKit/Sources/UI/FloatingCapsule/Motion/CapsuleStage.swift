@@ -27,15 +27,17 @@ struct CapsuleStage: View {
     let material: Material
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+    @Environment(\.colorScheme) private var colorScheme
 
-    @State private var timeline = CapsuleTimeline()
-    @State private var isSettled = true
+    @State private var motion = CapsuleMotion()
     @State private var displayedPhase = FloatingCapsuleState.Phase.hidden
     @State private var contentSizes: [String: CGSize] = [:]
     @State private var interaction = CapsuleRecordingInteraction.idle
     @State private var secondaryConfirmsDelete = false
     @State private var isPillHovered = false
     @State private var isSecondaryHovered = false
+    /// The user confirmed the delete, so the capsule pops instead of shrinking.
+    @State private var discardsRecording = false
 
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -45,9 +47,10 @@ struct CapsuleStage: View {
                     .transition(.opacity)
             }
 
-            // Once the motion settles, only the caustic shimmer changes, so a low frame rate is enough.
+            // Once the motion settles, only the caustic shimmer changes, so a low frame rate is
+            // enough. The orbit while processing moves fast and needs the full frame rate.
             TimelineView(.animation(
-                minimumInterval: isSettled ? 1.0 / 30.0 : nil,
+                minimumInterval: isSettled && !timeline.isOrbiting ? 1.0 / 30.0 : nil,
                 paused: isSettled && (reduceMotion || !timeline.isPresented)
             )) { context in
                 let now = context.date.timeIntervalSinceReferenceDate
@@ -55,7 +58,7 @@ struct CapsuleStage: View {
                     frame: timeline.frame(at: isSettled ? timeline.settledTime : now),
                     material: material,
                     showsRipple: !reduceTransparency,
-                    caustic: reduceMotion ? .zero : [now - (timeline.presentedAt ?? now), causticLevel]
+                    light: light(at: now)
                 ) {
                     pillContent
                 } secondary: {
@@ -68,7 +71,7 @@ struct CapsuleStage: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
         .animation(.smooth(duration: 0.3), value: state.showsLiveTranscript)
         .onChange(of: reduceMotion, initial: true) { _, reduceMotion in
-            timeline.reduceMotion = reduceMotion
+            motion.timeline.reduceMotion = reduceMotion
         }
         .onChange(of: state.phase, initial: true) { old, new in
             phaseChanged(from: old, to: new)
@@ -78,6 +81,12 @@ struct CapsuleStage: View {
                 secondaryConfirmsDelete = interaction == .confirmingCancel
             }
             update { $0.setSplit(interaction.showsSecondary && displayedPhase == .recording, at: $1) }
+        }
+        .onChange(of: confirmsDelete) { _, confirmsDelete in
+            update { timeline, now in
+                timeline.setDanger(confirmsDelete, at: now)
+                timeline.setGlow(confirmsDelete ? Self.deleteGlow : displayedPhase.capsuleGlow, at: now)
+            }
         }
         .onChange(of: hoverTargets) { _, targets in
             update { $0.setHover(stop: targets.stop, transcribe: targets.transcribe, at: $1) }
@@ -107,9 +116,12 @@ struct CapsuleStage: View {
                 try? await Task.sleep(for: .seconds(remaining))
                 guard !Task.isCancelled else { return }
             }
-            isSettled = true
+            motion.isSettled = true
         }
     }
+
+    private var timeline: CapsuleTimeline { motion.timeline }
+    private var isSettled: Bool { motion.isSettled }
 
     private struct HoverTargets: Equatable {
         var stop: Bool
@@ -124,8 +136,33 @@ struct CapsuleStage: View {
         )
     }
 
-    private var causticLevel: Double {
-        displayedPhase == .recording && timeline.isPresented ? state.level : 0
+    private static let deleteGlow: SIMD3<Double> = [0.36, 0.06, 0.08]
+
+    /// The capsule asks whether to delete the recording.
+    private var confirmsDelete: Bool {
+        displayedPhase == .confirmCancel || interaction == .confirmingCancel
+            || (interaction == .submitted && discardsRecording)
+    }
+
+    /// The spectral highlights are much quieter on system glass, and on Future glass in dark mode.
+    private var highlightStrength: Double {
+        switch material {
+        case .future: colorScheme == .dark ? 0.5 : 0.7
+        case .systemGlass: 0.2
+        }
+    }
+
+    private func light(at now: Double) -> CapsuleLight {
+        let orbit = timeline.orbit(at: now)
+        let level = displayedPhase == .recording && timeline.isPresented ? state.level : 0
+        return CapsuleLight(
+            time: reduceMotion ? 0 : now - (timeline.presentedAt ?? now),
+            level: reduceMotion ? 0 : level,
+            strength: highlightStrength,
+            orbitTurns: reduceMotion ? 0 : orbit.turns,
+            orbitStrength: orbit.strength,
+            orbitIsStill: reduceMotion
+        )
     }
 
     // MARK: - Content
@@ -163,6 +200,7 @@ struct CapsuleStage: View {
     private var secondaryButton: some View {
         Button {
             if secondaryConfirmsDelete {
+                discardsRecording = true
                 interaction = .submitted
                 state.onCancelRecordingTapped?()
             } else {
@@ -186,6 +224,8 @@ struct CapsuleStage: View {
 
     private func phaseChanged(from old: FloatingCapsuleState.Phase, to new: FloatingCapsuleState.Phase) {
         let cue = CapsuleCue.transition(from: old, to: new, isPresented: timeline.isPresented)
+        // Confirming with the delete button, or with Y in the cancel prompt, discards the recording.
+        let discards = discardsRecording || (old == .confirmCancel && new == .hidden)
         if new != .recording {
             interaction = .idle
         }
@@ -193,9 +233,13 @@ struct CapsuleStage: View {
         case .none:
             return
         case .present:
+            discardsRecording = false
             displayedPhase = new
             let size = contentSizes[new.contentID] ?? CapsuleTimeline.defaultSize
-            update { $0.present(size: size, glow: new.capsuleGlow, at: $1) }
+            update { timeline, now in
+                timeline.present(size: size, glow: new.capsuleGlow, at: now)
+                timeline.setOrbit(new.isProcessing, at: now)
+            }
         case .resize, .pulse:
             withAnimation(.smooth(duration: 0.3)) {
                 displayedPhase = new
@@ -209,18 +253,19 @@ struct CapsuleStage: View {
                 if cue == .pulse {
                     timeline.pulse(at: now)
                 }
+                timeline.setOrbit(new.isProcessing, at: now)
             }
         case .dismiss:
-            update { $0.dismiss(at: $1) }
+            discardsRecording = false
+            update { $0.dismiss(at: $1, style: discards ? .burst : .shrink) }
         }
     }
 
     private func update(_ change: (inout CapsuleTimeline, Double) -> Void) {
-        var next = timeline
-        change(&next, Date.now.timeIntervalSinceReferenceDate)
-        guard next != timeline else { return }
-        timeline = next
-        isSettled = false
+        let before = motion.timeline
+        change(&motion.timeline, Date.now.timeIntervalSinceReferenceDate)
+        guard motion.timeline != before else { return }
+        motion.isSettled = false
     }
 }
 
@@ -242,7 +287,7 @@ struct CapsuleScene<Pill: View, Secondary: View>: View {
     let frame: CapsuleFrame
     var material = CapsuleStage.Material.future
     var showsRipple = true
-    var caustic = SIMD2<Double>.zero
+    var light = CapsuleLight()
     @ViewBuilder let pill: Pill
     @ViewBuilder let secondary: Secondary
 
@@ -279,10 +324,10 @@ extension CapsuleScene {
     private var glass: some View {
         let size = CapsuleChoreography.stageSize
         if material == .systemGlass, #available(macOS 26.0, *) {
-            FutureGlassLayer(frame: frame.rippleOnly, size: size, showsRipple: showsRipple)
-            SystemGlassLayer(frame: frame, size: size, caustic: caustic)
+            FutureGlassLayer(frame: frame.rippleOnly, size: size, showsRipple: showsRipple, clearDroplets: true)
+            SystemGlassLayer(frame: frame, size: size, light: light)
         } else {
-            FutureGlassLayer(frame: frame, size: size, showsRipple: showsRipple, caustic: caustic)
+            FutureGlassLayer(frame: frame, size: size, showsRipple: showsRipple, light: light)
         }
     }
 }

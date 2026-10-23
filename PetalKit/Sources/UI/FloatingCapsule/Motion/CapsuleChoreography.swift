@@ -18,6 +18,9 @@ enum CapsuleChoreography {
     static let shaderScale = pillHeight / 98
 
     static let dismissDuration = 0.55
+    static let burstDuration = 0.5
+    static let orbitTurnsPerSecond = 0.55
+    static let orbitRamp = 0.7
     static let reducedMotionFade = 0.15
     static let settleDuration = 3.2
     static let appearRippleDelay = 0.15

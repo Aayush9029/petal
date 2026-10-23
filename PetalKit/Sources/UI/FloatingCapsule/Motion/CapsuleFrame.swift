@@ -17,6 +17,10 @@ struct CapsuleFrame: Equatable, Sendable {
     /// 0 to 1: the stop drop glows red, and the Transcribe pill brightens.
     var stopHover: Double = 0
     var transcribeHover: Double = 0
+    /// 0 to 1: the highlights cross-fade from purple and white to red before a delete.
+    var danger: Double = 0
+    /// Seconds since the glass popped, while a discarded recording bursts.
+    var burstAge: Double?
     var isSplit: Bool
     var isVisible: Bool
 
@@ -63,4 +67,17 @@ struct CapsuleFrame: Equatable, Sendable {
         isSplit: false,
         isVisible: false
     )
+}
+
+/// Light that follows the clock instead of the session events: the caustic
+/// shimmer and the highlight that orbits the rim while the capsule processes.
+struct CapsuleLight: Equatable, Sendable {
+    var time: Double = 0
+    var level: Double = 0
+    /// Brightness of the spectral highlights, 0 to 1.
+    var strength: Double = 1
+    var orbitTurns: Double = 0
+    var orbitStrength: Double = 0
+    /// Reduce Motion: an even, still glow in place of the orbit.
+    var orbitIsStill = false
 }

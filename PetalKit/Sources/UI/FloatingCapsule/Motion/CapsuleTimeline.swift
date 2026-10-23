@@ -6,16 +6,27 @@ import Foundation
 struct CapsuleTimeline: Equatable, Sendable {
     private typealias Curve = CapsuleChoreography
 
+    enum DismissStyle: Equatable, Sendable {
+        /// Merge, shrink, and lift away: the session finished.
+        case shrink
+        /// The glass pops into droplets: the recording was discarded.
+        case burst
+    }
+
     static let defaultSize = CGSize(width: 198, height: CapsuleChoreography.pillHeight)
 
     private(set) var presentedAt: Double?
     private(set) var dismissedAt: Double?
     private(set) var pulseAt: Double?
+    private(set) var dismissStyle = DismissStyle.shrink
+    private(set) var orbitStart: Double?
+    private(set) var orbitEnd: Double?
     private var width = CapsuleSpring(defaultSize.width, omega: 11)
     private var height = CapsuleSpring(defaultSize.height, omega: 11)
     private var split = CapsuleSpring(0, omega: 12)
     private var stopHover = CapsuleSpring(0, omega: 14)
     private var transcribeHover = CapsuleSpring(0, omega: 14)
+    private var danger = CapsuleSpring(0, omega: 9)
     private var glowFrom = SIMD3<Double>.zero
     private var glowTo = SIMD3<Double>.zero
     private var glowStart = -Double.infinity
@@ -26,7 +37,7 @@ struct CapsuleTimeline: Equatable, Sendable {
     var lastEventTime: Double {
         [
             presentedAt, dismissedAt, pulseAt, width.start, height.start, split.start,
-            stopHover.start, transcribeHover.start, glowStart,
+            stopHover.start, transcribeHover.start, danger.start, glowStart,
         ]
             .compactMap { $0 }
             .filter(\.isFinite)
@@ -36,7 +47,10 @@ struct CapsuleTimeline: Equatable, Sendable {
     /// The time after which the frame no longer changes.
     var settledTime: Double {
         if let dismissedAt {
-            return dismissedAt + Curve.dismissDuration(reduceMotion: reduceMotion)
+            let duration = dismissStyle == .burst && !reduceMotion
+                ? Curve.burstDuration
+                : Curve.dismissDuration(reduceMotion: reduceMotion)
+            return dismissedAt + duration
         }
         return lastEventTime + Curve.settleDuration
     }
@@ -54,6 +68,10 @@ struct CapsuleTimeline: Equatable, Sendable {
         split.retarget(0, at: time, snap: true)
         stopHover.retarget(0, at: time, snap: true)
         transcribeHover.retarget(0, at: time, snap: true)
+        danger.retarget(0, at: time, snap: true)
+        dismissStyle = .shrink
+        orbitStart = nil
+        orbitEnd = nil
         glowFrom = glow
         glowTo = glow
         glowStart = time
@@ -78,6 +96,53 @@ struct CapsuleTimeline: Equatable, Sendable {
         transcribeHover.retarget(transcribe ? 1 : 0, at: time)
     }
 
+    /// The recording is about to be deleted: the highlights turn red.
+    mutating func setDanger(_ isDanger: Bool, at time: Double) {
+        guard isPresented else { return }
+        danger.retarget(isDanger ? 1 : 0, at: time)
+    }
+
+    /// The highlight orbits the rim while the capsule processes.
+    mutating func setOrbit(_ isOrbiting: Bool, at time: Double) {
+        guard isPresented else { return }
+        if isOrbiting {
+            guard orbitStart == nil || orbitEnd != nil else { return }
+            orbitStart = time
+            orbitEnd = nil
+        } else if orbitStart != nil, orbitEnd == nil {
+            orbitEnd = time
+        }
+    }
+
+    /// Head position of the orbiting highlight in turns around the rim, and its strength.
+    /// The highlight speeds up from rest when processing starts and coasts to rest when it ends.
+    func orbit(at time: Double) -> (turns: Double, strength: Double) {
+        guard let orbitStart, time > orbitStart else { return (0, 0) }
+        let ramp = Curve.orbitRamp
+        let speed = Curve.orbitTurnsPerSecond
+        // Distance covered by a speed that eases from 0 to 1 over `ramp` seconds.
+        func easedDistance(_ elapsed: Double) -> Double {
+            let u = Curve.clamp(elapsed / ramp)
+            return ramp * (u * u * u - u * u * u * u / 2) + max(elapsed - ramp, 0)
+        }
+        func easedSpeed(_ elapsed: Double) -> Double { Curve.smoothstep(0, ramp, elapsed) }
+
+        let end = orbitEnd ?? .infinity
+        let running = min(time, end) - orbitStart
+        var turns = speed * easedDistance(running)
+        var strength = Curve.smoothstep(0, 0.5, running)
+        if time > end {
+            let coast = min(time - end, ramp)
+            let u = coast / ramp
+            // The speed falls from its value at the end to rest along an eased curve.
+            turns += speed * easedSpeed(running) * ramp * (u - (u * u * u - u * u * u * u / 2))
+            strength *= 1 - Curve.smoothstep(0, ramp, time - end)
+        }
+        return (turns.truncatingRemainder(dividingBy: 1), strength)
+    }
+
+    var isOrbiting: Bool { orbitStart != nil && orbitEnd == nil }
+
     mutating func pulse(at time: Double) {
         guard isPresented else { return }
         pulseAt = time
@@ -90,9 +155,10 @@ struct CapsuleTimeline: Equatable, Sendable {
         glowStart = time
     }
 
-    mutating func dismiss(at time: Double) {
+    mutating func dismiss(at time: Double, style: DismissStyle = .shrink) {
         guard isPresented else { return }
         dismissedAt = time
+        dismissStyle = style
     }
 
     private func glowValue(at time: Double) -> SIMD3<Double> {
@@ -151,9 +217,30 @@ struct CapsuleTimeline: Equatable, Sendable {
         }
         var isVisible = pillWidth > 0.25
 
+        var burstAge: Double?
+        var burstRipple: CapsuleFrame.Ripple?
         if let dismissedAt, time >= dismissedAt {
             let elapsed = time - dismissedAt
-            if reduceMotion {
+            if dismissStyle == .burst, !reduceMotion {
+                let swell = 1 + 0.07 * Curve.smoothstep(0, 0.07, elapsed)
+                pillWidth *= swell
+                pillHeight *= swell
+                secondary = CGSize(width: secondary.width * swell, height: secondary.height * swell)
+                visibility *= 1 - Curve.smoothstep(0.05, 0.16, elapsed)
+                contentOpacity *= 1 - Curve.smoothstep(0, 0.08, elapsed)
+                contentBlur = max(contentBlur, 10 * Curve.smoothstep(0, 0.1, elapsed))
+                secondaryOpacity *= 1 - Curve.smoothstep(0, 0.08, elapsed)
+                secondaryBlur = max(secondaryBlur, 8 * Curve.smoothstep(0, 0.1, elapsed))
+                diffusion = max(diffusion, Curve.smoothstep(0, 0.12, elapsed))
+                isVisible = elapsed < Curve.burstDuration
+                burstAge = elapsed
+                burstRipple = .init(
+                    center: CGPoint(x: pillX, y: y),
+                    halfSize: CGSize(width: targetWidth / 2, height: targetHeight / 2),
+                    age: elapsed,
+                    strength: 1
+                )
+            } else if reduceMotion {
                 let fade = 1 - Curve.smoothstep(0, Curve.reducedMotionFade, elapsed)
                 visibility *= fade
                 contentOpacity *= fade
@@ -188,13 +275,15 @@ struct CapsuleTimeline: Equatable, Sendable {
             contentBlur: contentBlur,
             secondaryOpacity: secondaryOpacity,
             secondaryBlur: secondaryBlur,
-            ripple: reduceMotion ? nil : ripple(at: time, presentedAt: presentedAt, pillX: pillX),
+            ripple: reduceMotion ? nil : burstRipple ?? ripple(at: time, presentedAt: presentedAt, pillX: pillX),
             glow: glowValue(at: time),
             visibility: visibility,
             diffusion: diffusion,
             isDismissing: dismissedAt.map { time >= $0 } ?? false,
             stopHover: reduceMotion ? stopHover.to : stopHover.value(at: time),
             transcribeHover: reduceMotion ? transcribeHover.to : transcribeHover.value(at: time),
+            danger: reduceMotion ? danger.to : Curve.clamp(danger.value(at: time)),
+            burstAge: burstAge,
             isSplit: splitValue > 0.9 && dismissedAt == nil,
             isVisible: isVisible
         )
