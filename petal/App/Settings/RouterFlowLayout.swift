@@ -45,12 +45,20 @@ enum RouterFlowLayout {
     /// Voice to router, down the spine, then a rounded turn into the card.
     static func activePath(slot: Int, width: CGFloat) -> CGPath {
         let spineX = width / 2
+        let path = CGMutablePath()
+        path.move(to: CGPoint(x: spineX, y: hubSize))
+        path.addLine(to: CGPoint(x: spineX, y: routerTop))
+        path.addPath(routePath(slot: slot, width: width))
+        return path
+    }
+
+    /// Router to the card, with a rounded turn at the end.
+    static func routePath(slot: Int, width: CGFloat) -> CGPath {
+        let spineX = width / 2
         let end = edge(slot: slot, width: width)
         let radius = min(cornerRadius, abs(end.x - spineX))
         let direction: CGFloat = end.x < spineX ? -1 : 1
         let path = CGMutablePath()
-        path.move(to: CGPoint(x: spineX, y: hubSize))
-        path.addLine(to: CGPoint(x: spineX, y: routerTop))
         path.move(to: CGPoint(x: spineX, y: routerBottom))
         path.addLine(to: CGPoint(x: spineX, y: end.y - radius))
         path.addQuadCurve(to: CGPoint(x: spineX + direction * radius, y: end.y), control: CGPoint(x: spineX, y: end.y))

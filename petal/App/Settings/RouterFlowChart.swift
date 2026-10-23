@@ -35,7 +35,7 @@ struct RouterFlowChart<AddButton: View>: View {
         }
         .frame(height: RouterFlowLayout.height(slots: slotCount))
         .background(alignment: .top) {
-            RouterFlowConnectors(slotCount: slotCount, activeSlot: activeSlot, isFlowing: isFlowing)
+            RouterFlowConnectors(slotCount: slotCount, activeSlot: activeSlot, routeTint: activeTint, isFlowing: isFlowing)
         }
     }
 
@@ -47,8 +47,8 @@ struct RouterFlowChart<AddButton: View>: View {
         nodes.firstIndex { $0.id == selection }
     }
 
-    private var selectedTrigger: CleanupRoute.Trigger? {
-        nodes.first { $0.id == selection }?.trigger
+    private var activeTint: Color {
+        nodes.first { $0.id == selection }?.style.tint ?? .accentColor
     }
 
     @ViewBuilder
@@ -77,14 +77,6 @@ struct RouterFlowChart<AddButton: View>: View {
             .foregroundStyle(isFlowing ? AnyShapeStyle(.white) : AnyShapeStyle(.secondary))
             .frame(width: RouterFlowLayout.hubSize, height: RouterFlowLayout.hubSize)
             .settingsGlass(in: .circle, tint: isFlowing ? SettingsTab.recording.fill.opacity(0.85) : nil)
-            .overlay(alignment: .bottomTrailing) {
-                if let selectedTrigger {
-                    RouteIcon(trigger: selectedTrigger, size: 18)
-                        .offset(x: 4, y: 3)
-                        .transition(.scale.combined(with: .opacity))
-                        .id(selectedTrigger)
-                }
-            }
             .overlay(alignment: .leading) {
                 caption("Voice")
                     .offset(x: RouterFlowLayout.hubSize + 10)

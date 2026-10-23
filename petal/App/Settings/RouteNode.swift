@@ -19,35 +19,27 @@ struct RouteNode: View {
                     Text(node.trigger?.title ?? "All Other Apps")
                         .font(.subheadline.weight(.semibold))
                         .lineLimit(1)
-                    HStack(spacing: 3) {
-                        Image(systemName: node.style.symbol)
-                            .symbolVariant(.fill)
-                            .foregroundStyle(node.style.tint)
-                        Text(node.style.nodeTitle)
-                            .foregroundStyle(.secondary)
-                    }
-                    .font(.caption2.weight(.medium))
-                    .lineLimit(1)
+                    Text(node.style.nodeTitle)
+                        .font(.caption2.weight(.medium))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
                 }
 
                 Spacer(minLength: 4)
+
+                Image(systemName: node.style.symbol)
+                    .symbolVariant(.fill)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(node.style.tint)
             }
             .padding(.horizontal, 9)
             .frame(height: RouterFlowLayout.nodeHeight)
-            .background {
-                nodeShape.fill(
-                    LinearGradient(
-                        colors: [Color.accentColor.opacity(isSelected ? 0.18 : 0), Color.accentColor.opacity(isSelected ? 0.04 : 0)],
-                        startPoint: .leading,
-                        endPoint: .trailing
-                    )
-                )
-            }
+            .settingsSelection(isSelected, in: nodeShape)
             .overlay {
                 nodeShape
                     .strokeBorder(borderColor, lineWidth: isSelected ? 2 : 1)
             }
-            .settingsGlass(in: nodeShape, tint: isSelected ? Color.accentColor.opacity(0.14) : nil)
+            .settingsGlass(in: nodeShape)
             .contentShape(.rect(cornerRadius: 12))
         }
         .buttonStyle(.plain)
@@ -61,7 +53,7 @@ struct RouteNode: View {
     }
 
     private var borderColor: Color {
-        if isSelected { return .accentColor }
+        if isSelected { return .primary }
         if contrast == .increased { return .primary.opacity(0.55) }
         return .primary.opacity(isHovering ? 0.2 : 0.07)
     }

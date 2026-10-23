@@ -2,6 +2,7 @@ import SwiftUI
 
 struct RouterFlowHighlight: NSViewRepresentable {
     let slot: Int
+    let glow: Color
     let isAnimating: Bool
 
     func makeNSView(context: Context) -> RouterFlowHighlightView {
@@ -12,7 +13,7 @@ struct RouterFlowHighlight: NSViewRepresentable {
         view.style = RouterFlowHighlightView.Style(
             slot: slot,
             isAnimating: isAnimating,
-            glowColor: Color.accentColor.resolve(in: context.environment).cgColor
+            glowColor: glow.resolve(in: context.environment).cgColor
         )
     }
 }

@@ -13,4 +13,8 @@ public extension Image {
     static let swiftLogo = Image("swift", bundle: .module)
     static let appleIntelligence = Image("appleIntelligence", bundle: .module)
     static let settingsWallpaper = Image("settingsWallpaper", bundle: .module)
+    static let recordingTrimSilence = Image("recordingTrimSilence", bundle: .module)
+    static let recordingAutoSpeed = Image("recordingAutoSpeed", bundle: .module)
+    static let recordingRestoreClipboard = Image("recordingRestoreClipboard", bundle: .module)
+    static let recordingLowerAudio = Image("recordingLowerAudio", bundle: .module)
 }

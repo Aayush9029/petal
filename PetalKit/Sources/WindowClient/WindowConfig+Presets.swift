@@ -21,7 +21,7 @@ extension WindowConfig {
             toolbarStyle: .unified,
             minHeightWithFixedWidth: 540
         )),
-        size: CGSize(width: 720, height: 680)
+        size: CGSize(width: 749, height: 680)
     )
 
     public static let onboarding = WindowConfig(

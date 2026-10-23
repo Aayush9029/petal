@@ -45,7 +45,7 @@ struct ModelSelectorCard: View {
                 VStack(alignment: .leading, spacing: 3) {
                     HStack(spacing: 5) {
                         Text(option.displayName)
-                            .font(.subheadline.weight(.semibold))
+                            .font(.body.weight(.semibold))
                             .lineLimit(1)
 
                         if option.isRecommended {
@@ -59,7 +59,7 @@ struct ModelSelectorCard: View {
                         if option.supportsStreamingTranscription {
                             Image(systemName: "text.bubble.fill")
                                 .font(.caption2)
-                                .foregroundStyle(Color.accentColor)
+                                .foregroundStyle(.tertiary)
                                 .help("Live transcript")
                                 .accessibilityLabel("Live transcript")
                         }
@@ -80,12 +80,12 @@ struct ModelSelectorCard: View {
             }
             .padding(12)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-            .background(cardWash)
+            .settingsSelection(isSelected, in: cardShape)
             .overlay {
                 cardShape
                     .strokeBorder(borderColor, lineWidth: isSelected || isWarming ? 2 : 1)
             }
-            .settingsGlass(in: cardShape, tint: washColor.opacity(isSelected ? 0.22 : 0.12))
+            .settingsGlass(in: cardShape)
             .contentShape(.rect(cornerRadius: Self.cornerRadius))
         }
         .buttonStyle(.plain)
@@ -105,24 +105,9 @@ struct ModelSelectorCard: View {
         RoundedRectangle(cornerRadius: Self.cornerRadius, style: .continuous)
     }
 
-    private var cardWash: some View {
-        cardShape.fill(
-            LinearGradient(
-                colors: [washColor.opacity(isSelected ? 0.2 : 0.14), washColor.opacity(0)],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-        )
-    }
-
-    private var washColor: Color {
-        if isWarming { return .orange }
-        return isSelected ? .accentColor : option.provider.tint
-    }
-
     private var borderColor: Color {
         if isWarming { return .orange }
-        if isSelected { return .accentColor }
+        if isSelected { return .primary }
         if contrast == .increased { return .primary.opacity(0.6) }
         return .primary.opacity(isHovering ? 0.2 : 0.07)
     }
@@ -130,19 +115,17 @@ struct ModelSelectorCard: View {
     @ViewBuilder
     private var sizeChip: some View {
         if let size = option.sizeLabel {
-            Label {
+            HStack(spacing: 3) {
                 Text(size)
                     .monospacedDigit()
-            } icon: {
-                Image(systemName: isOnDisk ? "checkmark.circle.fill" : "arrow.down.circle")
-                    .foregroundStyle(isOnDisk ? AnyShapeStyle(.green) : AnyShapeStyle(.secondary))
+                    .foregroundStyle(.secondary)
+                if isOnDisk {
+                    Image(systemName: "checkmark")
+                        .font(.system(size: 9, weight: .bold))
+                        .foregroundStyle(.primary)
+                }
             }
-            .labelStyle(.titleAndIcon)
             .font(.caption2.weight(.medium))
-            .foregroundStyle(.secondary)
-            .padding(.horizontal, 6)
-            .frame(height: 18)
-            .background(Color.primary.opacity(0.06), in: .capsule)
             .help(isOnDisk ? "Downloaded" : "Download size")
         }
     }
@@ -206,19 +189,14 @@ struct ModelSelectorCard: View {
                 ProgressView()
                     .controlSize(.small)
                     .tint(.orange)
-            } else {
-                Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
-                    .font(.title3)
-                    .foregroundStyle(isSelected ? AnyShapeStyle(Color.accentColor) : AnyShapeStyle(Color.secondary.opacity(0.4)))
-                    .contentTransition(.symbolEffect(.replace))
             }
         case .needsDownload:
             Label("Get", systemImage: "arrow.down")
                 .font(.caption.weight(.semibold))
-                .foregroundStyle(.white)
+                .foregroundStyle(.background)
                 .padding(.horizontal, 10)
                 .frame(height: 22)
-                .background(Color.accentColor.gradient, in: .capsule)
+                .background(.primary, in: .capsule)
         case .deleting, .preparing:
             ProgressView()
                 .controlSize(.small)
@@ -227,7 +205,7 @@ struct ModelSelectorCard: View {
         case .paused:
             Image(systemName: "pause.circle.fill")
                 .font(.title3)
-                .foregroundStyle(Color.accentColor)
+                .foregroundStyle(.primary)
         case .failed:
             Image(systemName: "exclamationmark.circle.fill")
                 .font(.title3)

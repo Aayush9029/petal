@@ -31,16 +31,18 @@ struct SettingsView: View {
                 }
             }
             .listStyle(.sidebar)
-            .navigationSplitViewColumnWidth(205)
+            .navigationSplitViewColumnWidth(SettingsLayout.sidebarWidth)
             .toolbar(removing: .sidebarToggle)
         } detail: {
             pane
                 .id(selectedTab)
                 .transition(.opacity)
                 .navigationTitle(selectedTab.title)
+                .navigationSplitViewColumnWidth(SettingsLayout.detailWidth)
         }
         .navigationSplitViewStyle(.balanced)
-        .animation(.easeOut(duration: 0.16), value: selectedTab)    }
+        .animation(.easeOut(duration: 0.16), value: selectedTab)
+    }
 
     private var sidebarSelection: Binding<SettingsTab?> {
         Binding(get: { selectedTab }, set: { selectedTab = $0 ?? selectedTab })
@@ -239,43 +241,37 @@ struct RecordingPane: View {
                 }
             }
 
-            SettingsPanel {
-                VStack(spacing: 0) {
+            SettingsGlassContainer {
+                LazyVGrid(columns: [GridItem(.flexible(), spacing: 10), GridItem(.flexible())], spacing: 10) {
                     RecordingOptionTile(
                         title: "Trim Silence",
                         description: "Remove quiet gaps from recordings.",
                         symbol: "scissors",
-                        tint: .orange,
+                        artwork: .recordingTrimSilence,
                         isOn: viewModel.trimSilenceEnabled
                     ) { viewModel.$trimSilenceEnabled.withLock { $0.toggle() } }
-
-                    SettingsCardDivider()
 
                     RecordingOptionTile(
                         title: "Auto Speed-up",
                         description: "Accelerate long recordings automatically.",
-                        symbol: "hare.fill",
-                        tint: .green,
+                        symbol: "hare",
+                        artwork: .recordingAutoSpeed,
                         isOn: viewModel.autoSpeedEnabled
                     ) { viewModel.$autoSpeedEnabled.withLock { $0.toggle() } }
-
-                    SettingsCardDivider()
 
                     RecordingOptionTile(
                         title: "Restore Clipboard",
                         description: "Put previous clipboard content back.",
                         symbol: "clipboard",
-                        tint: .blue,
+                        artwork: .recordingRestoreClipboard,
                         isOn: viewModel.restoreClipboardAfterPaste
                     ) { viewModel.$restoreClipboardAfterPaste.withLock { $0.toggle() } }
-
-                    SettingsCardDivider()
 
                     RecordingOptionTile(
                         title: "Lower System Audio",
                         description: "Quiet other audio while recording.",
                         symbol: "speaker.wave.1",
-                        tint: .purple,
+                        artwork: .recordingLowerAudio,
                         isOn: viewModel.duckSystemAudioDuringRecording
                     ) { viewModel.$duckSystemAudioDuringRecording.withLock { $0.toggle() } }
                 }
@@ -445,8 +441,9 @@ struct HistoryPane: View {
                     .safeAreaPadding(.bottom, 96)
                 }
             }
-            .frame(maxWidth: 500, maxHeight: .infinity, alignment: .topLeading)
-            .padding(.horizontal, 22)
+            .frame(width: SettingsLayout.contentWidth, alignment: .topLeading)
+            .frame(maxHeight: .infinity, alignment: .top)
+            .padding(.horizontal, SettingsLayout.contentPadding)
 
             HistorySearchField(text: $searchText)
                 .frame(maxWidth: 360)
@@ -454,7 +451,7 @@ struct HistoryPane: View {
                 .padding(.bottom, 12)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background { SettingsDetailBackground().ignoresSafeArea() }
+        .background { SettingsBackdrop() }
         .task {
             await viewModel.historyTask()
         }
@@ -630,5 +627,5 @@ struct AdvancedPane: View {
 
 #Preview("Settings") {
     SettingsView(viewModel: SettingsViewModel(appModel: AppModel.makePreview()))
-        .frame(width: 720, height: 680)
+        .frame(width: SettingsLayout.windowWidth, height: 680)
 }

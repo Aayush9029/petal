@@ -5,13 +5,9 @@ struct SelectableCard<Content: View>: View {
     private static var cornerRadius: CGFloat { 11 }
 
     let isSelected: Bool
-    var isBlack = false
-    var tint = Color.accentColor
-    var showsCheckmark = false
     let action: () -> Void
     @ViewBuilder let content: Content
 
-    @Environment(\.colorScheme) private var colorScheme
     @Environment(\.colorSchemeContrast) private var contrast
     @State private var isHovering = false
 
@@ -21,23 +17,16 @@ struct SelectableCard<Content: View>: View {
                 .foregroundStyle(.primary)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(6)
-                .background(cardWash)
-                .overlay {
-                    RoundedRectangle(cornerRadius: Self.cornerRadius, style: .continuous)
-                        .strokeBorder(borderColor, lineWidth: isSelected ? 2 : 1)
-                }
-                .overlay(alignment: .topTrailing) {
-                    if showsCheckmark, isSelected {
-                        Image(systemName: "checkmark.circle.fill")
-                            .font(.system(size: 13))
-                            .symbolRenderingMode(.palette)
-                            .foregroundStyle(.white, Color.accentColor)
-                            .padding(5)
-                            .transition(.scale.combined(with: .opacity))
-                            .accessibilityHidden(true)
+                .background {
+                    if isHovering, !isSelected {
+                        cardShape.fill(.primary.opacity(0.05))
                     }
                 }
-                .settingsGlass(in: cardShape, tint: glassTint)
+                .settingsSelection(isSelected, in: cardShape)
+                .overlay {
+                    cardShape.strokeBorder(borderColor, lineWidth: isSelected ? 2 : 1)
+                }
+                .settingsGlass(in: cardShape)
                 .contentShape(.rect(cornerRadius: Self.cornerRadius))
         }
         .buttonStyle(.plain)
@@ -48,31 +37,12 @@ struct SelectableCard<Content: View>: View {
     }
 
     private var borderColor: Color {
-        if isSelected { return .accentColor }
+        if isSelected { return .primary }
         if contrast == .increased { return .primary.opacity(0.55) }
         return .primary.opacity(isHovering ? 0.2 : 0.07)
     }
 
     private var cardShape: RoundedRectangle {
         RoundedRectangle(cornerRadius: Self.cornerRadius, style: .continuous)
-    }
-
-    private var glassTint: Color {
-        if isBlack { return .black.opacity(colorScheme == .dark ? 0.35 : 0.06) }
-        return washColor.opacity(isSelected ? 0.2 : 0.06)
-    }
-
-    private var cardWash: some View {
-        cardShape.fill(
-            LinearGradient(
-                colors: [washColor.opacity(isSelected ? 0.18 : (isHovering ? 0.1 : 0.06)), washColor.opacity(0)],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-        )
-    }
-
-    private var washColor: Color {
-        isSelected ? .accentColor : tint
     }
 }
