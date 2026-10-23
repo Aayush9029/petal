@@ -185,7 +185,7 @@ struct CapsuleStage: View {
     // MARK: - Events
 
     private func phaseChanged(from old: FloatingCapsuleState.Phase, to new: FloatingCapsuleState.Phase) {
-        let cue = CapsuleCue.transition(from: old, to: new)
+        let cue = CapsuleCue.transition(from: old, to: new, isPresented: timeline.isPresented)
         if new != .recording {
             interaction = .idle
         }

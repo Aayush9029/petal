@@ -266,6 +266,13 @@ import Testing
         #expect(CapsuleCue.transition(from: old, to: new) == cue)
     }
 
+    @Test func firstPhaseSeenByANewStagePresents() {
+        #expect(CapsuleCue.transition(from: .recording, to: .recording, isPresented: false) == .present)
+        #expect(CapsuleCue.transition(from: .recording, to: .recording, isPresented: true) == .none)
+        #expect(CapsuleCue.transition(from: .recording, to: .hidden, isPresented: false) == .none)
+        #expect(CapsuleCue.transition(from: .recording, to: .transcribing, isPresented: true) == .pulse)
+    }
+
     @Test func stagePanelKeepsCapsuleAtClassicHeight() {
         let stageBottom = FloatingCapsuleLayout.bottomOffset(style: .future) + Curve.bottomInset
         #expect(stageBottom == 40)

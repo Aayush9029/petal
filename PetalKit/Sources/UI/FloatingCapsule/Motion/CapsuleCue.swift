@@ -27,6 +27,16 @@ enum CapsuleCue: Equatable, Sendable {
         }
     }
 
+    /// The stage can first appear while a phase is already showing, so a
+    /// capsule that is not on screen counts as hidden.
+    static func transition(
+        from old: FloatingCapsuleState.Phase,
+        to new: FloatingCapsuleState.Phase,
+        isPresented: Bool
+    ) -> Self {
+        transition(from: isPresented ? old : .hidden, to: new)
+    }
+
     private enum Stage {
         case capture
         case processing
