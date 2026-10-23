@@ -35,24 +35,19 @@ struct RouteNode: View {
             .padding(.horizontal, 9)
             .frame(height: RouterFlowLayout.nodeHeight)
             .background {
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .fill(Color(nsColor: .controlBackgroundColor))
-                    .overlay {
-                        RoundedRectangle(cornerRadius: 12, style: .continuous)
-                            .fill(
-                                LinearGradient(
-                                    colors: [Color.accentColor.opacity(isSelected ? 0.18 : 0), Color.accentColor.opacity(isSelected ? 0.04 : 0)],
-                                    startPoint: .leading,
-                                    endPoint: .trailing
-                                )
-                            )
-                    }
-                    .shadow(color: .black.opacity(isSelected ? 0.1 : 0.04), radius: isSelected ? 4 : 1.5, y: 1)
+                nodeShape.fill(
+                    LinearGradient(
+                        colors: [Color.accentColor.opacity(isSelected ? 0.18 : 0), Color.accentColor.opacity(isSelected ? 0.04 : 0)],
+                        startPoint: .leading,
+                        endPoint: .trailing
+                    )
+                )
             }
             .overlay {
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                nodeShape
                     .strokeBorder(borderColor, lineWidth: isSelected ? 2 : 1)
             }
+            .settingsGlass(in: nodeShape, tint: isSelected ? Color.accentColor.opacity(0.14) : nil)
             .contentShape(.rect(cornerRadius: 12))
         }
         .buttonStyle(.plain)
@@ -61,10 +56,14 @@ struct RouteNode: View {
         .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 
+    private var nodeShape: RoundedRectangle {
+        RoundedRectangle(cornerRadius: 12, style: .continuous)
+    }
+
     private var borderColor: Color {
         if isSelected { return .accentColor }
         if contrast == .increased { return .primary.opacity(0.55) }
-        return Color(nsColor: .separatorColor).opacity(isHovering ? 1 : 0.7)
+        return .primary.opacity(isHovering ? 0.2 : 0.07)
     }
 }
 

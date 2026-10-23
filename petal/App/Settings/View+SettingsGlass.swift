@@ -17,11 +17,14 @@ extension View {
     }
 
     @ViewBuilder
-    func settingsGlass(in shape: some Shape, interactive: Bool = false) -> some View {
+    func settingsGlass(in shape: some Shape, tint: Color? = nil, interactive: Bool = false) -> some View {
         if #available(macOS 26.0, *) {
-            glassEffect(.regular.interactive(interactive), in: shape)
+            glassEffect(.regular.tint(tint).interactive(interactive), in: shape)
         } else {
-            background(.regularMaterial, in: shape)
+            background {
+                shape.fill(.regularMaterial)
+                    .overlay { shape.fill(tint ?? .clear) }
+            }
         }
     }
 }

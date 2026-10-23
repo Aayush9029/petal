@@ -14,8 +14,8 @@ struct ModelScoreMeter: View {
 
         var symbol: String {
             switch self {
-            case .speed: "hare.fill"
-            case .quality: "sparkle"
+            case .speed: "bolt.fill"
+            case .quality: "sparkles"
             }
         }
 

@@ -16,7 +16,8 @@ struct SettingsPaneLayout<Content: View>: View {
             .padding(.bottom, 32)
         }
         .scrollIndicators(.hidden)
-        .background(Color(nsColor: .windowBackgroundColor))
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background { SettingsDetailBackground().ignoresSafeArea() }
     }
 }
 

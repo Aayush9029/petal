@@ -11,12 +11,14 @@ struct RouteStylePicker: View {
     let onPasteAsSaid: () -> Void
 
     var body: some View {
-        LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 3), spacing: 8) {
-            ForEach(CloudPromptPreset.allCases) { preset in
-                card(.preset(preset), subtitle: preset.shortSummary) { onPreset(preset) }
+        SettingsGlassContainer {
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 3), spacing: 8) {
+                ForEach(CloudPromptPreset.allCases) { preset in
+                    card(.preset(preset), subtitle: preset.shortSummary) { onPreset(preset) }
+                }
+                card(.custom, subtitle: "For \(target)", action: onCustom)
+                card(.pasteAsSaid, subtitle: "No cleanup", action: onPasteAsSaid)
             }
-            card(.custom, subtitle: "For \(target)", action: onCustom)
-            card(.pasteAsSaid, subtitle: "No cleanup", action: onPasteAsSaid)
         }
     }
 

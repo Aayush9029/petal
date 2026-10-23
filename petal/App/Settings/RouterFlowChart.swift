@@ -12,6 +12,10 @@ struct RouterFlowChart<AddButton: View>: View {
     @ViewBuilder let addButton: () -> AddButton
 
     var body: some View {
+        SettingsGlassContainer { chart }
+    }
+
+    private var chart: some View {
         VStack(spacing: 0) {
             hubs
                 .frame(height: RouterFlowLayout.headerHeight, alignment: .top)
@@ -72,8 +76,7 @@ struct RouterFlowChart<AddButton: View>: View {
             .font(.system(size: 16, weight: .bold))
             .foregroundStyle(isFlowing ? AnyShapeStyle(.white) : AnyShapeStyle(.secondary))
             .frame(width: RouterFlowLayout.hubSize, height: RouterFlowLayout.hubSize)
-            .background(isFlowing ? AnyShapeStyle(SettingsTab.recording.fill.gradient) : AnyShapeStyle(Color.secondary.opacity(0.15)), in: .circle)
-            .shadow(color: SettingsTab.recording.fill.opacity(isFlowing ? 0.35 : 0), radius: 6, y: 2)
+            .settingsGlass(in: .circle, tint: isFlowing ? SettingsTab.recording.fill.opacity(0.85) : nil)
             .overlay(alignment: .bottomTrailing) {
                 if let selectedTrigger {
                     RouteIcon(trigger: selectedTrigger, size: 18)
@@ -94,11 +97,7 @@ struct RouterFlowChart<AddButton: View>: View {
             .foregroundStyle(isFlowing ? AnyShapeStyle(.white) : AnyShapeStyle(.secondary))
             .rotationEffect(.degrees(180))
             .frame(width: RouterFlowLayout.hubSize, height: RouterFlowLayout.hubSize)
-            .background(
-                isFlowing ? AnyShapeStyle(SettingsTab.router.fill.gradient) : AnyShapeStyle(Color.secondary.opacity(0.15)),
-                in: .rect(cornerRadius: 12, style: .continuous)
-            )
-            .shadow(color: SettingsTab.router.fill.opacity(isFlowing ? 0.35 : 0), radius: 6, y: 2)
+            .settingsGlass(in: .rect(cornerRadius: 12, style: .continuous), tint: isFlowing ? SettingsTab.router.fill.opacity(0.85) : nil)
             .overlay(alignment: .leading) {
                 caption(routerCaption)
                     .offset(x: RouterFlowLayout.hubSize + 10)

@@ -11,9 +11,11 @@ struct IntelligencePane: View {
     var body: some View {
         SettingsPaneLayout(tab: .intelligence) {
             SettingsPanelSection(title: "Text Cleanup") {
-                HStack(spacing: 8) {
-                    ForEach(CleanupModel.allCases) { model in
-                        tile(for: model)
+                SettingsGlassContainer {
+                    HStack(spacing: 8) {
+                        ForEach(CleanupModel.allCases) { model in
+                            tile(for: model)
+                        }
                     }
                 }
                 .padding(10)
