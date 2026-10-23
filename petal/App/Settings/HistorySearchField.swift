@@ -7,6 +7,7 @@ struct HistorySearchField: View {
         HStack(spacing: 8) {
             Image(systemName: "magnifyingglass")
                 .foregroundStyle(.secondary)
+                .accessibilityHidden(true)
             TextField("Search recordings", text: $text)
                 .textFieldStyle(.plain)
             if !text.isEmpty {
@@ -17,15 +18,13 @@ struct HistorySearchField: View {
                         .foregroundStyle(.tertiary)
                 }
                 .buttonStyle(.plain)
+                .accessibilityLabel("Clear")
+                .transition(.scale.combined(with: .opacity))
             }
         }
-        .padding(.horizontal, 11)
-        .frame(height: 38)
-        .background(.regularMaterial, in: .capsule)
-        .overlay {
-            Capsule()
-                .strokeBorder(Color(nsColor: .separatorColor).opacity(0.7), lineWidth: 1)
-        }
-        .shadow(color: .black.opacity(0.12), radius: 8, y: 3)
+        .padding(.horizontal, 14)
+        .frame(height: 40)
+        .settingsGlass(in: .capsule, interactive: true)
+        .animation(.snappy(duration: 0.18), value: text.isEmpty)
     }
 }

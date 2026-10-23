@@ -100,7 +100,7 @@ struct RouterPane: View {
 
     private var inspectorHeader: some View {
         HStack(spacing: 12) {
-            RouteIcon(trigger: router.selectedRoute?.trigger, size: 30)
+            RouteIcon(trigger: router.selectedRoute?.trigger, size: 36)
             VStack(alignment: .leading, spacing: 2) {
                 Text(router.selectedRoute?.trigger.title ?? "All Other Apps")
                     .font(.body.weight(.semibold))
@@ -111,12 +111,14 @@ struct RouterPane: View {
             }
             Spacer(minLength: 8)
             if let route = router.selectedRoute {
-                Button("Remove", role: .destructive) {
+                Button("Remove", systemImage: "trash", role: .destructive) {
                     router.removeRouteButtonTapped(route.id)
                 }
-                .buttonStyle(.borderless)
+                .labelStyle(.iconOnly)
                 .foregroundStyle(.red)
-                .font(.callout)
+                .settingsGlassButtonStyle()
+                .controlSize(.small)
+                .help("Remove")
             }
         }
         .padding(.horizontal, 16)

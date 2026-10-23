@@ -25,70 +25,146 @@ struct ModelSelectorCard: View {
     let action: () -> Void
     @State private var isHovering = false
 
+    @Environment(\.colorSchemeContrast) private var contrast
+
+    private static let cornerRadius: CGFloat = 14
+
     var body: some View {
         Button {
             guard isEnabled else { return }
             action()
         } label: {
-            HStack(spacing: 12) {
-                iconView
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(alignment: .top) {
+                    iconView
+                    Spacer(minLength: 8)
+                    trailingAccessory
+                        .frame(minHeight: 22)
+                }
 
-                VStack(alignment: .leading, spacing: 4) {
-                    HStack(spacing: 7) {
+                VStack(alignment: .leading, spacing: 3) {
+                    HStack(spacing: 5) {
                         Text(option.displayName)
                             .font(.subheadline.weight(.semibold))
                             .lineLimit(1)
 
                         if option.isRecommended {
-                            Text("Recommended")
-                                .font(.caption2.weight(.semibold))
+                            Image(systemName: "star.fill")
+                                .font(.caption2)
+                                .foregroundStyle(.yellow)
+                                .help("Recommended")
+                                .accessibilityLabel("Recommended")
+                        }
+
+                        if option.supportsStreamingTranscription {
+                            Image(systemName: "text.bubble.fill")
+                                .font(.caption2)
                                 .foregroundStyle(Color.accentColor)
-                                .padding(.horizontal, 7)
-                                .frame(height: 17)
-                                .background(Color.accentColor.opacity(0.1), in: .capsule)
+                                .help("Live transcript")
+                                .accessibilityLabel("Live transcript")
                         }
                     }
 
-                    Text(compactSummary)
+                    Text(isWarming ? "Warming up" : compactSummary)
                         .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(2)
-
-                    HStack(spacing: 9) {
-                        Text(metadata)
-                            .foregroundStyle(isWarming ? Color.orange : Color.secondary.opacity(0.72))
-
-                        scoreMeter(.speed, score: option.descriptor.speedScore)
-                        scoreMeter(.intelligence, score: option.descriptor.smartScore)
-                    }
-                    .font(.caption2)
+                        .foregroundStyle(isWarming ? AnyShapeStyle(.orange) : AnyShapeStyle(.secondary))
+                        .lineLimit(2, reservesSpace: true)
                 }
 
-                Spacer(minLength: 8)
-                trailingAccessory
+                HStack(spacing: 10) {
+                    ModelScoreMeter(kind: .speed, score: option.descriptor.speedScore)
+                    ModelScoreMeter(kind: .quality, score: option.descriptor.smartScore)
+                    Spacer(minLength: 4)
+                    sizeChip
+                }
             }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 11)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(selectionBackground)
-            .contentShape(.rect)
+            .padding(12)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .background(cardBackground)
+            .overlay {
+                RoundedRectangle(cornerRadius: Self.cornerRadius, style: .continuous)
+                    .strokeBorder(borderColor, lineWidth: isSelected || isWarming ? 2 : 1)
+            }
+            .contentShape(.rect(cornerRadius: Self.cornerRadius))
         }
         .buttonStyle(.plain)
         .opacity(isEnabled ? 1 : 0.55)
         .contextMenu { contextMenuItems }
         .onHover { isHovering = $0 }
+        .accessibilityElement(children: .combine)
+        .accessibilityValue(accessibilityState)
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
         .animation(.easeInOut(duration: 0.18), value: isSelected)
         .animation(.easeInOut(duration: 0.18), value: isWarming)
+        .animation(.easeInOut(duration: 0.18), value: downloadState)
         .animation(.easeOut(duration: 0.12), value: isHovering)
     }
 
-    private var metadata: String {
-        if isWarming {
-            return "Warming up"
+    private var cardBackground: some View {
+        RoundedRectangle(cornerRadius: Self.cornerRadius, style: .continuous)
+            .fill(Color(nsColor: .controlBackgroundColor))
+            .overlay {
+                RoundedRectangle(cornerRadius: Self.cornerRadius, style: .continuous)
+                    .fill(
+                        LinearGradient(
+                            colors: [washColor.opacity(isSelected ? 0.2 : 0.12), washColor.opacity(0)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+            }
+    }
+
+    private var washColor: Color {
+        if isWarming { return .orange }
+        return isSelected ? .accentColor : option.provider.tint
+    }
+
+    private var borderColor: Color {
+        if isWarming { return .orange }
+        if isSelected { return .accentColor }
+        let base = Color(nsColor: .separatorColor)
+        if contrast == .increased { return .primary.opacity(0.6) }
+        return isHovering ? .primary.opacity(0.22) : base.opacity(0.8)
+    }
+
+    @ViewBuilder
+    private var sizeChip: some View {
+        if let size = option.sizeLabel {
+            Label {
+                Text(size)
+                    .monospacedDigit()
+            } icon: {
+                Image(systemName: isOnDisk ? "checkmark.circle.fill" : "arrow.down.circle")
+                    .foregroundStyle(isOnDisk ? AnyShapeStyle(.green) : AnyShapeStyle(.secondary))
+            }
+            .labelStyle(.titleAndIcon)
+            .font(.caption2.weight(.medium))
+            .foregroundStyle(.secondary)
+            .padding(.horizontal, 6)
+            .frame(height: 18)
+            .background(Color.primary.opacity(0.06), in: .capsule)
+            .help(isOnDisk ? "Downloaded" : "Download size")
         }
-        return [option.providerDisplayName, option.sizeLabel]
-            .compactMap { $0 }
-            .joined(separator: " · ")
+    }
+
+    private var isOnDisk: Bool {
+        option.requiresDownload && downloadState == .ready
+    }
+
+    private var accessibilityState: String {
+        switch downloadState {
+        case .ready:
+            if isWarming { return "Warming up" }
+            if isSelected { return "Selected" }
+            return option.requiresDownload ? "Downloaded" : "Ready"
+        case .needsDownload: return "Not downloaded"
+        case .deleting: return "Deleting"
+        case .preparing: return "Preparing"
+        case let .downloading(progress): return "Downloading, \(Int((progress.fraction * 100).rounded())) percent"
+        case .paused: return "Paused"
+        case let .failed(message): return message
+        }
     }
 
     private var compactSummary: String {
@@ -117,19 +193,10 @@ struct ModelSelectorCard: View {
         icon
             .resizable()
             .aspectRatio(contentMode: .fit)
-            .frame(width: 28, height: 28)
-            .clipShape(.rect(cornerRadius: 7))
-    }
-
-    @ViewBuilder
-    private var selectionBackground: some View {
-        if isWarming {
-            Color.orange.opacity(0.1)
-        } else if isSelected {
-            Color.accentColor.opacity(0.09)
-        } else if isHovering {
-            Color.primary.opacity(0.045)
-        }
+            .frame(width: 34, height: 34)
+            .clipShape(.rect(cornerRadius: 9))
+            .shadow(color: .black.opacity(0.12), radius: 2, y: 1)
+            .accessibilityHidden(true)
     }
 
     @ViewBuilder
@@ -140,21 +207,19 @@ struct ModelSelectorCard: View {
                 ProgressView()
                     .controlSize(.small)
                     .tint(.orange)
-            } else if isSelected {
-                Image(systemName: "checkmark.circle.fill")
-                    .foregroundStyle(Color.accentColor)
             } else {
-                Text("Ready")
-                    .font(.caption.weight(.medium))
-                    .foregroundStyle(.secondary)
+                Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                    .font(.title3)
+                    .foregroundStyle(isSelected ? AnyShapeStyle(Color.accentColor) : AnyShapeStyle(Color.secondary.opacity(0.4)))
+                    .contentTransition(.symbolEffect(.replace))
             }
         case .needsDownload:
-            Text("Get")
+            Label("Get", systemImage: "arrow.down")
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(.white)
-                .padding(.horizontal, 12)
-                .frame(height: 24)
-                .background(Color.accentColor, in: .capsule)
+                .padding(.horizontal, 10)
+                .frame(height: 22)
+                .background(Color.accentColor.gradient, in: .capsule)
         case .deleting, .preparing:
             ProgressView()
                 .controlSize(.small)
@@ -162,9 +227,11 @@ struct ModelSelectorCard: View {
             CircularDownloadProgress(fraction: progress.fraction)
         case .paused:
             Image(systemName: "pause.circle.fill")
+                .font(.title3)
                 .foregroundStyle(Color.accentColor)
         case .failed:
             Image(systemName: "exclamationmark.circle.fill")
+                .font(.title3)
                 .foregroundStyle(.red)
         }
     }
@@ -196,102 +263,4 @@ struct ModelSelectorCard: View {
             EmptyView()
         }
     }
-
-    private func scoreMeter(_ kind: ScoreKind, score: Int) -> some View {
-        HStack(spacing: 3) {
-            scoreIcon(kind)
-            meterBars(kind, score: score)
-        }
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel("\(kind.title): \(score) out of 5")
-        .help("\(kind.title): \(score) out of 5")
-    }
-
-    @ViewBuilder
-    private func scoreIcon(_ kind: ScoreKind) -> some View {
-        if kind == .speed {
-            Image(systemName: kind.symbol)
-                .font(.system(size: 8, weight: .semibold))
-                .foregroundStyle(.yellow)
-        } else {
-            Image(systemName: kind.symbol)
-                .font(.system(size: 8, weight: .semibold))
-                .foregroundStyle(intelligenceMeterGradient)
-        }
-    }
-
-    private func meterBars(_ kind: ScoreKind, score: Int) -> some View {
-        ZStack {
-            meterBarRow(
-                activeCount: 5,
-                activeColor: Color.secondary.opacity(0.22)
-            )
-
-            Group {
-                if kind == .speed {
-                    Color.yellow
-                } else {
-                    intelligenceMeterGradient
-                }
-            }
-            .mask { meterBarRow(activeCount: score) }
-        }
-        .frame(width: 28, height: 9)
-    }
-
-    private func meterBarRow(
-        activeCount: Int,
-        activeColor: Color = .white
-    ) -> some View {
-        HStack(spacing: 2) {
-            ForEach(1 ... 5, id: \.self) { index in
-                RoundedRectangle(cornerRadius: 1.5, style: .continuous)
-                    .fill(index <= activeCount ? activeColor : .clear)
-                    .frame(width: 4, height: 9)
-            }
-        }
-    }
-
-    private var intelligenceMeterGradient: LinearGradient {
-        LinearGradient(
-            colors: [
-                Color(red: 1, green: 0.62, blue: 0.22),
-                Color(red: 1, green: 0.25, blue: 0.48),
-                Color(red: 0.73, green: 0.38, blue: 0.95),
-                Color(red: 0.25, green: 0.68, blue: 1),
-            ],
-            startPoint: .leading,
-            endPoint: .trailing
-        )
-    }
-
-    private enum ScoreKind: Equatable {
-        case speed
-        case intelligence
-
-        var title: String {
-            switch self {
-            case .speed: "Speed"
-            case .intelligence: "Intelligence"
-            }
-        }
-
-        var symbol: String {
-            switch self {
-            case .speed: "hare.fill"
-            case .intelligence: "sparkle"
-            }
-        }
-    }
 }
-
-
-
-
-
-
-
-
-
-
-

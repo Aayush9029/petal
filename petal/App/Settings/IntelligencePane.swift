@@ -16,7 +16,7 @@ struct IntelligencePane: View {
                         tile(for: model)
                     }
                 }
-                .padding(12)
+                .padding(10)
             }
             .task {
                 viewModel.cleanupDownloads.task()
@@ -44,7 +44,8 @@ struct IntelligencePane: View {
                     SettingsControlRow(
                         title: "Router",
                         description: "Give Mail, Slack, Terminal, or any website its own instructions.",
-                        symbol: "arrow.triangle.branch"
+                        symbol: SettingsTab.router.symbol,
+                        tint: SettingsTab.router.fill
                     ) {
                         SettingsActionButton(title: "Open", action: onOpenRouter)
                     }
@@ -61,7 +62,9 @@ struct IntelligencePane: View {
                 SettingsPanelSection(title: "Smart Transcription") {
                     SettingsControlRow(
                         title: "Writing Style",
-                        description: "Smart applies your instructions during transcription."
+                        description: "Smart applies your instructions during transcription.",
+                        symbol: "wand.and.stars",
+                        tint: .purple
                     ) {
                         SettingsSegmentedPicker(
                             values: TranscriptionMode.allCases,
@@ -92,13 +95,16 @@ struct IntelligencePane: View {
 
     private var minimumWords: some View {
         VStack(alignment: .leading, spacing: 11) {
-            VStack(alignment: .leading, spacing: 3) {
-                Text("Paste As Said")
-                    .font(.body.weight(.medium))
-                Text("Short dictations, like “OK” or “sounds good”, skip cleanup and paste as you said them.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
+            HStack(spacing: 12) {
+                SettingsIconTile(symbol: "quote.bubble", fill: .mint, size: 26)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Paste As Said")
+                        .font(.body.weight(.medium))
+                    Text("Short dictations, like “OK” or “sounds good”, skip cleanup and paste as you said them.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             }
             SettingsSegmentedPicker(
                 values: CleanupMinimumWords.allCases,

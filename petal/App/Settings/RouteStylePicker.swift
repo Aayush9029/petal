@@ -11,7 +11,7 @@ struct RouteStylePicker: View {
     let onPasteAsSaid: () -> Void
 
     var body: some View {
-        LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 4), spacing: 8) {
+        LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 3), spacing: 8) {
             ForEach(CloudPromptPreset.allCases) { preset in
                 card(.preset(preset), subtitle: preset.shortSummary) { onPreset(preset) }
             }
@@ -21,12 +21,10 @@ struct RouteStylePicker: View {
     }
 
     private func card(_ style: RouterModel.Style, subtitle: String, action: @escaping () -> Void) -> some View {
-        SelectableCard(isSelected: selection == style, action: action) {
+        SelectableCard(isSelected: selection == style, tint: style.tint, showsCheckmark: true, action: action) {
             VStack(alignment: .leading, spacing: 2) {
-                Image(systemName: style.symbol)
-                    .font(.system(size: 13, weight: .semibold))
-                    .frame(height: 18)
-                    .padding(.bottom, 4)
+                SettingsIconTile(symbol: style.symbol, fill: style.tint, size: 26)
+                    .padding(.bottom, 6)
                 Text(style.title)
                     .font(.caption.weight(.semibold))
                     .lineLimit(1)

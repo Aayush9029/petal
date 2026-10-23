@@ -54,6 +54,7 @@ struct CloudCleanupSections: View {
                     title: tool.title,
                     description: description(of: tool),
                     symbol: tool.symbol,
+                    tint: tool.tint,
                     isOn: cloud.isToolEnabled(tool) && cloud.isToolAvailable(tool)
                 ) { cloud.toolToggled(tool, isOn: $0) }
                 .disabled(!cloud.isToolAvailable(tool))

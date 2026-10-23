@@ -1,5 +1,6 @@
 import RouterFeature
 import Shared
+import SwiftUI
 
 extension RouterModel.Style {
     var title: String {
@@ -24,6 +25,14 @@ extension RouterModel.Style {
         case let .preset(preset): preset.symbol
         case .custom: "square.and.pencil"
         case .pasteAsSaid: "quote.bubble"
+        }
+    }
+
+    var tint: Color {
+        switch self {
+        case let .preset(preset): preset.tint
+        case .custom: .indigo
+        case .pasteAsSaid: .gray
         }
     }
 

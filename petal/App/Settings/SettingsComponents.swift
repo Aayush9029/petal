@@ -24,6 +24,7 @@ struct RecordingOptionTile: View {
     let title: String
     let description: String
     let symbol: String
+    var tint = Color.accentColor
     let isOn: Bool
     let action: () -> Void
     @State private var isHovering = false
@@ -31,11 +32,7 @@ struct RecordingOptionTile: View {
     var body: some View {
         Button(action: action) {
             HStack(spacing: 10) {
-                Image(systemName: symbol)
-                    .font(.body.weight(.semibold))
-                    .foregroundStyle(isOn ? Color.accentColor : .secondary)
-                    .frame(width: 30, height: 30)
-                    .background(Color.primary.opacity(isOn ? 0.12 : 0.06), in: .rect(cornerRadius: 8))
+                SettingsIconTile(symbol: symbol, fill: tint, size: 30, isActive: isOn)
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text(title)
@@ -50,7 +47,9 @@ struct RecordingOptionTile: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
 
                 Image(systemName: isOn ? "checkmark.circle.fill" : "circle")
-                    .foregroundStyle(isOn ? Color.accentColor : Color.secondary.opacity(0.45))
+                    .font(.title3)
+                    .foregroundStyle(isOn ? tint : Color.secondary.opacity(0.45))
+                    .contentTransition(.symbolEffect(.replace))
             }
             .padding(.horizontal, 14)
             .frame(maxWidth: .infinity, minHeight: 58)
@@ -64,6 +63,7 @@ struct RecordingOptionTile: View {
         .buttonStyle(.plain)
         .onHover { isHovering = $0 }
         .animation(.easeOut(duration: 0.14), value: isHovering)
+        .animation(.snappy(duration: 0.2), value: isOn)
         .accessibilityValue(isOn ? "On" : "Off")
         .accessibilityHint(description)
     }
@@ -78,17 +78,26 @@ struct SettingsActionButton: View {
         Button(action: action) {
             Text(title)
                 .font(.caption.weight(.semibold))
-                .foregroundStyle(.white)
-                .padding(.horizontal, 12)
-                .frame(height: 24)
-                .background(tint, in: .capsule)
-                .contentShape(.capsule)
+                .padding(.horizontal, 2)
         }
-        .buttonStyle(.plain)
+        .settingsGlassButtonStyle(prominent: true)
+        .tint(tint)
+        .controlSize(.small)
     }
 }
 
 struct SettingsPanelSection<Content: View>: View {
+    let title: String
+    @ViewBuilder let content: () -> Content
+
+    var body: some View {
+        SettingsSection(title: title) {
+            SettingsPanel(content: content)
+        }
+    }
+}
+
+struct SettingsSection<Content: View>: View {
     let title: String
     @ViewBuilder let content: () -> Content
 
@@ -100,7 +109,7 @@ struct SettingsPanelSection<Content: View>: View {
                 .padding(.leading, 4)
                 .accessibilityAddTraits(.isHeader)
 
-            SettingsPanel(content: content)
+            content()
         }
     }
 }
@@ -109,15 +118,13 @@ struct SettingsControlRow<Control: View>: View {
     let title: String
     var description: String?
     var symbol: String?
+    var tint = Color.gray
     @ViewBuilder let control: () -> Control
 
     var body: some View {
-        HStack(spacing: 14) {
+        HStack(spacing: 12) {
             if let symbol {
-                Image(systemName: symbol)
-                    .font(.body.weight(.medium))
-                    .foregroundStyle(.secondary)
-                    .frame(width: 22)
+                SettingsIconTile(symbol: symbol, fill: tint, size: 26)
             }
 
             VStack(alignment: .leading, spacing: 3) {
@@ -144,11 +151,12 @@ struct SettingsToggleRow: View {
     let title: String
     var description: String?
     var symbol: String?
+    var tint = Color.gray
     let isOn: Bool
     let onChange: (Bool) -> Void
 
     var body: some View {
-        SettingsControlRow(title: title, description: description, symbol: symbol) {
+        SettingsControlRow(title: title, description: description, symbol: symbol, tint: tint) {
             SettingsSwitch(isOn: isOn, onChange: onChange)
         }
     }

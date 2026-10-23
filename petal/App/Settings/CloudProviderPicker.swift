@@ -8,7 +8,7 @@ struct CloudProviderPicker: View {
     var body: some View {
         HStack(spacing: 8) {
             ForEach(CloudProvider.allCases) { provider in
-                SelectableCard(isSelected: selection == provider) {
+                SelectableCard(isSelected: selection == provider, showsCheckmark: true) {
                     onSelect(provider)
                 } content: {
                     VStack(spacing: 7) {

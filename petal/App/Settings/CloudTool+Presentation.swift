@@ -1,4 +1,5 @@
 import CloudCleanupClient
+import SwiftUI
 
 extension CloudTool {
     var title: String {
@@ -28,6 +29,16 @@ extension CloudTool {
         case .clipboard: "doc.on.clipboard"
         case .selectedText: "text.cursor"
         case .screen: "rectangle.dashed"
+        }
+    }
+
+    var tint: Color {
+        switch self {
+        case .dateTime: .red
+        case .webSearch: .blue
+        case .clipboard: .orange
+        case .selectedText: .indigo
+        case .screen: .teal
         }
     }
 }

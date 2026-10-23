@@ -7,9 +7,7 @@ struct RouterNoticeBanner: View {
     var body: some View {
         SettingsPanel {
             HStack(spacing: 12) {
-                Image(systemName: "info.circle.fill")
-                    .font(.title3)
-                    .foregroundStyle(.orange)
+                SettingsIconTile(symbol: "info", fill: .orange, size: 26)
                 Text(message)
                     .font(.callout)
                     .fixedSize(horizontal: false, vertical: true)
