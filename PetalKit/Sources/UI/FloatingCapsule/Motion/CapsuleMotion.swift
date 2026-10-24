@@ -8,4 +8,6 @@ import Observation
 final class CapsuleMotion {
     var timeline = CapsuleTimeline()
     var isSettled = true
+    /// The microphone level, smoothed so the highlight sways instead of flickering.
+    var level = CapsuleSpring(0, omega: 4)
 }

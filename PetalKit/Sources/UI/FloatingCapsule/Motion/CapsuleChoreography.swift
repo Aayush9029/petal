@@ -19,7 +19,7 @@ enum CapsuleChoreography {
 
     static let dismissDuration = 0.55
     static let burstDuration = 0.5
-    static let orbitTurnsPerSecond = 0.55
+    static let orbitTurnsPerSecond = 0.85
     static let orbitRamp = 0.7
     static let reducedMotionFade = 0.15
     static let settleDuration = 3.2

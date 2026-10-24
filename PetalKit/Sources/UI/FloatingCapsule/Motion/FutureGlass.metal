@@ -69,17 +69,20 @@ static float bloom(float2 p, float4 shape, float2 spread) {
 // The capsule floats over other apps and cannot read them, so the lens images
 // a fixed light field instead: a dim violet room with two bright lines that
 // cross under the glass, like the folded wallpaper of the original scene.
-// The lines drift and breathe slowly (caustic.x = seconds), and brighten a
-// little with the microphone level (caustic.y), so the caustic arcs shimmer.
+// The lines drift and breathe slowly (caustic.x = seconds). The lower line
+// also tilts back and forth, wider and brighter with the smoothed microphone
+// level (caustic.y), so the caustic arcs sway along the caps while you speak.
 // Before a delete (caustic.z) the light turns red.
 static float3 environment(float2 p, float4 pill, float4 caustic) {
     float2 q = (p - pill.xy) / max(pill.w, 1e-3);
     float aspect = max(pill.z / pill.w, 1.0);
     float t = caustic.x;
     float danger = saturate(caustic.z);
+    float level = saturate(caustic.y);
     float drift = 0.035 * sin(t * 1.1) + 0.015 * sin(t * 2.3 + 1.7);
-    float tilt = 0.10 + 0.05 * sin(t * 0.6 + 0.4);
-    float breathe = 1.0 + 0.14 * sin(t * 1.6) + 0.30 * saturate(caustic.y);
+    float sway = (0.03 + 0.15 * level) * sin(t * 1.4);
+    float tilt = 0.10 + 0.05 * sin(t * 0.6 + 0.4) + sway;
+    float breathe = 1.0 + 0.14 * sin(t * 1.6) + 0.30 * level;
     float lower = exp(-sq((q.y - 0.42 - drift + tilt * q.x / aspect) / 0.09));
     float upper = exp(-sq((q.y + 0.30 + 0.6 * drift - 0.18 * q.x / aspect) / 0.07));
     float3 room = mix(float3(0.16, 0.15, 0.26), float3(0.22, 0.10, 0.11), danger)
@@ -277,6 +280,13 @@ static float4 burstDroplets(float2 p, float4 pill, float4 secondary, float age, 
     shadow *= smoothstep(-1.0, 2.0 * scale, sd);
     outside = outside * (1.0 - shadow) + float4(0.0, 0.0, 0.0, shadow);
 
+    // Before a delete, a red glow pulses softly around the rim.
+    if (danger > 0.001) {
+        float pulse = 0.85 + 0.15 * sin(caustic.x * 4.0);
+        float halo = 0.55 * danger * pulse * exp(-max(sd, 0.0) / (9.0 * scale)) * smoothstep(-1.0, 1.0, sd) * visibility;
+        outside = float4(float3(1.0, 0.16, 0.18) * halo, halo) + outside * (1.0 - halo);
+    }
+
     float aa = max(0.6 * scale, 0.5);
     if (sd > aa) {
         return half4(outside);
@@ -312,10 +322,11 @@ static float4 burstDroplets(float2 p, float4 pill, float4 secondary, float age, 
     float key = max(dot(n, normalize(float2(-0.55, -0.85))), 0.0);
     float base = max(dot(n, float2(0.0, 1.0)), 0.0);
     float rim = exp(-sq((sd + 0.55 * line) / (0.55 * line)));
-    float3 rimColor = mix(float3(0.80, 0.80, 0.86), float3(1.0, 0.42, 0.42), max(0.7 * stopGlow, 0.6 * danger))
+    float3 rimColor = mix(float3(0.80, 0.80, 0.86), float3(1.0, 0.42, 0.42), max(0.7 * stopGlow, danger))
         * (1.0 + 0.35 * hover.y * (1.0 - stopGlow));
     body += rimColor * rim * (0.20 + 0.30 * key + 0.50 * base);
     body += float3(0.10, 0.10, 0.13) * exp(-depth / (2.5 * line)) * (0.4 + key);
+    body += float3(0.70, 0.08, 0.11) * danger * exp(-depth / (5.0 * line));
 
     // The processing highlight runs in a band just inside the rim.
     float orbitBand = exp(-sq((depth - 1.8 * line) / (1.6 * line))) + 0.25 * exp(-depth / (7.0 * line));
@@ -355,7 +366,7 @@ static float4 burstDroplets(float2 p, float4 pill, float4 secondary, float age, 
     float away = max(dot(n, normalize(float2(0.55, 0.85))), 0.0);
     float base = max(dot(n, float2(0.0, 1.0)), 0.0);
     float rim = exp(-sq((sd + 0.55 * line) / (0.55 * line)));
-    float3 rimColor = mix(float3(0.92, 0.92, 0.98), float3(1.0, 0.5, 0.5), 0.6 * saturate(caustic.z));
+    float3 rimColor = mix(float3(0.92, 0.92, 0.98), float3(1.0, 0.4, 0.4), saturate(caustic.z));
     light += rimColor * rim * (0.22 + 0.45 * key + 0.30 * base) * 0.85;
     light += float3(0.85, 0.85, 0.92) * exp(-depth / (2.5 * line)) * key * 0.10;
     light *= coverage;

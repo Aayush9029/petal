@@ -19,6 +19,7 @@ struct SystemGlassLayer: View {
         ZStack(alignment: .topLeading) {
             diffusionHalo(frame.pill)
             stopHalo(frame.secondary)
+            dangerHalo(frame.pill)
 
             GlassEffectContainer(spacing: Self.mergeSpacing) {
                 ZStack(alignment: .topLeading) {
@@ -64,6 +65,18 @@ struct SystemGlassLayer: View {
                     height: blob.size.height + 10 * frame.diffusion
                 )
                 .blur(radius: 4 + 8 * frame.diffusion)
+                .position(blob.center)
+        }
+    }
+
+    /// A red glow around the pill before a delete.
+    @ViewBuilder
+    private func dangerHalo(_ blob: CapsuleFrame.Blob) -> some View {
+        if frame.danger > 0.01 {
+            Squircle()
+                .stroke(.red.opacity(0.75 * frame.danger), lineWidth: 3)
+                .frame(width: blob.size.width + 3, height: blob.size.height + 3)
+                .blur(radius: 4)
                 .position(blob.center)
         }
     }

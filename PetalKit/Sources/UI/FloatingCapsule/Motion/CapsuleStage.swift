@@ -73,6 +73,9 @@ struct CapsuleStage: View {
         .onChange(of: reduceMotion, initial: true) { _, reduceMotion in
             motion.timeline.reduceMotion = reduceMotion
         }
+        .onChange(of: state.level) { _, level in
+            motion.level.retarget(level, at: Date.now.timeIntervalSinceReferenceDate)
+        }
         .onChange(of: state.phase, initial: true) { old, new in
             phaseChanged(from: old, to: new)
         }
@@ -154,7 +157,7 @@ struct CapsuleStage: View {
 
     private func light(at now: Double) -> CapsuleLight {
         let orbit = timeline.orbit(at: now)
-        let level = displayedPhase == .recording && timeline.isPresented ? state.level : 0
+        let level = displayedPhase == .recording && timeline.isPresented ? motion.level.value(at: now) : 0
         return CapsuleLight(
             time: reduceMotion ? 0 : now - (timeline.presentedAt ?? now),
             level: reduceMotion ? 0 : level,
