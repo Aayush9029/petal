@@ -283,7 +283,7 @@ static float4 burstDroplets(float2 p, float4 pill, float4 secondary, float age, 
     // Before a delete, a red glow pulses softly around the rim.
     if (danger > 0.001) {
         float pulse = 0.85 + 0.15 * sin(caustic.x * 4.0);
-        float halo = 0.55 * danger * pulse * exp(-max(sd, 0.0) / (9.0 * scale)) * smoothstep(-1.0, 1.0, sd) * visibility;
+        float halo = 0.45 * danger * pulse * exp(-max(sd, 0.0) / (3.0 * scale)) * smoothstep(-1.0, 1.0, sd) * visibility;
         outside = float4(float3(1.0, 0.16, 0.18) * halo, halo) + outside * (1.0 - halo);
     }
 

@@ -74,9 +74,9 @@ struct SystemGlassLayer: View {
     private func dangerHalo(_ blob: CapsuleFrame.Blob) -> some View {
         if frame.danger > 0.01 {
             Squircle()
-                .stroke(.red.opacity(0.75 * frame.danger), lineWidth: 3)
-                .frame(width: blob.size.width + 3, height: blob.size.height + 3)
-                .blur(radius: 4)
+                .stroke(.red.opacity(0.75 * frame.danger), lineWidth: 2)
+                .frame(width: blob.size.width + 2, height: blob.size.height + 2)
+                .blur(radius: 1.5)
                 .position(blob.center)
         }
     }
