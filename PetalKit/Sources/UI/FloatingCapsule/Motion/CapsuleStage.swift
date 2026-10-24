@@ -311,6 +311,7 @@ struct CapsuleScene<Pill: View, Secondary: View>: View {
                 }
             }
         }
+        .blur(radius: frame.glassBlur)
         .frame(
             width: CapsuleChoreography.stageSize.width,
             height: CapsuleChoreography.stageSize.height,

@@ -206,8 +206,9 @@ struct CapsuleTimeline: Equatable, Sendable {
 
         var contentOpacity = reduceMotion
             ? Curve.smoothstep(0, Curve.reducedMotionFade, t)
-            : Curve.smoothstep(0.08, 0.35, t)
-        var contentBlur = reduceMotion ? 0 : 7 * (1 - Curve.smoothstep(0.08, 0.40, t))
+            : Curve.smoothstep(0.24, 0.46, t)
+        // The content waits until the drop is almost full width, so it does not stretch with it.
+        var contentBlur = reduceMotion ? 0 : 7 * (1 - Curve.smoothstep(0.22, 0.46, t))
         var secondaryOpacity = Curve.smoothstep(0.55, 0.95, splitValue)
         var secondaryBlur = reduceMotion ? 0 : 6 * (1 - secondaryOpacity)
         var visibility = reduceMotion ? Curve.smoothstep(0, Curve.reducedMotionFade, t) : 1
@@ -216,6 +217,7 @@ struct CapsuleTimeline: Equatable, Sendable {
             diffusion = max(diffusion, 0.6 * exp(-(time - pulseAt) * 5))
         }
         var isVisible = pillWidth > 0.25
+        var glassBlur = 0.0
 
         var burstAge: Double?
         var burstRipple: CapsuleFrame.Ripple?
@@ -265,6 +267,8 @@ struct CapsuleTimeline: Equatable, Sendable {
                 secondaryBlur = max(secondaryBlur, 6 * Curve.smoothstep(0.0, 0.10, elapsed))
                 isVisible = pillWidth > 0.25 && elapsed < Curve.dismissDuration
                 diffusion = max(diffusion, Curve.smoothstep(0.0, 0.25, elapsed))
+                glassBlur = 8 * Curve.smoothstep(0.06, 0.40, elapsed)
+                visibility *= 1 - Curve.smoothstep(0.28, 0.52, elapsed)
             }
         }
 
@@ -279,6 +283,7 @@ struct CapsuleTimeline: Equatable, Sendable {
             glow: glowValue(at: time),
             visibility: visibility,
             diffusion: diffusion,
+            glassBlur: glassBlur,
             isDismissing: dismissedAt.map { time >= $0 } ?? false,
             stopHover: reduceMotion ? stopHover.to : stopHover.value(at: time),
             transcribeHover: reduceMotion ? transcribeHover.to : transcribeHover.value(at: time),

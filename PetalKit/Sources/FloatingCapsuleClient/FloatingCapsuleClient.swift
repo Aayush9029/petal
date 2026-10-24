@@ -161,11 +161,13 @@ private final class LiveFloatingCapsuleRuntime: NSObject {
     func showTrimming() {
         state.onRecordingTapped = nil
         state.onCancelRecordingTapped = nil
+        playHapticForPhaseChange(to: .trimming)
         state.phase = .trimming
         showWindowIfNeeded()
     }
 
     func showSpeeding() {
+        playHapticForPhaseChange(to: .speeding)
         state.phase = .speeding
         showWindowIfNeeded()
     }
@@ -182,11 +184,13 @@ private final class LiveFloatingCapsuleRuntime: NSObject {
 
     func showTranscribing() {
         state.transcriptionProgress = 0
+        playHapticForPhaseChange(to: .transcribing)
         state.phase = .transcribing
         showWindowIfNeeded()
     }
 
     func showRefining() {
+        playHapticForPhaseChange(to: .refining)
         state.phase = .refining
         showWindowIfNeeded()
     }
@@ -207,6 +211,7 @@ private final class LiveFloatingCapsuleRuntime: NSObject {
     }
 
     func showCopiedToClipboard() {
+        playHapticForPhaseChange(to: .copiedToClipboard)
         state.phase = .copiedToClipboard
         showWindowIfNeeded()
     }
@@ -234,6 +239,7 @@ private final class LiveFloatingCapsuleRuntime: NSObject {
             style: backgroundStyle,
             reduceMotion: NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
         )
+        playHapticForPhaseChange(to: .hidden)
         state.phase = .hidden
         state.liveTranscript = ""
         state.level = 0
@@ -253,6 +259,30 @@ private final class LiveFloatingCapsuleRuntime: NSObject {
             try? await Task.sleep(for: .seconds(dismissDuration))
             guard !Task.isCancelled, let self, self.state.phase == .hidden else { return }
             self.panel.orderOut(nil)
+        }
+    }
+
+    /// A trackpad tap when processing starts and when the result lands.
+    /// Force Touch trackpads play it only while a finger rests on them.
+    private func playHapticForPhaseChange(to phase: FloatingCapsuleState.Phase) {
+        let wasProcessing = Self.isProcessing(state.phase)
+        let isProcessing = Self.isProcessing(phase)
+        let pattern: NSHapticFeedbackManager.FeedbackPattern
+        switch (wasProcessing, isProcessing) {
+        case (false, true):
+            pattern = .levelChange
+        case (true, false) where phase == .hidden || phase == .copiedToClipboard:
+            pattern = .generic
+        default:
+            return
+        }
+        NSHapticFeedbackManager.defaultPerformer.perform(pattern, performanceTime: .now)
+    }
+
+    private static func isProcessing(_ phase: FloatingCapsuleState.Phase) -> Bool {
+        switch phase {
+        case .trimming, .speeding, .transcribing, .refining: true
+        default: false
         }
     }
 

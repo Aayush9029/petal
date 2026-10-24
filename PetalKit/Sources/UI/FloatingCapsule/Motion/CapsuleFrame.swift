@@ -13,6 +13,8 @@ struct CapsuleFrame: Equatable, Sendable {
     var visibility: Double
     /// How soft the glass edges and fill are, from 0 (crisp) to 1, while the drop forms, pulses, or leaves.
     var diffusion: Double = 0
+    /// Blur radius of the whole drop as it lifts away.
+    var glassBlur: Double = 0
     var isDismissing = false
     /// 0 to 1: the stop drop glows red, and the Transcribe pill brightens.
     var stopHover: Double = 0
