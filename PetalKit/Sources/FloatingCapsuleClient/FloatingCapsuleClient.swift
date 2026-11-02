@@ -117,6 +117,8 @@ private final class LiveFloatingCapsuleRuntime: NSObject {
     private var preferredScreen: NSScreen?
     private var globalMouseMonitor: Any?
     private var localMouseMonitor: Any?
+    private var globalMouseMoveMonitor: Any?
+    private var localMouseMoveMonitor: Any?
     private var deferredScreenFollowTask: Task<Void, Never>?
     private var orderOutTask: Task<Void, Never>?
     @Shared(.floatingCapsuleBackgroundStyle) private var backgroundStyle
@@ -137,13 +139,14 @@ private final class LiveFloatingCapsuleRuntime: NSObject {
         panel.backgroundColor = .clear
         panel.isOpaque = false
         panel.hasShadow = true
-        panel.ignoresMouseEvents = false
+        panel.ignoresMouseEvents = true
         panel.acceptsMouseMovedEvents = true
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
 
         self.panel = panel
         super.init()
         startFollowingActiveScreen()
+        startTrackingMousePassThrough()
     }
 
     func showRecording(
@@ -254,7 +257,7 @@ private final class LiveFloatingCapsuleRuntime: NSObject {
             return
         }
         // The capsule plays its dismissal after the session ends; it no longer takes clicks.
-        panel.ignoresMouseEvents = true
+        updateMousePassThrough()
         orderOutTask = Task { @MainActor [weak self] in
             try? await Task.sleep(for: .seconds(dismissDuration))
             guard !Task.isCancelled, let self, self.state.phase == .hidden else { return }
@@ -299,13 +302,55 @@ private final class LiveFloatingCapsuleRuntime: NSObject {
     private func showWindowIfNeeded() {
         orderOutTask?.cancel()
         orderOutTask = nil
-        panel.ignoresMouseEvents = false
         panel.hasShadow = FloatingCapsuleLayout.usesWindowShadow(style: backgroundStyle)
         resizePanel()
         let screen = screenAtMouseLocation() ?? preferredScreen ?? NSScreen.main
         preferredScreen = screen
         positionPanel(on: screen)
         panel.orderFrontRegardless()
+        updateMousePassThrough()
+    }
+
+    /// The panel is much larger than the capsule, so it takes clicks only over the capsule.
+    /// Everywhere else, clicks go to the windows behind it.
+    private func updateMousePassThrough() {
+        guard panel.isVisible, state.phase != .hidden, let region = state.hitRegion,
+              let contentView = panel.contentView
+        else {
+            panel.ignoresMouseEvents = true
+            return
+        }
+        let point = panel.convertPoint(fromScreen: NSEvent.mouseLocation)
+        let flipped = CGPoint(x: point.x, y: contentView.bounds.height - point.y)
+        let ignores = !region.contains(flipped)
+        if panel.ignoresMouseEvents != ignores {
+            panel.ignoresMouseEvents = ignores
+        }
+    }
+
+    private func startTrackingMousePassThrough() {
+        let moveEvents: NSEvent.EventTypeMask = [.mouseMoved, .leftMouseDragged, .rightMouseDragged]
+        globalMouseMoveMonitor = NSEvent.addGlobalMonitorForEvents(matching: moveEvents) { [weak self] _ in
+            MainActor.assumeIsolated {
+                self?.updateMousePassThrough()
+            }
+        }
+        localMouseMoveMonitor = NSEvent.addLocalMonitorForEvents(matching: moveEvents) { [weak self] event in
+            self?.updateMousePassThrough()
+            return event
+        }
+        startObservingHitRegion()
+    }
+
+    private func startObservingHitRegion() {
+        withObservationTracking {
+            _ = state.hitRegion
+        } onChange: { [weak self] in
+            Task { @MainActor [weak self] in
+                self?.updateMousePassThrough()
+                self?.startObservingHitRegion()
+            }
+        }
     }
 
     private func startFollowingActiveScreen() {

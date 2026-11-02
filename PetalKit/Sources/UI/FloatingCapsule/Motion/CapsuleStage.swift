@@ -38,6 +38,7 @@ struct CapsuleStage: View {
     @State private var isSecondaryHovered = false
     /// The user confirmed the delete, so the capsule pops instead of shrinking.
     @State private var discardsRecording = false
+    @State private var stageOrigin = CGPoint.zero
 
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -67,9 +68,13 @@ struct CapsuleStage: View {
                 .allowsHitTesting(timeline.isPresented)
             }
             .frame(width: Curve.stageSize.width, height: Curve.stageSize.height)
+            .onGeometryChange(for: CGPoint.self, of: { $0.frame(in: .global).origin }) { stageOrigin = $0 }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
         .animation(.smooth(duration: 0.3), value: state.showsLiveTranscript)
+        .onChange(of: hitRegion, initial: true) { _, region in
+            state.hitRegion = region
+        }
         .onChange(of: reduceMotion, initial: true) { _, reduceMotion in
             motion.timeline.reduceMotion = reduceMotion
         }
@@ -124,6 +129,17 @@ struct CapsuleStage: View {
     }
 
     private var timeline: CapsuleTimeline { motion.timeline }
+
+    /// The settled pill and stop drop, with a margin so the pointer can cross the gap between them.
+    private var hitRegion: CGRect? {
+        guard timeline.isPresented else { return nil }
+        let frame = timeline.frame(at: timeline.settledTime)
+        var region = frame.pill.rect
+        if frame.secondary.size.width > 0 {
+            region = region.union(frame.secondary.rect)
+        }
+        return region.insetBy(dx: -8, dy: -8).offsetBy(dx: stageOrigin.x, dy: stageOrigin.y)
+    }
     private var isSettled: Bool { motion.isSettled }
 
     private struct HoverTargets: Equatable {

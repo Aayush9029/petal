@@ -1,3 +1,4 @@
+import CoreGraphics
 import Observation
 
 @MainActor
@@ -28,6 +29,9 @@ public final class FloatingCapsuleState {
     public var onRecordingTapped: (() -> Void)?
     public var onCancelRecordingTapped: (() -> Void)?
     public var onAccessibilityTapped: (() -> Void)?
+    /// The part of the panel that takes clicks, in top-left points of the panel content.
+    /// The panel lets clicks outside it pass through to the windows behind.
+    public var hitRegion: CGRect?
 
     public init() {}
 }

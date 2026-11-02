@@ -33,6 +33,9 @@ public struct FloatingCapsuleView: View {
                 ))
                 .blur(radius: blurRadius > 0 ? 8 : 0)
                 .fixedSize()
+                .onGeometryChange(for: CGRect.self, of: { $0.frame(in: .global) }) { frame in
+                    state.hitRegion = frame.insetBy(dx: -8, dy: -8)
+                }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
         .padding(.bottom, 4)
