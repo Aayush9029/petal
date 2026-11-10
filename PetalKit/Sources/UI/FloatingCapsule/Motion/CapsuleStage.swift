@@ -125,6 +125,10 @@ struct CapsuleStage: View {
                 guard !Task.isCancelled else { return }
             }
             motion.isSettled = true
+            // The last phase stays mounted for the dismissal. Its animated content must not run in the hidden panel.
+            if !timeline.isPresented {
+                displayedPhase = .hidden
+            }
         }
     }
 
