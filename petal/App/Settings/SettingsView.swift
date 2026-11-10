@@ -239,6 +239,25 @@ struct RecordingPane: View {
                     }
                     .frame(maxWidth: 220)
                 }
+
+                if viewModel.offersSpokenLanguageChoice {
+                    SettingsCardDivider()
+
+                    SettingsControlRow(
+                        title: "Spoken Language",
+                        description: "Qwen3 ASR and Whisper use this language. Other models detect it.",
+                        symbol: "character.bubble",
+                        tint: .blue
+                    ) {
+                        SettingsMenuPicker(
+                            values: [nil] + SpokenLanguage.allCases.map(Optional.some),
+                            selection: viewModel.spokenLanguage,
+                            title: { $0?.name ?? "Automatic" }
+                        ) { language in
+                            viewModel.spokenLanguagePicked(language)
+                        }
+                    }
+                }
             }
 
             SettingsGlassContainer {

@@ -6,6 +6,7 @@ import Foundation
 import LogClient
 import MLX
 import Shared
+import Sharing
 import MLXAudioCore
 import MLXAudioSTT
 import VoxtralCore
@@ -363,6 +364,11 @@ private actor LiveMLXRuntime {
         MLXArray.zeros([16_000], dtype: .float32)
     }
 
+    private static var spokenLanguage: SpokenLanguage? {
+        @Shared(.spokenLanguageCode) var code
+        return SpokenLanguage(rawValue: code)
+    }
+
     func transcribe(
         audioURL: URL,
         mode: MLXTranscriptionMode,
@@ -416,8 +422,9 @@ private actor LiveMLXRuntime {
                 }
                 let (_, audio) = try loadAudioArray(from: audioURL, sampleRate: 16_000)
                 let inferenceStart = ProcessInfo.processInfo.systemUptime
-                let output = qwen3AsrModel.generate(audio: audio)
-                log("transcribe.qwen-mlx.inference completed elapsed=\(formatElapsedSeconds(ProcessInfo.processInfo.systemUptime - inferenceStart)), rawChars=\(output.text.count)")
+                let language = Self.spokenLanguage
+                let output = qwen3AsrModel.generate(audio: audio, language: language?.name)
+                log("transcribe.qwen-mlx.inference completed elapsed=\(formatElapsedSeconds(ProcessInfo.processInfo.systemUptime - inferenceStart)), rawChars=\(output.text.count), language=\(language?.code ?? "auto")")
                 let normalizedText = normalizeQwenTranscript(output.text)
                 guard !normalizedText.isEmpty else {
                     throw MLXError.pipelineUnavailable
@@ -460,7 +467,9 @@ private actor LiveMLXRuntime {
                 let audioPath = audioURL.path
                 let whisperStart = ProcessInfo.processInfo.systemUptime
                 // Without detection, WhisperKit prefills the English token, so other languages come out translated to English.
-                let results = try await instance.transcribe(audioPath: audioPath, decodeOptions: DecodingOptions(detectLanguage: true))
+                let language = Self.spokenLanguage
+                let options = DecodingOptions(language: language?.code, detectLanguage: language == nil)
+                let results = try await instance.transcribe(audioPath: audioPath, decodeOptions: options)
                 let whisperElapsed = ProcessInfo.processInfo.systemUptime - whisperStart
                 log(
                     "transcribe.whisper.backend completed elapsed=\(formatElapsedSeconds(whisperElapsed)), segments=\(results.count)"

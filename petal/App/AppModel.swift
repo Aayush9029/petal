@@ -1165,7 +1165,7 @@ final class AppModel {
                 let pasteResult = await pasteClient.paste(transcript, restoreClipboardAfterPaste)
                 if sendsAfterPaste, pasteResult == .pasted {
                     // Chat apps built on web views insert pasted text a moment later, and an early Return sends an empty message.
-                    try? await clock.sleep(for: .milliseconds(150))
+                    try? await clock.sleep(for: .milliseconds(330))
                     await pasteClient.pressReturn()
                 }
                 let pasteElapsed = now.timeIntervalSince(pasteStart)

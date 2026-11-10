@@ -253,6 +253,11 @@ public enum ModelOption: String, CaseIterable, Identifiable, Sendable {
         self == .parakeetUnified06B || self == .nemotronUnified06B
     }
 
+    /// Whether the model can be told the spoken language instead of detecting it.
+    public var supportsSpokenLanguageChoice: Bool {
+        self == .qwen3ASR17B8bit || self == .whisperLargeV3Turbo
+    }
+
     public var supportsSmartTranscription: Bool {
         supportedTranscriptionModes.contains(.smart)
     }

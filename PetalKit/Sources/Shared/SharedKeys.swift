@@ -45,6 +45,11 @@ public extension SharedKey where Self == AppStorageKey<String>.Default {
         Self[.appStorage("file_transcription_model_id"), default: ""]
     }
 
+    /// A `SpokenLanguage` code. Empty means the model detects the language.
+    static var spokenLanguageCode: Self {
+        Self[.appStorage("spoken_language_code"), default: ""]
+    }
+
     static var selectedAudioInputDeviceID: Self {
         Self[.appStorage("selected_audio_input_device_id"), default: "system-default"]
     }

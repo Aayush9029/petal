@@ -29,6 +29,7 @@ final class SettingsViewModel {
     @ObservationIgnored @Shared(.cleanupModel) var cleanupModel: CleanupModel = .off
     @ObservationIgnored @Shared(.logsEnabled) var logsEnabled = false
     @ObservationIgnored @Shared(.fileTranscriptionModelID) var fileTranscriptionModelID = ""
+    @ObservationIgnored @Shared(.spokenLanguageCode) var spokenLanguageCode = ""
     @ObservationIgnored @Shared(.restoreClipboardAfterPaste) var restoreClipboardAfterPaste = true
     @ObservationIgnored @Shared(.showLiveTranscript) var showLiveTranscript = true
     @ObservationIgnored @Shared(.duckSystemAudioDuringRecording) var duckSystemAudioDuringRecording = false
@@ -352,6 +353,18 @@ final class SettingsViewModel {
 
     var downloadedModelOptions: [ModelOption] {
         ModelOption.allCases.filter { downloadModel.isModelDownloaded($0) }
+    }
+
+    var spokenLanguage: SpokenLanguage? {
+        SpokenLanguage(rawValue: spokenLanguageCode)
+    }
+
+    var offersSpokenLanguageChoice: Bool {
+        downloadedModelOptions.contains(where: \.supportsSpokenLanguageChoice)
+    }
+
+    func spokenLanguagePicked(_ language: SpokenLanguage?) {
+        $spokenLanguageCode.withLock { $0 = language?.rawValue ?? "" }
     }
 
     func dictationModelPicked(_ option: ModelOption) {

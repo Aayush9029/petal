@@ -4,6 +4,7 @@ import Foundation
 import LogClient
 import MLXClient
 import Shared
+import Sharing
 import Testing
 import TranscriptionClient
 
@@ -76,6 +77,41 @@ struct SpeechModelEvaluationTests {
             print("ASR_EVAL \(result)")
         }
         print("ASR_EVAL_REPORT\n" + report.joined(separator: "\n"))
+    }
+
+    /// An English clip that is forced to Spanish must change, and the same clip forced to English must not.
+    @Test
+    func qwenUsesTheSpokenLanguage() async throws {
+        let directory = FileManager.default.temporaryDirectory.appending(path: "petal-asr-eval")
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let clip = Clip(voice: "Samantha", language: "en", text: "Yeah, send the report to the team before Friday.")
+        let url = directory.appending(path: "language.wav")
+        try synthesize(clip, to: url)
+
+        try await withDependencies {
+            $0.logClient.debug = { _, _ in }
+            $0.logClient.error = { _, _ in }
+            $0.logClient.dumpDebug = { _, _, _ in }
+            $0.mlxClient = .liveValue
+            $0.audioTrimClient = .liveValue
+            $0.audioSpeedClient = .liveValue
+        } operation: {
+            @Shared(.spokenLanguageCode) var code
+            let transcription = TranscriptionClient.liveValue
+            try await transcription.prepareModelIfNeeded(.qwen3ASR17B8bit)
+            var texts: [String: String] = [:]
+            for language in ["", "en", "hi"] {
+                $code.withLock { $0 = language }
+                texts[language] = try await transcription.transcribe(url, .qwen3ASR17B8bit, .verbatim, nil)
+                print("ASR_LANGUAGE [\(language)] \(texts[language] ?? "")")
+            }
+            $code.withLock { $0 = "" }
+            await transcription.unloadModel()
+
+            let english = WordErrorRate.errors(reference: clip.text, hypothesis: texts["en"] ?? "")
+            #expect(english.0 <= 1)
+            #expect(texts["hi"] != texts["en"])
+        }
     }
 
     private func evaluate(_ model: ModelOption, audio: [(clip: Clip, url: URL, duration: Double)]) async throws -> String {
