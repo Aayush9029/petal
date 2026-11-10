@@ -1,13 +1,13 @@
 {
-  "originHash" : "7a9a1f9e72702533bf7147c540f294fee2ebeecfff55fde56fb99d6ae27fd4a6",
+  "originHash" : "bb82de12d02b98720f1e66c4bbefeda2a681a31e6eed1f2a1e044f252c3ee646",
   "pins" : [
     {
       "identity" : "argmax-oss-swift",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/argmaxinc/argmax-oss-swift",
       "state" : {
-        "revision" : "1e2a163736dfa5a198e637ae44c114e1c6d5cc2d",
-        "version" : "1.1.0"
+        "revision" : "1bbc57cb7fe6410248a685b1c5a3c6d56adc2ed4",
+        "version" : "1.1.1"
       }
     },
     {
@@ -24,8 +24,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/mattt/EventSource.git",
       "state" : {
-        "revision" : "86b5096ac59ab46e66bd1f6377c604bc1dab0bc2",
-        "version" : "1.5.1"
+        "revision" : "bb4b61273b5a976bb571859c17f903ebc3439df1",
+        "version" : "1.6.0"
       }
     },
     {
@@ -33,17 +33,17 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/FluidInference/FluidAudio.git",
       "state" : {
-        "revision" : "5c51c5c93afff0d89594a2a93c3103e790ba648c",
-        "version" : "0.17.1"
+        "revision" : "c8b41f98eae668794dd0083bbe028fe7e6585051",
+        "version" : "0.18.3"
       }
     },
     {
       "identity" : "mlx-audio-swift",
       "kind" : "remoteSourceControl",
-      "location" : "https://github.com/Blaizzy/mlx-audio-swift.git",
+      "location" : "https://github.com/Neywa-Labs/mlx-audio-swift.git",
       "state" : {
-        "revision" : "d302a5c6080d2bb97bae38c7418f82abb76013b6",
-        "version" : "0.1.3"
+        "revision" : "0e03fee81e87e6d6a186fb72610589bd92fc87cd",
+        "version" : "0.1.9"
       }
     },
     {
@@ -51,8 +51,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/ml-explore/mlx-swift",
       "state" : {
-        "revision" : "0bb916c67f4b9e5c682cbe02a42c701c93ab5021",
-        "version" : "0.31.6"
+        "revision" : "7ede4fd6d05f63305c1c0ebf4f8c1909a637c574",
+        "version" : "0.33.0"
       }
     },
     {
@@ -60,8 +60,7 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/ml-explore/mlx-swift-lm",
       "state" : {
-        "revision" : "bd4b7434e6bdb588c7ef55706ff8904cb7fd4c57",
-        "version" : "3.31.4"
+        "revision" : "6e3fe5d5648826c4e979b55df422462cc8e88a9b"
       }
     },
     {
@@ -96,8 +95,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/apple/swift-asn1.git",
       "state" : {
-        "revision" : "d9a5b37470adc940d22c3bcd5ca6953a516b727f",
-        "version" : "1.7.2"
+        "revision" : "917b472dbe53ba699cbb0495f9a95a084bc6364d",
+        "version" : "1.7.4"
       }
     },
     {
@@ -121,10 +120,10 @@
     {
       "identity" : "swift-collections",
       "kind" : "remoteSourceControl",
-      "location" : "https://github.com/apple/swift-collections.git",
+      "location" : "https://github.com/apple/swift-collections",
       "state" : {
-        "revision" : "a0cb0954ecb21e4e31b0070e6ed5674e8556685a",
-        "version" : "1.6.0"
+        "revision" : "f96b909e1a9e469620bc5037c1e24e00153f376f",
+        "version" : "1.7.5"
       }
     },
     {
@@ -132,8 +131,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/pointfreeco/swift-concurrency-extras",
       "state" : {
-        "revision" : "5fa253428866f2360c3754e88537f700ed2656b5",
-        "version" : "1.4.1"
+        "revision" : "8a4260f7373493435bd21194585c95b72bfdd401",
+        "version" : "1.4.3"
       }
     },
     {
@@ -168,8 +167,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/pointfreeco/swift-dependencies",
       "state" : {
-        "revision" : "b476cc5761057d8d857de063fe7ac8daecf5c06b",
-        "version" : "1.17.1"
+        "revision" : "2f83b70a6fbf45795dd40ccaa907bad3c8d93fe1",
+        "version" : "1.17.2"
       }
     },
     {
@@ -177,8 +176,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/huggingface/swift-huggingface.git",
       "state" : {
-        "revision" : "b5403ed09403f674601fd1123e07c5b32914d16f",
-        "version" : "0.10.1"
+        "revision" : "f0a0cb43cb1b402d2bbf6fb10d8981328c449c48",
+        "version" : "0.13.0"
       }
     },
     {
@@ -195,8 +194,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/pointfreeco/swift-issue-reporting",
       "state" : {
-        "revision" : "71c7c9a761d1ca6ed4ccb6ced040fe1c1a39e8e7",
-        "version" : "2.1.0"
+        "revision" : "b23bb4493c439d3e05152bc167014235ba3d47fc",
+        "version" : "2.1.2"
       }
     },
     {
@@ -204,8 +203,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/huggingface/swift-jinja.git",
       "state" : {
-        "revision" : "4588064a20f3fc093c95f2f7d3359999bf30cae5",
-        "version" : "2.5.1"
+        "revision" : "66042420a9225c98ea9382d705e2285769dfdbe5",
+        "version" : "3.1.0"
       }
     },
     {
@@ -258,8 +257,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/huggingface/swift-transformers",
       "state" : {
-        "revision" : "c21fdcde390313a6d98d8e33a346f2c3486c3ab0",
-        "version" : "1.3.4"
+        "revision" : "402a8a1105f52038b0949d9596981fc9e32bed17",
+        "version" : "1.4.0"
       }
     },
     {
@@ -276,8 +275,17 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/ibireme/yyjson.git",
       "state" : {
-        "revision" : "8b4a38dc994a110abaec8a400615567bd996105f",
-        "version" : "0.12.0"
+        "revision" : "6447536015f3d600f3d65323b10976103b337ca7",
+        "version" : "0.13.0"
+      }
+    },
+    {
+      "identity" : "zstd",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/facebook/zstd.git",
+      "state" : {
+        "revision" : "f8745da6ff1ad1e7bab384bd1f9d742439278e99",
+        "version" : "1.5.7"
       }
     }
   ],

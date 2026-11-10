@@ -154,6 +154,7 @@ struct ModelSelectorCard: View {
         case .appleSpeech: "Built-in, private transcription."
         case .qwen3ASR17B8bit: "Most accurate multilingual transcription."
         case .parakeetUnified06B: "Live English transcription as you speak."
+        case .nemotronUnified06B: "Live transcription in 25 European languages."
         case .parakeetTDT06BV3: "Fast dictation in 25 European languages."
         case .parakeetTDTCTC110M: "Lightweight, instant English dictation."
         case .whisperLargeV3Turbo: "High-quality transcription in 99 languages."

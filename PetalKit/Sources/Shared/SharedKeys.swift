@@ -40,6 +40,11 @@ public extension SharedKey where Self == AppStorageKey<String>.Default {
         Self[.appStorage("selected_model_id"), default: ModelOption.defaultOption.rawValue]
     }
 
+    /// Empty means audio files use the dictation model.
+    static var fileTranscriptionModelID: Self {
+        Self[.appStorage("file_transcription_model_id"), default: ""]
+    }
+
     static var selectedAudioInputDeviceID: Self {
         Self[.appStorage("selected_audio_input_device_id"), default: "system-default"]
     }

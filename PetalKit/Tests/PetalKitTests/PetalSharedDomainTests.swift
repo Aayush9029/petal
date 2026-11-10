@@ -1,3 +1,4 @@
+import Foundation
 import CustomDump
 @testable import Shared
 import Testing
@@ -95,6 +96,7 @@ func modelCatalogListsEachSpeechModel() {
         .parakeetTDTCTC110M,
         .qwen3ASR17B8bit,
         .parakeetUnified06B,
+        .nemotronUnified06B,
         .parakeetTDT06BV3,
         .whisperLargeV3Turbo,
         .mini3b8bit,

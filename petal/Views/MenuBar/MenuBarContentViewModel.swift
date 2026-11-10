@@ -1,6 +1,7 @@
 import AppKit
 import Dependencies
 import HistoryClient
+import ModelDownloadFeature
 import Observation
 import Shared
 import SwiftUI
@@ -13,16 +14,27 @@ final class MenuBarContentViewModel {
         let title: String
     }
 
+    struct DownloadStatus: Equatable {
+        /// Nil until the download reports its size.
+        var fraction: Double?
+        var isPaused: Bool
+    }
+
+    private struct CachedTitle {
+        var relativePath: String?
+        var title: String?
+    }
+
     /// The popup's hosting view outlives `orderOut`, so animations check this to stop while it is hidden.
     var isPopupVisible = false
 
     private let appModel: AppModel
-    private var updatesModel: CheckForUpdatesModel?
     @ObservationIgnored @Dependency(\.historyClient) private var historyClient
+    /// A transcript file read costs a disk access, and the popup asks for the titles on each status change.
+    @ObservationIgnored private var titleCache: [UUID: CachedTitle] = [:]
 
-    init(appModel: AppModel, updatesModel: CheckForUpdatesModel? = nil) {
+    init(appModel: AppModel) {
         self.appModel = appModel
-        self.updatesModel = updatesModel
     }
 
     var statusTitle: String { appModel.statusTitle }
@@ -40,7 +52,34 @@ final class MenuBarContentViewModel {
     var statusHeadline: String {
         if let statusErrorMessage { return statusErrorMessage }
         if isRecording { return "Recording" }
+        if let downloadHeadline { return downloadHeadline }
         return transientMessage ?? appModel.statusTitle
+    }
+
+    var downloadStatus: DownloadStatus? {
+        switch appModel.modelDownloadViewModel.state {
+        case .preparing:
+            DownloadStatus(fraction: nil, isPaused: false)
+        case let .downloading(progress):
+            DownloadStatus(fraction: progress.fraction, isPaused: false)
+        case let .paused(progress):
+            DownloadStatus(fraction: progress.fraction, isPaused: true)
+        case .notDownloaded, .downloaded, .failed:
+            nil
+        }
+    }
+
+    private var downloadHeadline: String? {
+        guard let downloadStatus else { return nil }
+        let downloads = appModel.modelDownloadViewModel
+        let name = (downloads.downloadingModelOption ?? appModel.selectedModelOption)?.displayName ?? "model"
+        guard let fraction = downloadStatus.fraction else { return "Preparing \(name)…" }
+        let percent = fraction.formatted(.percent.precision(.fractionLength(0)))
+        if downloadStatus.isPaused { return "Download paused at \(percent)" }
+        if let speed = downloads.state.progress?.speedText {
+            return "Downloading \(name), \(percent) at \(speed)"
+        }
+        return "Downloading \(name), \(percent)"
     }
 
     private var statusErrorMessage: String? {
@@ -76,30 +115,30 @@ final class MenuBarContentViewModel {
     }
 
     var historyMenuItems: [HistoryMenuItem] {
-        Array(
-            appModel.recentTranscriptHistoryEntries
-            .compactMap { entry in
-                guard let transcript = historyClient.transcriptText(entry.preferredTranscriptRelativePath) else { return nil }
-                let normalizedTranscript = transcript
-                    .replacingOccurrences(of: "\n", with: " ")
-                    .trimmingCharacters(in: .whitespacesAndNewlines)
-                guard !normalizedTranscript.isEmpty else { return nil }
-
-                let title = String(normalizedTranscript.prefix(112))
-
-                return HistoryMenuItem(
-                    id: entry.id,
-                    title: title
-                )
+        let entries = appModel.recentTranscriptHistoryEntries
+        var cache: [UUID: CachedTitle] = [:]
+        var items: [HistoryMenuItem] = []
+        for entry in entries {
+            let relativePath = entry.preferredTranscriptRelativePath
+            var cached = titleCache[entry.id]
+            if cached?.relativePath != relativePath || cached == nil {
+                cached = CachedTitle(relativePath: relativePath, title: title(relativePath: relativePath))
             }
-        )
+            cache[entry.id] = cached
+            if let title = cached?.title {
+                items.append(HistoryMenuItem(id: entry.id, title: title))
+            }
+        }
+        titleCache = cache
+        return items
     }
 
-    var showsCheckForUpdates: Bool { updatesModel != nil }
-    var canCheckForUpdates: Bool { updatesModel?.canCheckForUpdates == true }
-
-    func setUpdatesModel(_ updatesModel: CheckForUpdatesModel?) {
-        self.updatesModel = updatesModel
+    private func title(relativePath: String?) -> String? {
+        guard let transcript = historyClient.transcriptText(relativePath) else { return nil }
+        let normalized = transcript
+            .replacingOccurrences(of: "\n", with: " ")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return normalized.isEmpty ? nil : String(normalized.prefix(112))
     }
 
     func requestMicrophonePermission() {
@@ -147,10 +186,6 @@ final class MenuBarContentViewModel {
 
     func stopRecording() {
         Task { await appModel.handleDeepLink(.stop) }
-    }
-
-    func checkForUpdates() {
-        updatesModel?.checkForUpdates()
     }
 
     func showAbout() {

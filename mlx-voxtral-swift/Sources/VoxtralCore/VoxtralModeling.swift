@@ -1378,7 +1378,9 @@ public class VoxtralForConditionalGeneration: Module, LanguageModel {
      * Prepare the cache state and consume the LMInput
      * Required by LanguageModel protocol
      */
-    public func prepare(_ input: LMInput, cache: [any KVCache], windowSize: Int?) throws -> PrepareResult {
+    public func prepare(
+        _ input: LMInput, cache: [any KVCache], state: LMOutput.State?, prefill: PrefillParameters
+    ) throws -> PrepareResult {
         // For Voxtral, we need to handle both text and audio inputs
         let mergedEmbeddings: MLXArray
         

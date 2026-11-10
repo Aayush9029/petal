@@ -36,7 +36,7 @@ private func runUnifiedStreamingIntegration() async throws {
         try await withDependencies {
             $0.mlxClient = modelClient
         } operation: {
-            try await TranscriptionClient.liveValue.transcribeStream(audio) { text in
+            try await TranscriptionClient.liveValue.transcribeStream(audio, .parakeetUnified06B) { text in
                 await updates.append(text)
                 await capsule.updateLiveTranscript(text)
             }

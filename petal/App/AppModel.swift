@@ -47,6 +47,7 @@ final class AppModel {
     }
 
     @ObservationIgnored @Shared(.hasCompletedSetup) var hasCompletedSetup = false
+    @ObservationIgnored @Shared(.fileTranscriptionModelID) var fileTranscriptionModelID = ""
     @ObservationIgnored @Shared(.transcriptionMode) var transcriptionMode: TranscriptionMode = .verbatim
     @ObservationIgnored @Shared(.smartPrompt) var smartPrompt = TranscriptionMode.defaultSmartPrompt
     @ObservationIgnored @Shared(.cleanupModel) var cleanupModel: CleanupModel = .off
@@ -215,6 +216,16 @@ final class AppModel {
         ModelOption(rawValue: selectedModelID)
     }
 
+    /// The model the user chose for audio files, when it differs from the dictation model and is ready.
+    var fileTranscriptionModelOverride: ModelOption? {
+        guard let option = ModelOption(rawValue: fileTranscriptionModelID),
+              ModelOption.allCases.contains(option),
+              option != selectedModelOption,
+              modelDownloadViewModel.isModelDownloaded(option)
+        else { return nil }
+        return option
+    }
+
     var isSelectedModelDownloaded: Bool {
         modelDownloadViewModel.isSelectedModelDownloaded
     }
@@ -267,6 +278,12 @@ final class AppModel {
         case .processing: return .working
         case .error: return .error
         }
+    }
+
+    /// True when a relaunch interrupts no recording, transcription, or download.
+    var isIdle: Bool {
+        sessionState == .idle && menuBarIconState == .idle
+            && !isTranscribingDroppedFile && !isRecordingLifecycleBusy
     }
 
     var recentTranscriptHistoryEntries: [TranscriptHistoryEntry] {
@@ -515,7 +532,9 @@ final class AppModel {
             return false
         }
 
-        guard let selectedModelOption else {
+        // A recovered recording is dictation, so it keeps the dictation model.
+        let fileModel = origin == .dropped ? fileTranscriptionModelOverride : nil
+        guard let selectedModelOption = fileModel ?? selectedModelOption else {
             sessionState = .error(AppTranscriptionError.pipelineUnavailable.localizedDescription)
             transientMessage = "Transcription unavailable"
             return false
@@ -523,6 +542,17 @@ final class AppModel {
 
         isTranscribingDroppedFile = true
         defer { isTranscribingDroppedFile = false }
+
+        let dictationRTF = estimatedTranscriptionRTF
+        if fileModel != nil {
+            estimatedTranscriptionRTF = defaultTranscriptionRTF(for: selectedModelOption)
+        }
+        defer {
+            if fileModel != nil {
+                estimatedTranscriptionRTF = dictationRTF
+                restoreDictationModel()
+            }
+        }
 
         let didStartSecurityScope = audioURL.startAccessingSecurityScopedResource()
         defer {
@@ -898,7 +928,7 @@ final class AppModel {
         let sessionID = activeHistorySessionID
         let client = transcriptionClient
         streamingTask = Task { [weak self] in
-            try await client.transcribeStream(audio) { [weak self] text in
+            try await client.transcribeStream(audio, model) { [weak self] text in
                 await self?.streamingTranscriptDidUpdate(text, sessionID: sessionID)
             }
         }
@@ -1647,13 +1677,22 @@ final class AppModel {
 
     private func refreshPermissionStatusAsync() async {
         if isPreviewMode { return }
-        let wasMicrophoneAuthorized = microphoneAuthorized
-        microphonePermissionState = await permissionsClient.microphonePermissionState()
-        microphoneAuthorized = microphonePermissionState == .authorized
-        if microphoneAuthorized && !wasMicrophoneAuthorized {
-            prepareAudioCapture()
+        // An equal value still notifies observers, so each property is written only when it changes.
+        let microphoneState = await permissionsClient.microphonePermissionState()
+        if microphonePermissionState != microphoneState {
+            microphonePermissionState = microphoneState
         }
-        accessibilityAuthorized = await permissionsClient.hasAccessibilityPermission()
+        let isMicrophoneAuthorized = microphoneState == .authorized
+        if microphoneAuthorized != isMicrophoneAuthorized {
+            microphoneAuthorized = isMicrophoneAuthorized
+            if isMicrophoneAuthorized {
+                prepareAudioCapture()
+            }
+        }
+        let isAccessibilityAuthorized = await permissionsClient.hasAccessibilityPermission()
+        if accessibilityAuthorized != isAccessibilityAuthorized {
+            accessibilityAuthorized = isAccessibilityAuthorized
+        }
     }
 
     func prepareAudioCapture() {
@@ -1667,7 +1706,10 @@ final class AppModel {
             while !Task.isCancelled {
                 guard let self else { return }
                 await self.refreshPermissionStatusAsync()
-                try? await self.clock.sleep(for: .seconds(1))
+                // A missing permission needs a fast check so the app reacts when the user grants it.
+                // With all permissions granted, a slow check keeps an idle app from waking each second.
+                let hasAllPermissions = self.microphoneAuthorized && self.accessibilityAuthorized
+                try? await self.clock.sleep(for: .seconds(hasAllPermissions ? 10 : 1))
             }
         }
     }
@@ -1992,6 +2034,14 @@ final class AppModel {
         }
     }
 
+    /// The runtime holds one speech model, so dictation gets its model back after a file used a different one.
+    private func restoreDictationModel() {
+        warmupTask?.cancel()
+        warmupTask = Task { [weak self] in
+            await self?.warmModelTask()
+        }
+    }
+
     private func scheduleCopiedThenAccessibilityPrompt() {
         accessibilityFollowUpTask?.cancel()
         accessibilityFollowUpTask = Task { [weak self] in
@@ -2301,7 +2351,7 @@ final class AppModel {
         switch model {
         case .qwen3ASR17B8bit:
             return 1.5
-        case .parakeetUnified06B, .parakeetTDT06BV3:
+        case .parakeetUnified06B, .nemotronUnified06B, .parakeetTDT06BV3:
             return 2.0
         case .parakeetTDTCTC110M:
             return 2.5

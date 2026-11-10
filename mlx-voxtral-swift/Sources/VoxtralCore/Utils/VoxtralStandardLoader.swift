@@ -249,7 +249,9 @@ public class VoxtralStandardModel: Module, LanguageModel, KVCacheDimensionProvid
     // MARK: - LanguageModel Protocol Implementation
     public var vocabularySize: Int { configuration.textConfig.vocabularySize }
 
-    public func prepare(_ input: LMInput, cache: [any KVCache], windowSize: Int?) throws -> PrepareResult {
+    public func prepare(
+        _ input: LMInput, cache: [any KVCache], state: LMOutput.State?, prefill: PrefillParameters
+    ) throws -> PrepareResult {
         // Simple implementation for testing - just return tokens to evaluate
         return .tokens(input.text)
     }

@@ -4,6 +4,7 @@ import DependenciesMacros
 import FluidAudio
 import Foundation
 import LogClient
+import MLX
 import Shared
 import MLXAudioCore
 import MLXAudioSTT
@@ -58,6 +59,7 @@ public enum MLXPipelineModel: String, Sendable {
     case mini3b8bit
     case qwen3ASR17B8bit
     case parakeetUnified06B
+    case nemotronUnified06B
     case parakeetTDT06BV3
     case parakeetTDTCTC110M
     case whisperLargeV3Turbo
@@ -283,9 +285,13 @@ private actor LiveMLXRuntime {
             }
             log("prepare.voxtral-realtime.begin model=\(model.rawValue)")
             let loadStart = ProcessInfo.processInfo.systemUptime
-            voxtralRealtimeModel = try VoxtralRealtimeModel.fromDirectory(modelDirectory)
+            let voxtral = try VoxtralRealtimeModel.fromDirectory(modelDirectory)
+            voxtralRealtimeModel = voxtral
             let loadElapsed = ProcessInfo.processInfo.systemUptime - loadStart
             log("prepare.voxtral-realtime.loaded elapsed=\(formatElapsedSeconds(loadElapsed))")
+            let firstRunStart = ProcessInfo.processInfo.systemUptime
+            _ = voxtral.generate(audio: Self.firstRunAudio)
+            log("prepare.voxtral-realtime.first-run elapsed=\(formatElapsedSeconds(ProcessInfo.processInfo.systemUptime - firstRunStart))")
 
         case .qwen3ASR17B8bit:
             guard let info = model.huggingFaceModelInfo,
@@ -294,12 +300,19 @@ private actor LiveMLXRuntime {
                 throw MLXError.invalidModelIdentifier(model.rawValue)
             }
             let loadStart = ProcessInfo.processInfo.systemUptime
-            qwen3AsrModel = try await Qwen3ASRModel.fromModelDirectory(modelDirectory)
+            let qwen = try await Qwen3ASRModel.fromModelDirectory(modelDirectory)
+            qwen3AsrModel = qwen
             log("prepare.qwen-mlx.loaded elapsed=\(formatElapsedSeconds(ProcessInfo.processInfo.systemUptime - loadStart))")
+            let firstRunStart = ProcessInfo.processInfo.systemUptime
+            _ = qwen.generate(audio: Self.firstRunAudio)
+            log("prepare.qwen-mlx.first-run elapsed=\(formatElapsedSeconds(ProcessInfo.processInfo.systemUptime - firstRunStart))")
 
-        case .parakeetUnified06B:
-            let directory = try await FluidAudioCache.downloadIfNeeded(model: .parakeetUnified)
-            let manager = StreamingUnifiedAsrManager(config: UnifiedModelArtifacts.config)
+        case .parakeetUnified06B, .nemotronUnified06B:
+            guard let fluidAudioModel = model.fluidAudioModel, let artifacts = fluidAudioModel.unifiedArtifacts else {
+                throw MLXError.invalidModelIdentifier(model.rawValue)
+            }
+            let directory = try await FluidAudioCache.downloadIfNeeded(model: fluidAudioModel)
+            let manager = artifacts.makeManager()
             try await manager.loadModels(from: directory)
             unifiedAsrManager = manager
 
@@ -342,6 +355,12 @@ private actor LiveMLXRuntime {
         loadedModel = model
         let prepareElapsed = ProcessInfo.processInfo.systemUptime - prepareStart
         log("prepare.completed model=\(model.rawValue), elapsed=\(formatElapsedSeconds(prepareElapsed))")
+    }
+
+    /// The first MLX inference after a load is several seconds slower than the next ones.
+    /// One second of silence at load time moves that cost away from the first dictation.
+    private static var firstRunAudio: MLXArray {
+        MLXArray.zeros([16_000], dtype: .float32)
     }
 
     func transcribe(
@@ -405,7 +424,7 @@ private actor LiveMLXRuntime {
                 }
                 transcript = normalizedText
 
-            case .parakeetUnified06B:
+            case .parakeetUnified06B, .nemotronUnified06B:
                 let samples = try audioConverter.resampleAudioFile(audioURL)
                 let reader = AudioFileSampleReader(samples: samples)
                 let audio = AudioSampleStream(unfolding: { await reader.next() })
@@ -575,6 +594,7 @@ private func normalizeDownloadError(_ error: any Error) -> MLXDownloadError {
 
 private enum FluidAudioModel: Sendable, Equatable {
     case parakeetUnified
+    case nemotronUnified
     case parakeetTdtV3
     case parakeetTdtCtc110m
 
@@ -585,6 +605,8 @@ private enum FluidAudioModel: Sendable, Equatable {
         switch normalizedID {
         case MLXPipelineModel.parakeetUnified06B.rawValue:
             self = .parakeetUnified
+        case MLXPipelineModel.nemotronUnified06B.rawValue:
+            self = .nemotronUnified
         case MLXPipelineModel.parakeetTDT06BV3.rawValue.lowercased():
             self = .parakeetTdtV3
         case MLXPipelineModel.parakeetTDTCTC110M.rawValue:
@@ -593,6 +615,8 @@ private enum FluidAudioModel: Sendable, Equatable {
             switch normalizedRepo {
             case "fluidinference/parakeet-unified-en-0.6b-coreml":
                 self = .parakeetUnified
+            case "fluidinference/nemotron-labs-unified-asr-0.6b-coreml":
+                self = .nemotronUnified
             case "fluidinference/parakeet-tdt-0.6b-v3-coreml":
                 self = .parakeetTdtV3
             case "fluidinference/parakeet-tdt-ctc-110m-coreml":
@@ -605,7 +629,7 @@ private enum FluidAudioModel: Sendable, Equatable {
 
     var parakeetVersion: AsrModelVersion? {
         switch self {
-        case .parakeetUnified: return nil
+        case .parakeetUnified, .nemotronUnified: return nil
         case .parakeetTdtV3: return .v3
         case .parakeetTdtCtc110m: return .tdtCtc110m
         }
@@ -613,16 +637,26 @@ private enum FluidAudioModel: Sendable, Equatable {
 
     var parakeetRepoId: String? {
         switch self {
-        case .parakeetUnified: return nil
+        case .parakeetUnified, .nemotronUnified: return nil
         case .parakeetTdtV3: return "FluidInference/parakeet-tdt-0.6b-v3-coreml"
         case .parakeetTdtCtc110m: return "FluidInference/parakeet-tdt-ctc-110m-coreml"
+        }
+    }
+
+    var unifiedArtifacts: UnifiedModelArtifacts? {
+        switch self {
+        case .parakeetUnified: return .parakeet
+        case .nemotronUnified: return .nemotron
+        case .parakeetTdtV3, .parakeetTdtCtc110m: return nil
         }
     }
 
     var directoryURL: URL {
         switch self {
         case .parakeetUnified:
-            return UnifiedModelArtifacts.directory
+            return UnifiedModelArtifacts.parakeet.directory
+        case .nemotronUnified:
+            return UnifiedModelArtifacts.nemotron.directory
         case .parakeetTdtV3:
             return AsrModels.defaultCacheDirectory(for: .v3)
         case .parakeetTdtCtc110m:
@@ -632,7 +666,7 @@ private enum FluidAudioModel: Sendable, Equatable {
 
     var candidateDirectoryURLs: [URL] {
         switch self {
-        case .parakeetUnified, .parakeetTdtV3, .parakeetTdtCtc110m:
+        case .parakeetUnified, .nemotronUnified, .parakeetTdtV3, .parakeetTdtCtc110m:
             return [directoryURL]
         }
     }
@@ -641,6 +675,8 @@ private enum FluidAudioModel: Sendable, Equatable {
         switch self {
         case .parakeetUnified:
             return "Parakeet Unified"
+        case .nemotronUnified:
+            return "Nemotron Unified"
         case .parakeetTdtV3:
             return "Parakeet TDT 0.6B V3"
         case .parakeetTdtCtc110m:
@@ -694,9 +730,21 @@ private enum FluidAudioCache {
         case .v3: models = ModelNames.ASR.requiredModelsV3()
         default: models = ModelNames.ASR.requiredModels
         }
-        return models.union([ModelNames.ASR.vocabularyFile]).allSatisfy {
+        let filesExist = models.union([ModelNames.ASR.vocabularyFile]).allSatisfy {
             FileManager.default.fileExists(atPath: directory.appendingPathComponent($0).path)
         }
+        return filesExist && !hasUnfinishedDownload(in: directory)
+    }
+
+    /// aria2 keeps a control file next to each file it did not finish, for example after the app quit during a download.
+    private static func hasUnfinishedDownload(in directory: URL) -> Bool {
+        guard let enumerator = FileManager.default.enumerator(at: directory, includingPropertiesForKeys: nil) else {
+            return false
+        }
+        for case let url as URL in enumerator where url.pathExtension == "aria2" {
+            return true
+        }
+        return false
     }
 
     /// The v3 repo also ships other encoder variants and mlpackages (about 3.6 GB), so only the files v3 loads are fetched.
@@ -712,8 +760,9 @@ private enum FluidAudioCache {
 
     private static func resolvedDirectoryURL(for model: FluidAudioModel) -> URL? {
         switch model {
-        case .parakeetUnified:
-            return UnifiedModelArtifacts.isDownloaded(at: model.directoryURL) ? model.directoryURL : nil
+        case .parakeetUnified, .nemotronUnified:
+            guard let artifacts = model.unifiedArtifacts else { return nil }
+            return artifacts.isDownloaded(at: model.directoryURL) ? model.directoryURL : nil
         case .parakeetTdtV3, .parakeetTdtCtc110m:
             guard let version = model.parakeetVersion else { return nil }
             return model.candidateDirectoryURLs.first { parakeetFilesExist(at: $0, version: version) }
@@ -733,15 +782,18 @@ private enum FluidAudioCache {
         progress?(0, "Downloading \(model.displayName) model...")
 
         switch model {
-        case .parakeetUnified:
+        case .parakeetUnified, .nemotronUnified:
+            guard let artifacts = model.unifiedArtifacts else {
+                throw MLXError.invalidModelIdentifier(model.displayName)
+            }
             try await ModelDownloader.downloadFromHuggingFace(
-                repoId: Repo.parakeetUnified.rawValue,
-                subfolder: nil,
+                repoId: artifacts.repoID,
+                subfolder: artifacts.subfolder,
                 destination: model.directoryURL,
-                fileFilter: UnifiedModelArtifacts.includes,
+                fileFilter: artifacts.includes,
                 progress: progress
             )
-            try UnifiedModelArtifacts.recordCompletedDownload(at: model.directoryURL)
+            try artifacts.recordCompletedDownload(at: model.directoryURL)
         case .parakeetTdtV3, .parakeetTdtCtc110m:
             guard let repoId = model.parakeetRepoId, let version = model.parakeetVersion else {
                 throw MLXError.invalidModelIdentifier(model.displayName)
@@ -788,6 +840,8 @@ private extension MLXPipelineModel {
         switch self {
         case .parakeetUnified06B:
             return .parakeetUnified
+        case .nemotronUnified06B:
+            return .nemotronUnified
         case .parakeetTDT06BV3:
             return .parakeetTdtV3
         case .parakeetTDTCTC110M:
@@ -801,7 +855,8 @@ private extension MLXPipelineModel {
         switch self {
         case .whisperLargeV3Turbo:
             return "openai_whisper-large-v3_turbo_954MB"
-        case .mini3b8bit, .parakeetUnified06B, .parakeetTDT06BV3, .qwen3ASR17B8bit, .parakeetTDTCTC110M:
+        case .mini3b8bit, .parakeetUnified06B, .nemotronUnified06B, .parakeetTDT06BV3, .qwen3ASR17B8bit,
+             .parakeetTDTCTC110M:
             return nil
         }
     }

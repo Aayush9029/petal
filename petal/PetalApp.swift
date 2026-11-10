@@ -98,9 +98,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     static var bootstrapModel: AppModel?
     static var bootstrapMenuBarViewModel: MenuBarContentViewModel?
 
-    let updaterController = SPUStandardUpdaterController(
+    private(set) lazy var updaterController = SPUStandardUpdaterController(
         startingUpdater: false,
-        updaterDelegate: nil,
+        updaterDelegate: self,
         userDriverDelegate: nil
     )
     weak var model: AppModel? {
@@ -113,6 +113,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let logger = Logger(subsystem: "com.optimalapps.petal", category: "AppDelegate")
     private var pendingDeepLinkCommands: [PetalDeepLinkCommand] = []
     private var pendingUpdateCheckFromDeepLink = false
+    private var pendingUpdateInstall: (() -> Void)?
+    private static let updateInstallRetryInterval: TimeInterval = 30
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         if model == nil, let bootstrapModel = Self.bootstrapModel {
@@ -227,7 +229,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         guard updatesModel == nil else { return }
         let updatesModel = CheckForUpdatesModel(updater: updaterController.updater)
         self.updatesModel = updatesModel
-        menuBarViewModel?.setUpdatesModel(updatesModel)
     }
 
     private func flushPendingUpdateCheckIfReady(attempt: Int = 0) {
@@ -249,5 +250,33 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         pendingUpdateCheckFromDeepLink = false
         logger.info("Triggering Sparkle update check from deep link")
         updater.checkForUpdates()
+    }
+}
+
+extension AppDelegate: SPUUpdaterDelegate {
+    /// A menu bar app seldom quits, so a downloaded update is installed at the first idle moment and not on quit.
+    func updater(
+        _ updater: SPUUpdater,
+        willInstallUpdateOnQuit item: SUAppcastItem,
+        immediateInstallationBlock immediateInstallHandler: @escaping () -> Void
+    ) -> Bool {
+        logger.info("Update \(item.displayVersionString, privacy: .public) is downloaded. Installing when idle.")
+        pendingUpdateInstall = immediateInstallHandler
+        installPendingUpdateWhenIdle()
+        return true
+    }
+
+    private func installPendingUpdateWhenIdle() {
+        guard let install = pendingUpdateInstall else { return }
+        let hasOpenWindow = NSApp.activationPolicy() != .accessory || menuBarViewModel?.isPopupVisible == true
+        guard let model, model.isIdle, !hasOpenWindow else {
+            DispatchQueue.main.asyncAfter(deadline: .now() + Self.updateInstallRetryInterval) { [weak self] in
+                self?.installPendingUpdateWhenIdle()
+            }
+            return
+        }
+        pendingUpdateInstall = nil
+        logger.info("Installing the downloaded update and relaunching")
+        install()
     }
 }

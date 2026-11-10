@@ -64,38 +64,16 @@ struct MenuBarPopover: View {
 
     private var statusCard: some View {
         VStack(spacing: 8) {
-            // The recording and processing waveforms have a fixed intrinsic
-            // width from their bar count; as an overlay they cannot widen the
-            // card the way the idle view, which just fills, does not.
+            // The graphics have a fixed width from their bar count; as an overlay they cannot widen the card.
             Color.clear
                 .frame(maxWidth: .infinity)
                 .frame(height: Self.waveformHeight)
                 .overlay { MenuBarStatusWaveform(viewModel: viewModel) }
-                .clipped()
 
-            HStack(spacing: 6) {
-                Circle()
-                    .fill(statusTint)
-                    .frame(width: 6, height: 6)
-                Text(viewModel.statusHeadline)
-                    .lineLimit(1)
-                Spacer(minLength: 0)
-            }
-            .font(.caption2)
-            .foregroundStyle(.secondary)
-            .help(viewModel.statusHeadline)
+            MenuBarStatusLine(viewModel: viewModel)
         }
         .padding(10)
         .petalGlass(cornerRadius: Self.cornerRadius)
-    }
-
-    private var statusTint: Color {
-        switch viewModel.iconState {
-        case .recording: .red
-        case .working: .orange
-        case .error: .red
-        case .idle: .green
-        }
     }
 
     // MARK: - Permissions
@@ -188,15 +166,6 @@ struct MenuBarPopover: View {
         }
         PopupMenuRow(title: "About Petal", systemImage: "info.circle") {
             viewModel.showAbout()
-            dismiss()
-        }
-        // Always present, merely disabled: inserting it once Sparkle finishes starting would change the panel's height under the pointer.
-        PopupMenuRow(
-            title: "Check for Updates…",
-            systemImage: "arrow.triangle.2.circlepath",
-            isEnabled: viewModel.canCheckForUpdates
-        ) {
-            viewModel.checkForUpdates()
             dismiss()
         }
         PopupMenuRow(title: "Quit Petal", systemImage: "power", shortcut: "⌘Q") {

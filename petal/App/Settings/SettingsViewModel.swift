@@ -28,6 +28,7 @@ final class SettingsViewModel {
     @ObservationIgnored @Shared(.cleanupMinimumWords) var cleanupMinimumWords: CleanupMinimumWords = .three
     @ObservationIgnored @Shared(.cleanupModel) var cleanupModel: CleanupModel = .off
     @ObservationIgnored @Shared(.logsEnabled) var logsEnabled = false
+    @ObservationIgnored @Shared(.fileTranscriptionModelID) var fileTranscriptionModelID = ""
     @ObservationIgnored @Shared(.restoreClipboardAfterPaste) var restoreClipboardAfterPaste = true
     @ObservationIgnored @Shared(.showLiveTranscript) var showLiveTranscript = true
     @ObservationIgnored @Shared(.duckSystemAudioDuringRecording) var duckSystemAudioDuringRecording = false
@@ -324,6 +325,7 @@ final class SettingsViewModel {
 
     func modelOptionTapped(_ option: ModelOption) -> ModelOption? {
         guard !downloadModel.isDeletingModel(option) else { return nil }
+
         guard selectedModelID != option.rawValue else { return nil }
 
         if option.requiresDownload, !downloadModel.isModelDownloaded(option) {
@@ -341,6 +343,24 @@ final class SettingsViewModel {
         guard !downloadModel.state.isActive, !downloadModel.state.isPaused, !cleanupDownloads.isAnyActive else { return }
         ensureReadySelectedModel(excluding: option)
         await downloadModel.downloadModel(option)
+    }
+
+    /// Dictation uses one model. Audio files can use a different one, because they do not need an instant result.
+    var fileTranscriptionModel: ModelOption? {
+        appModel.fileTranscriptionModelOverride
+    }
+
+    var downloadedModelOptions: [ModelOption] {
+        ModelOption.allCases.filter { downloadModel.isModelDownloaded($0) }
+    }
+
+    func dictationModelPicked(_ option: ModelOption) {
+        guard downloadModel.isModelDownloaded(option) else { return }
+        selectedModelID = option.rawValue
+    }
+
+    func fileTranscriptionModelPicked(_ option: ModelOption?) {
+        $fileTranscriptionModelID.withLock { $0 = option?.rawValue ?? "" }
     }
 
     func pauseButtonTapped() {
@@ -365,6 +385,9 @@ final class SettingsViewModel {
         }
 
         await downloadModel.deleteModel(option)
+        if fileTranscriptionModelID == option.rawValue {
+            $fileTranscriptionModelID.withLock { $0 = "" }
+        }
         appModel.refreshModelCatalog()
 
         if selectedModelID == option.rawValue {

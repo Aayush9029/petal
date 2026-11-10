@@ -57,6 +57,7 @@ public enum ModelOption: String, CaseIterable, Identifiable, Sendable {
     case appleSpeech = "apple-speech"
     case qwen3ASR17B8bit = "qwen3-asr-1.7b-8bit"
     case parakeetUnified06B = "parakeet-unified-en-0.6b"
+    case nemotronUnified06B = "nemotron-unified-0.6b"
     case parakeetTDT06BV3 = "parakeet-tdt-0.6b-v3"
     case parakeetTDTCTC110M = "parakeet-tdt-ctc-110m"
     case whisperLargeV3Turbo = "whisper-large-v3-turbo"
@@ -67,6 +68,7 @@ public enum ModelOption: String, CaseIterable, Identifiable, Sendable {
             .parakeetTDTCTC110M,
             .qwen3ASR17B8bit,
             .parakeetUnified06B,
+            .nemotronUnified06B,
             .parakeetTDT06BV3,
             .whisperLargeV3Turbo,
             .mini3b8bit,
@@ -134,6 +136,20 @@ public enum ModelOption: String, CaseIterable, Identifiable, Sendable {
                 recommended: false,
                 speedScore: 5,
                 smartScore: 3
+            )
+        case .nemotronUnified06B:
+            return ModelDescriptor(
+                id: rawValue,
+                repoID: "FluidInference/nemotron-labs-unified-asr-0.6b-coreml",
+                name: "Nemotron Unified 0.6B",
+                summary: "NVIDIA's newest live model. It transcribes as you speak in 25 European languages, with automatic language detection.",
+                size: "~1.2 GB",
+                quantization: "FP16 CoreML",
+                parameters: "0.6B",
+                provider: .nvidia,
+                recommended: false,
+                speedScore: 5,
+                smartScore: 4
             )
         case .parakeetTDT06BV3:
             return ModelDescriptor(
@@ -222,7 +238,7 @@ public enum ModelOption: String, CaseIterable, Identifiable, Sendable {
         switch self {
         case .appleSpeech:
             return false
-        case .parakeetUnified06B, .parakeetTDT06BV3, .qwen3ASR17B8bit, .parakeetTDTCTC110M,
+        case .parakeetUnified06B, .nemotronUnified06B, .parakeetTDT06BV3, .qwen3ASR17B8bit, .parakeetTDTCTC110M,
              .whisperLargeV3Turbo, .mini3b8bit:
             return true
         }
@@ -233,7 +249,9 @@ public enum ModelOption: String, CaseIterable, Identifiable, Sendable {
     }
 
     /// Whether microphone audio can be transcribed before recording stops.
-    public var supportsStreamingTranscription: Bool { self == .parakeetUnified06B }
+    public var supportsStreamingTranscription: Bool {
+        self == .parakeetUnified06B || self == .nemotronUnified06B
+    }
 
     public var supportsSmartTranscription: Bool {
         supportedTranscriptionModes.contains(.smart)
@@ -265,6 +283,11 @@ public enum ModelOption: String, CaseIterable, Identifiable, Sendable {
         case Self.parakeetUnified06B.rawValue,
              "fluidinference/parakeet-unified-en-0.6b-coreml":
             return .parakeetUnified06B
+        case Self.nemotronUnified06B.rawValue,
+             "nemotron-unified",
+             "nvidia/nemotron-labs-unified-asr-0.6b",
+             "fluidinference/nemotron-labs-unified-asr-0.6b-coreml":
+            return .nemotronUnified06B
         case Self.parakeetTDT06BV3.rawValue,
              "mlx-community/parakeet-tdt-0.6b-v3",
              "fluidinference/parakeet-tdt-0.6b-v3-coreml":

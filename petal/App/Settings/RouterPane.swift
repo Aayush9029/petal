@@ -14,6 +14,18 @@ struct RouterPane: View {
                 RouterNoticeBanner(notice: notice, onOpenIntelligence: onOpenIntelligence)
             }
 
+            if viewModel.downloadedModelOptions.count > 1 {
+                SettingsPanelSection(title: "Speech Models") {
+                    SpeechModelRoutes(
+                        models: viewModel.downloadedModelOptions,
+                        dictationModel: ModelOption(rawValue: viewModel.selectedModelID),
+                        fileModel: viewModel.fileTranscriptionModel,
+                        onDictationModel: { viewModel.dictationModelPicked($0) },
+                        onFileModel: { viewModel.fileTranscriptionModelPicked($0) }
+                    )
+                }
+            }
+
             SettingsPanelSection(title: "Routes") {
                 flowChart
                     .padding(.horizontal, 16)

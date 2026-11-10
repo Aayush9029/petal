@@ -88,7 +88,7 @@ let package = Package(
         .library(name: "RouterFeature", targets: ["RouterFeature"]),
     ],
     dependencies: [
-        .package(url: "https://github.com/FluidInference/FluidAudio.git", exact: "0.17.1"),
+        .package(url: "https://github.com/FluidInference/FluidAudio.git", exact: "0.18.3"),
         .package(name: "MLXVoxtralSwift", path: "../mlx-voxtral-swift"),
         .package(url: "https://github.com/pointfreeco/swift-dependencies", from: "1.17.1"),
         .package(url: "https://github.com/pointfreeco/swift-custom-dump", from: "1.7.3"),
@@ -100,11 +100,12 @@ let package = Package(
         .package(url: "https://github.com/pointfreeco/swift-debug-snapshots", "0.4.3" ..< "0.5.0"),
         .package(name: "KeyboardShortcuts", path: "KeyboardShortcuts"),
         .package(url: "https://github.com/Clipy/Sauce.git", from: "2.5.2"),
-        .package(url: "https://github.com/Blaizzy/mlx-audio-swift.git", from: "0.1.3"),
+        .package(url: "https://github.com/Neywa-Labs/mlx-audio-swift.git", from: "0.1.9"),
         .package(url: "https://github.com/argmaxinc/argmax-oss-swift", from: "1.1.0"),
         .package(url: "https://github.com/microsoft/onnxruntime-swift-package-manager", from: "1.24.2"),
-        .package(url: "https://github.com/ml-explore/mlx-swift", from: "0.31.6"),
-        .package(url: "https://github.com/ml-explore/mlx-swift-lm", from: "3.31.4"),
+        .package(url: "https://github.com/ml-explore/mlx-swift", .upToNextMinor(from: "0.33.0")),
+        // No mlx-swift-lm release supports mlx-swift 0.33 yet, which mlx-audio-swift 0.1.9 needs.
+        .package(url: "https://github.com/ml-explore/mlx-swift-lm", revision: "6e3fe5d5648826c4e979b55df422462cc8e88a9b"),
         .package(url: "https://github.com/huggingface/swift-transformers", from: "1.3.4"),
     ],
     targets: [
@@ -223,6 +224,7 @@ let package = Package(
                 .shared,
                 .logClient,
                 .voxtralCore,
+                .mlx,
                 .mlxAudioCore,
                 .mlxAudioSTT,
                 .fluidAudio,

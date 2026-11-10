@@ -17,6 +17,8 @@ struct PromptLookupDecoder {
 
     var speculationMinPromptTokens = 320
 
+    private static let prefill = PrefillParameters(stepSize: 1024)
+
     func decode(prompt: [Int], maxTokens: Int) throws -> (tokens: [Int], forwardPasses: Int) {
         prompt.count < speculationMinPromptTokens
             ? try decodePlain(prompt: prompt, maxTokens: maxTokens)
@@ -29,7 +31,7 @@ struct PromptLookupDecoder {
             model: model,
             processor: nil,
             sampler: ArgMaxSampler(),
-            prefillStepSize: 1024,
+            prefill: Self.prefill,
             maxTokens: maxTokens
         )
         var generated: [Int] = []
@@ -41,10 +43,10 @@ struct PromptLookupDecoder {
     }
 
     private func decodeSpeculative(prompt: [Int], maxTokens: Int) throws -> (tokens: [Int], forwardPasses: Int) {
-        let cache = model.newCache(parameters: nil)
+        let cache = try model.newCache(parameters: nil)
         var next: Int
         var forwardPasses = 1
-        switch try model.prepare(LMInput(tokens: MLXArray(prompt)), cache: cache, windowSize: 1024) {
+        switch try model.prepare(LMInput(tokens: MLXArray(prompt)), cache: cache, state: nil, prefill: Self.prefill) {
         case let .tokens(remaining):
             next = greedy(model(remaining[text: .newAxis], cache: cache, state: nil).logits[0..., (-1)..., 0...])[0]
         case let .logits(output):

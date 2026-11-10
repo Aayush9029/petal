@@ -15,7 +15,7 @@ import Speech
 public struct TranscriptionClient: Sendable {
     public var prepareModelIfNeeded: @Sendable (ModelOption) async throws -> Void
     public var transcribe: @Sendable (URL, ModelOption, TranscriptionMode, String?) async throws -> String
-    public var transcribeStream: @Sendable (AudioSampleStream, @escaping @Sendable (String) async -> Void) async throws -> String
+    public var transcribeStream: @Sendable (AudioSampleStream, ModelOption, @escaping @Sendable (String) async -> Void) async throws -> String
     public var unloadModel: @Sendable () async -> Void = {}
     public var audioDurationSeconds: @Sendable (URL) -> Double = { _ in 0 }
 }
@@ -186,9 +186,12 @@ extension TranscriptionClient: DependencyKey {
                     throw error
                 }
             },
-            transcribeStream: { audio, partial in
+            transcribeStream: { audio, option, partial in
                 @Dependency(\.mlxClient) var mlxClient
-                try await mlxClient.prepareModelIfNeeded(.parakeetUnified06B)
+                guard option.supportsStreamingTranscription, let pipelineModel = option.pipelineModel else {
+                    throw StreamingUnsupportedError(model: option)
+                }
+                try await mlxClient.prepareModelIfNeeded(pipelineModel)
                 return try await mlxClient.transcribeStream(audio, partial)
             },
             unloadModel: {
@@ -207,7 +210,7 @@ extension TranscriptionClient: TestDependencyKey {
         Self(
             prepareModelIfNeeded: { _ in },
             transcribe: { _, _, _, _ in "Test transcription" },
-            transcribeStream: { _, _ in "Test transcription" },
+            transcribeStream: { _, _, _ in "Test transcription" },
             unloadModel: {},
             audioDurationSeconds: { _ in 1.0 }
         )
@@ -271,6 +274,8 @@ private extension ModelOption {
             return .qwen3ASR17B8bit
         case .parakeetUnified06B:
             return .parakeetUnified06B
+        case .nemotronUnified06B:
+            return .nemotronUnified06B
         case .parakeetTDT06BV3:
             return .parakeetTDT06BV3
         case .parakeetTDTCTC110M:
@@ -361,6 +366,14 @@ private enum AppleSpeechRuntime {
     }
 }
 #endif
+
+private struct StreamingUnsupportedError: LocalizedError {
+    let model: ModelOption
+
+    var errorDescription: String? {
+        "\(model.displayName) does not support live transcription."
+    }
+}
 
 private enum AppleSpeechError: LocalizedError {
     case unavailable
