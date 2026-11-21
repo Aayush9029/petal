@@ -8,6 +8,10 @@
 </p>
 
 <p align="center">
+  <a href="https://petal.optimalapps.ca">Website</a> · <a href="https://petal.optimalapps.ca/blog">Dictation guides</a>
+</p>
+
+<p align="center">
   <a aria-label="Download Latest Version" href="https://github.com/Aayush9029/petal/releases/latest">
     <img alt="Download Latest Version" src="https://img.shields.io/badge/Download%20Mac%20Version-black.svg?style=for-the-badge&logo=apple">
   </a>
