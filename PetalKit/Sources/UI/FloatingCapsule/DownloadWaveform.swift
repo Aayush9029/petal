@@ -1,6 +1,5 @@
 import SwiftUI
 
-/// A dim waveform silhouette that fills from the left as a download progresses.
 public struct DownloadWaveform: View {
     private let progress: Double?
     private let isPaused: Bool
@@ -16,7 +15,6 @@ public struct DownloadWaveform: View {
     private static let shimmerWidth = 9.0
     private static let shimmerPeriod = 1.9
 
-    /// A nil `progress` means the size is not known yet.
     public init(progress: Double?, isPaused: Bool = false, bars: Int, rows: Int, tint: Color = .accentColor) {
         self.progress = progress.map { min(max($0, 0), 1) }
         self.isPaused = isPaused
@@ -48,7 +46,6 @@ public struct DownloadWaveform: View {
         let corner = CGSize(width: metrics.corner, height: metrics.corner)
         let maxHalf = (rows - 1) / 2
 
-        // The band sweeps the filled part, or the whole width while the size is unknown.
         let sweepSpan = (progress == nil ? Double(bars) : filled) + Self.shimmerWidth * 2
         let shimmerCenter = time.map {
             $0.truncatingRemainder(dividingBy: Self.shimmerPeriod) / Self.shimmerPeriod * sweepSpan - Self.shimmerWidth
@@ -76,7 +73,6 @@ public struct DownloadWaveform: View {
         }
     }
 
-    /// A fixed speech-like outline, so the shape does not move while it fills.
     private static func silhouette(_ bar: Int) -> Double {
         let x = Double(bar)
         let envelope = abs(sin(x * 0.21 + 0.6) * cos(x * 0.057 + 0.2))

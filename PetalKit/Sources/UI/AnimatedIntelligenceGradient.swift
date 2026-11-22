@@ -23,7 +23,6 @@ struct AnimatedIntelligenceGradientModifier: ViewModifier {
 }
 
 public extension View {
-    /// Fills the view's shape with the Apple Intelligence gradient and slowly sweeps it.
     func animatedIntelligenceGradient() -> some View {
         modifier(AnimatedIntelligenceGradientModifier())
     }

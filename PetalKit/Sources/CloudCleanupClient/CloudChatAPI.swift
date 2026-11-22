@@ -17,7 +17,6 @@ struct CloudToolCall: Equatable, Identifiable, Sendable {
 
     var id: ID
     var name: String
-    var arguments: String
 }
 
 struct CloudToolResult: Equatable, Sendable {

@@ -1,7 +1,5 @@
 import SwiftUI
 
-/// Fills a track over the threshold's own duration. Every card shares one wall-clock cycle and one absolute
-/// track length, so a short hold visibly stops short of a long one instead of each filling its own width.
 struct HoldDurationPreview: View {
     let seconds: Double
     let longestSeconds: Double

@@ -1,12 +1,14 @@
+import HistoryClient
 import Shared
 import SwiftUI
 import UI
 
 struct HistoryRecordingCard: View {
     let entry: TranscriptHistoryEntry
-    let text: HistoryEntryText
-    let audioURL: URL?
-    let isFailed: Bool
+    let contents: HistoryEntryContents
+    private var preferredText: String { contents.cleanup ?? contents.transcript }
+    private var audioURL: URL? { contents.audioURL }
+    private var isFailed: Bool { entry.variants.count == 1 && entry.variants[id: "failed"] != nil }
     let isReprocessing: Bool
     let canCleanUp: Bool
     let playback: HistoryPlaybackModel
@@ -38,7 +40,7 @@ struct HistoryRecordingCard: View {
                 Spacer()
 
                 Button {
-                    onCopy(text.output)
+                    onCopy(preferredText)
                     withAnimation(.snappy(duration: 0.18)) {
                         isShowingCopyConfirmation = true
                     }
@@ -48,25 +50,25 @@ struct HistoryRecordingCard: View {
                         .foregroundStyle(isShowingCopyConfirmation ? .green : .primary)
                         .modifier(HistoryCardActionBackground())
                 }
-                .disabled(text.output.isEmpty)
-                .help(text.cleanup == nil ? "Copy transcript" : "Copy cleaned-up text")
-                .accessibilityLabel(text.cleanup == nil ? "Copy transcript" : "Copy cleaned-up text")
+                .disabled(preferredText.isEmpty)
+                .help(contents.cleanup == nil ? "Copy transcript" : "Copy cleaned-up text")
+                .accessibilityLabel(contents.cleanup == nil ? "Copy transcript" : "Copy cleaned-up text")
 
                 reprocessMenu
             }
             .buttonStyle(.borderless)
 
-            if let cleanup = text.cleanup {
+            if let cleanup = contents.cleanup {
                 VStack(spacing: 0) {
                     HistoryTextBlock(title: "Cleaned Up", text: cleanup, isCleanup: true) { onCopy(cleanup) }
                     SettingsCardDivider()
-                    HistoryTextBlock(title: "Transcript", text: text.transcript) { onCopy(text.transcript) }
+                    HistoryTextBlock(title: "Transcript", text: contents.transcript) { onCopy(contents.transcript) }
                 }
                 .background(.quaternary.opacity(0.4), in: .rect(cornerRadius: 10, style: .continuous))
             } else {
                 Text(displayTranscript)
                     .font(.subheadline)
-                    .foregroundStyle(text.transcript.isEmpty ? .secondary : .primary)
+                    .foregroundStyle(contents.transcript.isEmpty ? .secondary : .primary)
                     .lineLimit(4)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
@@ -114,11 +116,11 @@ struct HistoryRecordingCard: View {
         }
         .contentShape(.rect(cornerRadius: 16))
         .contextMenu {
-            if let cleanup = text.cleanup {
+            if let cleanup = contents.cleanup {
                 Button("Copy Cleaned-Up Text", systemImage: "sparkles") { onCopy(cleanup) }
             }
-            Button("Copy Transcript", systemImage: "doc.on.doc") { onCopy(text.transcript) }
-                .disabled(text.transcript.isEmpty)
+            Button("Copy Transcript", systemImage: "doc.on.doc") { onCopy(contents.transcript) }
+                .disabled(contents.transcript.isEmpty)
             Divider()
             Button("Delete from History", systemImage: "trash", role: .destructive, action: onDelete)
         }
@@ -194,8 +196,8 @@ struct HistoryRecordingCard: View {
     }
 
     private var displayTranscript: String {
-        if !text.transcript.isEmpty {
-            return text.transcript
+        if !contents.transcript.isEmpty {
+            return contents.transcript
         }
         return isFailed ? "Transcription failed — the recording was saved." : "No speech was detected."
     }

@@ -1,8 +1,5 @@
 import SwiftUI
 
-/// Draws the blobs of one frame with system Liquid Glass. The glass effect
-/// container blends the shapes where they come close, so the stop drop pulls
-/// a liquid neck out of the pill and merges back into it.
 @available(macOS 26.0, *)
 struct SystemGlassLayer: View {
     let frame: CapsuleFrame
@@ -12,7 +9,6 @@ struct SystemGlassLayer: View {
     @Namespace private var namespace
 
     private static let library = ShaderLibrary.bundle(.module)
-    /// Below the settled gap, so the split pair separates once it settles.
     private static let mergeSpacing: CGFloat = 6
 
     var body: some View {
@@ -54,7 +50,6 @@ struct SystemGlassLayer: View {
             .position(blob.center)
     }
 
-    /// A soft glow that spreads past the glass edge while the drop forms, pulses, or leaves.
     @ViewBuilder
     private func diffusionHalo(_ blob: CapsuleFrame.Blob) -> some View {
         if frame.diffusion > 0.01 {
@@ -69,7 +64,6 @@ struct SystemGlassLayer: View {
         }
     }
 
-    /// A red glow around the pill before a delete.
     @ViewBuilder
     private func dangerHalo(_ blob: CapsuleFrame.Blob) -> some View {
         if frame.danger > 0.01 {
@@ -81,7 +75,6 @@ struct SystemGlassLayer: View {
         }
     }
 
-    /// A faint red glow just around the stop drop while the pointer is over it.
     @ViewBuilder
     private func stopHalo(_ blob: CapsuleFrame.Blob) -> some View {
         if frame.stopHover > 0.01, blob.size.width > 0 {

@@ -9,7 +9,7 @@ final class AudioSampleProducer {
     private let continuation: AudioSampleStream.Continuation
     private var pending: [Float] = []
     private var finished = false
-    private static let chunkSize = 1600
+    private static let chunkSize = speechSampleRate / 10
 
     init(bufferedChunks: Int = 300) {
         (stream, continuation) = AudioSampleStream.makeStream(bufferingPolicy: .bufferingOldest(bufferedChunks))
@@ -29,7 +29,7 @@ final class AudioSampleProducer {
         do {
             guard let description = buffer.formatDescription else { throw AudioClientError.invalidStreamFormat }
             let format = AVAudioFormat(cmAudioFormatDescription: description)
-            guard format.sampleRate == 16_000, format.channelCount == 1,
+            guard format.sampleRate == Double(speechSampleRate), format.channelCount == 1,
                   format.commonFormat == .pcmFormatFloat32,
                   let pcm = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: AVAudioFrameCount(buffer.numSamples)),
                   let samples = pcm.floatChannelData?[0]
@@ -68,16 +68,15 @@ final class AudioSampleProducer {
         }
     }
 
-    /// Uses the same PCM contract for Petal's existing unattended speech fixtures.
     static func readFixture(_ url: URL) throws -> [Float] {
         let file = try AVAudioFile(forReading: url)
         guard file.length > 0, file.length < AVAudioFramePosition(UInt32.max),
               let input = AVAudioPCMBuffer(pcmFormat: file.processingFormat, frameCapacity: AVAudioFrameCount(file.length)),
-              let format = AVAudioFormat(standardFormatWithSampleRate: 16_000, channels: 1),
+              let format = AVAudioFormat(standardFormatWithSampleRate: Double(speechSampleRate), channels: 1),
               let converter = AVAudioConverter(from: file.processingFormat, to: format),
               let output = AVAudioPCMBuffer(
                 pcmFormat: format,
-                frameCapacity: AVAudioFrameCount(ceil(Double(file.length) * 16_000 / file.processingFormat.sampleRate)) + 1024
+                frameCapacity: AVAudioFrameCount(ceil(Double(file.length) * Double(speechSampleRate) / file.processingFormat.sampleRate)) + 1024
               )
         else { throw AudioClientError.invalidStreamFormat }
         try file.read(into: input)

@@ -1,172 +1,102 @@
 import AVFoundation
 import Dependencies
 import Foundation
+import LogClient
+import MLXClient
 import Shared
 import Testing
-@testable import AudioSpeedClient
-@testable import AudioTrimClient
-@testable import LogClient
-@testable import MLXClient
-@testable import TranscriptionClient
+import TranscriptionClient
 
-@Test
-func trimSilenceRemovesLeadingAndTrailingSections() async throws {
-    let sampleRate = 16_000.0
-    let silence = Array(repeating: Float(0), count: 2_000)
-    let tone = makeSineWave(count: 3_000, sampleRate: sampleRate, amplitude: 0.6, frequency: 220)
-    let inputURL = try writeAudio(samples: silence + tone + silence, sampleRate: sampleRate, prefix: "trim-input")
-    defer { try? FileManager.default.removeItem(at: inputURL) }
-
-    let outputURL = try await AudioTrimClient.liveValue.trimSilence(inputURL, 0.01)
-    defer { try? FileManager.default.removeItem(at: outputURL) }
-
-    #expect(outputURL != inputURL)
-
-    let inputDuration = try audioDuration(inputURL)
-    let outputDuration = try audioDuration(outputURL)
-    #expect(outputDuration < inputDuration)
-    #expect(outputDuration > 0.15)
-    #expect(outputDuration < 0.25)
-}
-
-@Test
-func speedUpReducesDurationAtExpectedRate() async throws {
-    let sampleRate = 16_000.0
-    let samples = makeSineWave(count: 32_000, sampleRate: sampleRate, amplitude: 0.5, frequency: 330)
-    let inputURL = try writeAudio(samples: samples, sampleRate: sampleRate, prefix: "speed-input")
-    defer { try? FileManager.default.removeItem(at: inputURL) }
-
-    let outputURL = try await AudioSpeedClient.liveValue.speedUp(inputURL, 1.25)
-    defer { try? FileManager.default.removeItem(at: outputURL) }
-
-    #expect(outputURL != inputURL)
-
-    let inputDuration = try audioDuration(inputURL)
-    let outputDuration = try audioDuration(outputURL)
-    let ratio = outputDuration / inputDuration
-
-    #expect(ratio > 0.75)
-    #expect(ratio < 0.85)
-}
-
-@Test
-func transcriptionClientUsesTrimAndSpeedDependenciesBeforeMLX() async throws {
-    let recorder = CallRecorder()
-    let appStorage = UserDefaults.inMemory
-    let sampleRate = 16_000.0
-    let samples = makeSineWave(count: 800_000, sampleRate: sampleRate, amplitude: 0.4, frequency: 440)
-    let audioURL = try writeAudio(samples: samples, sampleRate: sampleRate, prefix: "transcribe-input")
-    defer { try? FileManager.default.removeItem(at: audioURL) }
-
-    let output = try await withDependencies {
-        $0.defaultAppStorage = appStorage
-        $0.logClient = LogClient(
-            debug: { _, _ in },
-            info: { _, _ in },
-            error: { _, _ in },
-            dumpDebug: { _, _, _ in },
-            logFileURL: { nil }
-        )
-        $0.mlxClient = MLXClient(
-            isModelDownloaded: { _ in true },
-            downloadModel: { _, _ in },
-            pauseDownload: {},
-            cancelDownload: {},
-            modelDirectoryURL: { _ in nil },
-            deleteModel: { _ in },
-            prepareModelIfNeeded: { _ in
-                await recorder.append("prepare")
-            },
-            transcribe: { _, _ in
-                await recorder.append("mlx")
-                return "ok"
-            },
-            transcribeStream: { _, _ in
-                Issue.record("File transcription must not start a microphone stream")
-                return ""
-            },
-            unloadModel: {}
-        )
-        $0.audioTrimClient.trimSilence = { url, _ in
-            await recorder.append("trim")
-            return url
-        }
-        $0.audioSpeedClient.speedUp = { url, rate in
-            await recorder.append("speed:\(String(format: "%.2f", rate))")
-            return url
+@Test(arguments: [40, 48])
+func fileRecognitionUsesTheAudibleRangeBeforeChoosingASpeed(speechSeconds: Int) async throws {
+    let source = try stereoFixture(speechSeconds: speechSeconds, paddingSeconds: 8)
+    defer { try? FileManager.default.removeItem(at: source) }
+    let generated = LockIsolated<URL?>(nil)
+    let stages = LockIsolated<[TranscriptionStage]>([])
+    let transcript = try await withDependencies {
+        $0.defaultAppStorage = .inMemory
+        $0.logClient.debug = { _, _ in }
+        $0.mlxClient.transcribe = { url, model in
+            #expect(model == .qwen3ASR17B8bit)
+            generated.setValue(url)
+            let file = try AVAudioFile(forReading: url)
+            let rate = speechSeconds == 40 ? 1.0 : 1.1
+            #expect(abs(Double(file.length) / file.processingFormat.sampleRate - Double(speechSeconds) / rate) < 0.001)
+            #expect(file.processingFormat.channelCount == 2)
+            let buffer = try #require(AVAudioPCMBuffer(pcmFormat: file.processingFormat, frameCapacity: 1))
+            try file.read(into: buffer)
+            let channels = try #require(buffer.floatChannelData)
+            #expect(channels[0][0] == 0)
+            #expect(channels[1][0] == 0.5)
+            return "recognized"
         }
     } operation: {
-        @Shared(.trimSilenceEnabled) var trimEnabled = false
-        @Shared(.autoSpeedEnabled) var speedEnabled = false
-        $trimEnabled.withLock { $0 = true }
-        $speedEnabled.withLock { $0 = true }
-        return try await TranscriptionClient.liveValue.transcribe(audioURL, .mini3b8bit, .verbatim, nil)
+        @Shared(.trimSilenceEnabled) var trim
+        @Shared(.autoSpeedEnabled) var autoSpeed
+        $trim.withLock { $0 = true }
+        $autoSpeed.withLock { $0 = true }
+        return try await TranscriptionClient.liveValue.transcribe(source, .qwen3ASR17B8bit) { stage in
+            stages.withValue { $0.append(stage) }
+        }
     }
-
-    #expect(output == "ok")
-    let calls = await recorder.snapshot()
-    #expect(calls == ["prepare", "trim", "speed:1.10", "mlx"])
+    #expect(transcript == "recognized")
+    #expect(stages.value == (speechSeconds == 40 ? [.trimming, .transcribing] : [.trimming, .speeding, .transcribing]))
+    let prepared = try #require(generated.value)
+    #expect(!FileManager.default.fileExists(atPath: prepared.path))
+    #expect(FileManager.default.fileExists(atPath: source.path))
 }
 
-private actor CallRecorder {
-    private var calls: [String] = []
-
-    func append(_ value: String) {
-        calls.append(value)
+@Test
+func silentAudioReturnsNoSpeechWithoutCallingARecognizer() async throws {
+    let source = try stereoFixture(speechSeconds: 0, paddingSeconds: 1)
+    defer { try? FileManager.default.removeItem(at: source) }
+    let transcript = try await withDependencies {
+        $0.defaultAppStorage = .inMemory
+    } operation: {
+        try await TranscriptionClient.liveValue.transcribe(source, .qwen3ASR17B8bit)
     }
-
-    func snapshot() -> [String] {
-        calls
-    }
+    #expect(transcript.isEmpty)
 }
 
-private func audioDuration(_ url: URL) throws -> Double {
-    let file = try AVAudioFile(forReading: url)
-    return Double(file.length) / file.fileFormat.sampleRate
+@Test
+func failedRecognitionDiscardsOnlyThePreparedAudio() async throws {
+    let source = try stereoFixture(speechSeconds: 1, paddingSeconds: 1)
+    defer { try? FileManager.default.removeItem(at: source) }
+    let generated = LockIsolated<URL?>(nil)
+
+    await #expect(throws: CancellationError.self) {
+        try await withDependencies {
+            $0.defaultAppStorage = .inMemory
+            $0.logClient.error = { _, _ in }
+            $0.mlxClient.transcribe = { url, _ in
+                generated.setValue(url)
+                throw CancellationError()
+            }
+        } operation: {
+            @Shared(.trimSilenceEnabled) var trim
+            $trim.withLock { $0 = true }
+            return try await TranscriptionClient.liveValue.transcribe(source, .qwen3ASR17B8bit)
+        }
+    }
+    let prepared = try #require(generated.value)
+    #expect(!FileManager.default.fileExists(atPath: prepared.path))
+    #expect(FileManager.default.fileExists(atPath: source.path))
 }
 
-private func writeAudio(samples: [Float], sampleRate: Double, prefix: String) throws -> URL {
-    let url = FileManager.default.temporaryDirectory
-        .appending(path: "\(prefix)-\(UUID().uuidString).wav")
-
-    guard let format = AVAudioFormat(
-        commonFormat: .pcmFormatFloat32,
-        sampleRate: sampleRate,
-        channels: 1,
-        interleaved: false
-    ) else {
-        throw AudioFixtureError.invalidFormat
+private func stereoFixture(speechSeconds: Int, paddingSeconds: Int) throws -> URL {
+    let sampleRate = 8_000
+    let format = try #require(AVAudioFormat(standardFormatWithSampleRate: Double(sampleRate), channels: 2))
+    let frames = UInt32(sampleRate * (paddingSeconds * 2 + speechSeconds))
+    let buffer = try #require(AVAudioPCMBuffer(pcmFormat: format, frameCapacity: frames))
+    buffer.frameLength = frames
+    let channels = try #require(buffer.floatChannelData)
+    for frame in 0..<Int(frames) {
+        channels[0][frame] = 0
+        let second = frame / sampleRate
+        channels[1][frame] = (paddingSeconds..<(paddingSeconds + speechSeconds)).contains(second) ? 0.5 : 0
     }
-
-    guard let buffer = AVAudioPCMBuffer(
-        pcmFormat: format,
-        frameCapacity: AVAudioFrameCount(samples.count)
-    ) else {
-        throw AudioFixtureError.bufferCreationFailed
-    }
-
-    buffer.frameLength = AVAudioFrameCount(samples.count)
-    guard let channelData = buffer.floatChannelData?[0] else {
-        throw AudioFixtureError.bufferCreationFailed
-    }
-
-    for (index, value) in samples.enumerated() {
-        channelData[index] = value
-    }
-
+    let url = URL.temporaryDirectory.appending(path: "\(UUID()).wav")
     let file = try AVAudioFile(forWriting: url, settings: format.settings)
     try file.write(from: buffer)
     return url
-}
-
-private func makeSineWave(count: Int, sampleRate: Double, amplitude: Float, frequency: Double) -> [Float] {
-    (0..<count).map { index in
-        let time = Double(index) / sampleRate
-        return amplitude * Float(sin(2 * .pi * frequency * time))
-    }
-}
-
-private enum AudioFixtureError: Error {
-    case invalidFormat
-    case bufferCreationFailed
 }

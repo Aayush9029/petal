@@ -1,3 +1,4 @@
+import AppFeature
 import CloudCleanupFeature
 import ModelDownloadFeature
 import Shared
@@ -21,7 +22,7 @@ struct IntelligencePane: View {
                 .padding(10)
             }
             .task {
-                viewModel.cleanupDownloads.task()
+                viewModel.cleanupDownload.task()
                 viewModel.cloudCleanup.task()
             }
             .confirmationDialog(
@@ -30,7 +31,7 @@ struct IntelligencePane: View {
                 presenting: modelPendingDelete
             ) { model in
                 Button("Delete", role: .destructive) {
-                    Task { await viewModel.cleanupDownloads[model]?.deleteButtonTapped() }
+                    Task { await viewModel.cleanupDownload.deleteButtonTapped() }
                 }
             } message: { model in
                 Text("Cleanup turns off until you download \(model.displayName) again.")
@@ -60,38 +61,7 @@ struct IntelligencePane: View {
                     .transition(.opacity.combined(with: .move(edge: .bottom)))
             }
 
-            if viewModel.smartModeAvailable {
-                SettingsPanelSection(title: "Smart Transcription") {
-                    SettingsControlRow(
-                        title: "Writing Style",
-                        description: "Smart applies your instructions during transcription.",
-                        symbol: "wand.and.stars",
-                        tint: .purple
-                    ) {
-                        SettingsSegmentedPicker(
-                            values: TranscriptionMode.allCases,
-                            selection: viewModel.transcriptionMode,
-                            title: \.displayName
-                        ) { mode in
-                            viewModel.$transcriptionMode.withLock { $0 = mode }
-                        }
-                        .frame(width: 205)
-                    }
-                }
-            }
-
-            if viewModel.usesSmartTranscription {
-                SettingsPanelSection(title: "Smart Instructions") {
-                    PromptEditor(
-                        text: Binding(viewModel.$smartPrompt),
-                        defaultText: TranscriptionMode.defaultSmartPrompt,
-                        note: "The default keeps slang, file names, and code terms."
-                    )
-                }
-                .transition(.opacity.combined(with: .move(edge: .bottom)))
-            }
         }
-        .animation(.smooth(duration: 0.25), value: viewModel.transcriptionMode)
         .animation(.smooth(duration: 0.25), value: viewModel.cleanupModel)
     }
 
@@ -125,11 +95,11 @@ struct IntelligencePane: View {
             model: model,
             isSelected: viewModel.cleanupModel == model,
             isAvailable: model != .appleIntelligence || viewModel.appleIntelligenceAvailable,
-            downloadState: viewModel.cleanupDownloads[model]?.state,
-            sizeLabel: viewModel.cleanupDownloads[model]?.sizeLabel,
+            downloadState: model.isLocal ? viewModel.cleanupDownload.state : nil,
+            sizeLabel: model.isLocal ? viewModel.cleanupDownload.sizeLabel : nil,
             detail: model == .cloud ? viewModel.cloudCleanupDetail : nil,
             needsSetup: model == .cloud && !viewModel.cloudCleanup.isConfigured,
-            onCancelDownload: { viewModel.cleanupDownloads[model]?.cancelButtonTapped() },
+            onCancelDownload: { viewModel.cleanupDownload.cancelButtonTapped() },
             onDeleteDownload: { modelPendingDelete = model }
         ) {
             Task { await viewModel.cleanupModelTapped(model) }

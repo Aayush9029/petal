@@ -1,6 +1,7 @@
 import AppKit
 import AudioClient
 import Dependencies
+import DownloadClient
 import FloatingCapsuleClient
 import Foundation
 import LogClient
@@ -15,6 +16,7 @@ import TranscriptionClient
 func realUnifiedStreamsThroughCaptureAndFlushesBeforeReturning() async throws {
     try await withDependencies {
         $0.logClient.debug = { _, _ in }
+        $0.downloadClient = .liveValue
     } operation: {
         try await runUnifiedStreamingIntegration()
     }
@@ -43,7 +45,6 @@ private func runUnifiedStreamingIntegration() async throws {
         }
     }
     do {
-        // The fixture is delivered in real time by the production capture client.
         try await Task.sleep(for: .seconds(8))
         #expect(await updates.count > 1, "Partials must arrive before recording stops")
         if let path = ProcessInfo.processInfo.environment["PETAL_STREAMING_SCREENSHOT_PATH"] {

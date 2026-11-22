@@ -1,6 +1,5 @@
 import SwiftUI
 
-/// One labeled text in a history card, with its own copy button.
 struct HistoryTextBlock: View {
     let title: String
     let text: String

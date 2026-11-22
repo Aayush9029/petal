@@ -8,7 +8,7 @@ import SwiftUI
 enum PetalMain {
     static func main() {
         let arguments = Array(CommandLine.arguments.dropFirst())
-        guard PetalCLI.isInvocation(arguments) else {
+        guard CLICommand.isInvocation(arguments) else {
             PetalApp.main()
             return
         }

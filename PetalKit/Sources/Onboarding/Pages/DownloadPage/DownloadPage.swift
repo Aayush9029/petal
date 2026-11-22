@@ -25,8 +25,6 @@ struct DownloadPage: View {
         .onAppear { isAnimating = true }
     }
 
-    // MARK: - Subviews
-
     private var header: some View {
         HStack {
             OnboardingHeader(
@@ -62,7 +60,6 @@ struct DownloadPage: View {
         let size = option.sizeLabel
 
         VStack(alignment: .leading, spacing: 14) {
-            // Model identity row — always visible
             HStack(spacing: 12) {
                 icon
                     .resizable()
@@ -78,7 +75,6 @@ struct DownloadPage: View {
                 trailingBadge(size: size)
             }
 
-            // State-specific content
             switch downloadModel.state {
             case .notDownloaded:
                 Text("Tap **Download Model** below to get started.")
@@ -144,9 +140,9 @@ struct DownloadPage: View {
                 HStack(spacing: 8) {
                     Button {
                         if isPaused {
-                            Task { await downloadModel.resumeDownload() }
+                            Task { await downloadModel.resumeButtonTapped() }
                         } else {
-                            downloadModel.pauseDownload()
+                            downloadModel.pauseButtonTapped()
                         }
                     } label: {
                         Image(systemName: isPaused ? "play.circle.fill" : "pause.circle.fill")
@@ -156,7 +152,7 @@ struct DownloadPage: View {
                     }
                     .buttonStyle(.plain)
 
-                    Button { downloadModel.cancelDownload() } label: {
+                    Button { downloadModel.cancelButtonTapped() } label: {
                         Image(systemName: "xmark.circle.fill")
                             .font(.title2)
                             .foregroundStyle(.secondary)
@@ -216,8 +212,6 @@ struct DownloadPage: View {
         }
     }
 
-    // MARK: - Computed
-
     private var downloadModel: ModelDownloadModel {
         model.modelDownloadViewModel
     }
@@ -226,8 +220,6 @@ struct DownloadPage: View {
         downloadModel.selectedModelOption?.requiresDownload ?? true
     }
 }
-
-// MARK: - Conditional modifier
 
 private extension View {
     @ViewBuilder

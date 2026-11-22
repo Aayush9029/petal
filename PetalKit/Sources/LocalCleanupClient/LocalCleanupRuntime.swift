@@ -1,8 +1,9 @@
 import Foundation
+import Dependencies
+import LogClient
 import MLX
 import MLXLLM
 import MLXLMCommon
-import Shared
 
 actor LocalCleanupRuntime {
     private var container: ModelContainer?
@@ -39,11 +40,10 @@ actor LocalCleanupRuntime {
         return loaded
     }
 
-    func clean(_ transcript: String, model: CleanupModel, directory: URL?) async throws -> LocalCleanupResult {
+    func clean(_ transcript: String, directory: URL?) async throws -> String {
         let container = try await prepare(directory: directory)
-        let request = Request(transcript: transcript, model: model)
-        return try await container.perform(values: request) { context, request in
-            try Self.generate(request, context: context)
+        return try await container.perform(values: transcript) { context, transcript in
+            try Self.generate(transcript, context: context)
         }
     }
 
@@ -56,24 +56,18 @@ actor LocalCleanupRuntime {
         MLX.Memory.clearCache()
     }
 
-    private struct Request: Sendable {
-        var transcript: String
-        var model: CleanupModel
-    }
-
-    private static func generate(_ request: Request, context: ModelContext) throws -> LocalCleanupResult {
+    private static func generate(_ transcript: String, context: ModelContext) throws -> String {
         let start = ContinuousClock.now
         let tokenizer = context.tokenizer
         let stopTokens = Set(["<|im_end|>", "<|endoftext|>"].compactMap(tokenizer.convertTokenToId))
         guard !stopTokens.isEmpty else { throw LocalCleanupError.missingStopToken }
 
-        let chunks = CleanupChunker().chunks(request.transcript) {
+        let chunks = CleanupChunker().chunks(transcript) {
             tokenizer.encode(text: $0, addSpecialTokens: false).count
         }
         var outputs: [String] = []
         var promptTokens = 0
         var generatedTokens = 0
-        var forwardPasses = 0
 
         for chunk in chunks {
             try Task.checkCancellation()
@@ -81,10 +75,8 @@ actor LocalCleanupRuntime {
                 text: LocalCleanupPrompt.text(transcript: chunk),
                 addSpecialTokens: false
             )
-            let decoded = try PromptLookupDecoder(model: context.model, stopTokens: stopTokens)
+            let generated = try PromptLookupDecoder(model: context.model, stopTokens: stopTokens)
                 .decode(prompt: prompt, maxTokens: LocalCleanupPrompt.maxOutputTokens(promptTokens: prompt.count))
-            let generated = decoded.tokens
-            forwardPasses += decoded.forwardPasses
             promptTokens += prompt.count
             generatedTokens += generated.count
             let output = tokenizer.decode(tokenIds: generated, skipSpecialTokens: true)
@@ -92,13 +84,11 @@ actor LocalCleanupRuntime {
             outputs.append(output.isEmpty && !CleanupChunker.canBeFillerOnly(chunk) ? chunk : output)
         }
 
-        return LocalCleanupResult(
-            text: CleanupChunker.join(outputs),
-            chunkCount: chunks.count,
-            promptTokens: promptTokens,
-            generatedTokens: generatedTokens,
-            forwardPasses: forwardPasses,
-            elapsed: ContinuousClock.now - start
+        @Dependency(\.logClient) var log
+        log.debug(
+            "LocalCleanupClient",
+            "chunks=\(chunks.count) promptTokens=\(promptTokens) generatedTokens=\(generatedTokens) modelElapsed=\(ContinuousClock.now - start)"
         )
+        return CleanupChunker.join(outputs)
     }
 }

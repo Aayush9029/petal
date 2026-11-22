@@ -13,6 +13,14 @@ enum RecordingFiles {
         directory.appending(path: "petal-\(UUID().uuidString).\(pathExtension)")
     }
 
+    static func finishedWAV(at url: URL) throws -> URL {
+        guard (try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0 > 44 else {
+            try? FileManager.default.removeItem(at: url)
+            throw AudioClientError.failedToStart
+        }
+        return url
+    }
+
     static func unfinished(in directory: URL = directory, excluding active: Set<URL>) -> [URL] {
         let manager = FileManager.default
         let keys: [URLResourceKey] = [.fileSizeKey, .creationDateKey]

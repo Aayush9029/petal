@@ -2,7 +2,6 @@ import Dependencies
 import DependenciesMacros
 import Foundation
 import Shared
-import SystemContextClient
 
 @DependencyClient
 public struct CloudCleanupClient: Sendable {
@@ -15,44 +14,23 @@ public struct CloudCleanupClient: Sendable {
 extension CloudCleanupClient: DependencyKey {
     public static var liveValue: Self {
         let session = URLSession(configuration: .ephemeral)
-        let send: @Sendable (URLRequest) async throws -> (Data, URLResponse) = { try await session.data(for: $0) }
-        let runtime: @Sendable () -> CloudCleanupRuntime = {
-            @Dependency(\.date) var date
-            @Dependency(\.timeZone) var timeZone
-            @Dependency(\.locale) var locale
-            @Dependency(\.systemContextClient) var systemContext
-            return CloudCleanupRuntime(
-                send: send,
-                context: CloudRuntimeContext(
-                    now: { date.now },
-                    timeZone: timeZone,
-                    locale: locale,
-                    appName: systemContext.frontmostAppName,
-                    windowTitle: systemContext.frontmostWindowTitle,
-                    userName: systemContext.userFullName,
-                    clipboardText: systemContext.clipboardText,
-                    selectedText: systemContext.selectedText,
-                    screenshot: systemContext.screenshot
-                )
-            )
-        }
+        let runtime = CloudCleanupRuntime(send: { try await session.data(for: $0) })
         return Self(
             clean: { transcript, configuration in
                 let start = ContinuousClock.now
-                var result = try await runtime().clean(transcript, configuration: configuration)
+                var result = try await runtime.clean(transcript, configuration: configuration)
                 result.elapsed = .now - start
                 return result
             },
-            verifyKey: { try await runtime().verifyKey($0) },
-            availableModels: { try await runtime().availableModels($0) },
-            checkModel: { try await runtime().checkModel($0) }
+            verifyKey: { try await runtime.verifyKey($0) },
+            availableModels: { try await runtime.availableModels($0) },
+            checkModel: { try await runtime.checkModel($0) }
         )
     }
 
     public static var previewValue: Self {
         Self(
             clean: { _, configuration in
-                try await Task.sleep(for: .milliseconds(600))
                 return CloudCleanupResult(
                     text: "So, can you send the report to Sam by Thursday?",
                     model: configuration.model,

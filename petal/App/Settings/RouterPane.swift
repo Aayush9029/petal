@@ -1,3 +1,4 @@
+import AppFeature
 import RouterFeature
 import Shared
 import SwiftUI
@@ -181,7 +182,6 @@ struct RouterPane: View {
             Spacer(minLength: 8)
             Picker("Intelligence", selection: Bindable(router).selectedCleanupModel) {
                 Text("Default (\(viewModel.cleanupModel.displayName))").tag(CleanupModel?.none)
-                // As Said already skips cleanup for a route, so Off is not offered twice.
                 ForEach(CleanupModel.allCases.filter { $0 != .off }) { model in
                     Text(model.displayName).tag(CleanupModel?.some(model))
                 }

@@ -127,31 +127,27 @@ public extension DependencyValues {
 private func microphonePermissionStateLive() -> MicrophonePermissionState {
     let captureState = microphonePermissionStateFromCaptureDevice()
 
-    if #available(macOS 14.0, *) {
-        let audioApplicationState: MicrophonePermissionState
-        switch AVAudioApplication.shared.recordPermission {
-        case .granted:
-            audioApplicationState = .authorized
-        case .undetermined:
-            audioApplicationState = .notDetermined
-        case .denied:
-            audioApplicationState = .denied
-        @unknown default:
-            audioApplicationState = .denied
-        }
-
-        if captureState == .authorized || audioApplicationState == .authorized {
-            return .authorized
-        }
-
-        if captureState == .notDetermined || audioApplicationState == .notDetermined {
-            return .notDetermined
-        }
-
-        return .denied
+    let audioApplicationState: MicrophonePermissionState
+    switch AVAudioApplication.shared.recordPermission {
+    case .granted:
+        audioApplicationState = .authorized
+    case .undetermined:
+        audioApplicationState = .notDetermined
+    case .denied:
+        audioApplicationState = .denied
+    @unknown default:
+        audioApplicationState = .denied
     }
 
-    return captureState
+    if captureState == .authorized || audioApplicationState == .authorized {
+        return .authorized
+    }
+
+    if captureState == .notDetermined || audioApplicationState == .notDetermined {
+        return .notDetermined
+    }
+
+    return .denied
 }
 
 private func requestMicrophonePermissionLive() async -> Bool {
@@ -159,38 +155,18 @@ private func requestMicrophonePermissionLive() async -> Bool {
         return true
     }
 
-    if #available(macOS 14.0, *) {
-        let appPermissionGranted = await withCheckedContinuation { continuation in
-            AVAudioApplication.requestRecordPermission { isGranted in
-                continuation.resume(returning: isGranted)
-            }
-        }
-
-        if appPermissionGranted {
-            return true
-        }
-    }
+    if await AVAudioApplication.requestRecordPermission() { return true }
 
     if AVCaptureDevice.authorizationStatus(for: .audio) == .authorized {
         return true
     }
 
-    let capturePermissionGranted = await withCheckedContinuation { continuation in
-        AVCaptureDevice.requestAccess(for: .audio) { isGranted in
-            continuation.resume(returning: isGranted)
-        }
-    }
-
-    if capturePermissionGranted {
-        return true
-    }
+    if await AVCaptureDevice.requestAccess(for: .audio) { return true }
 
     return await MainActor.run(body: { microphonePermissionStateLive() == .authorized })
 }
 
-/// A signing identity change leaves a stale Accessibility entry. System Settings shows it as on, but
-/// `AXIsProcessTrusted()` stays false for the new signature, and turning it off and on again does not help.
-/// Removing Petal's own entry lets the next prompt add one for the current signature.
+/// A stale TCC entry can show access as enabled for an older signing identity.
 private func resetAccessibilityEntryLive() async {
     guard let bundleID = Bundle.main.bundleIdentifier else { return }
     let process = Process()

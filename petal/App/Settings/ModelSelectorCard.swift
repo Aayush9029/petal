@@ -1,27 +1,18 @@
+import AppFeature
 import Assets
 import Shared
 import SwiftUI
 
 struct ModelSelectorCard: View {
-    enum DownloadState: Equatable {
-        case ready
-        case needsDownload
-        case deleting
-        case preparing
-        case downloading(ModelDownloadState.Progress)
-        case paused(ModelDownloadState.Progress)
-        case failed(String)
-    }
-
     let option: ModelOption
     let isSelected: Bool
     var isWarming = false
-    let downloadState: DownloadState
-    var isEnabled = true
-    var onDeleteDownloadedModel: (() -> Void)?
-    var onPauseDownload: (() -> Void)?
-    var onResumeDownload: (() -> Void)?
-    var onCancelDownload: (() -> Void)?
+    let downloadState: SettingsViewModel.DownloadState
+    private var isEnabled: Bool { downloadState != .deleting }
+    let onDeleteDownloadedModel: () -> Void
+    let onPauseDownload: () -> Void
+    let onResumeDownload: () -> Void
+    let onCancelDownload: () -> Void
     let action: () -> Void
     @State private var isHovering = false
 
@@ -218,25 +209,13 @@ struct ModelSelectorCard: View {
     private var contextMenuItems: some View {
         switch downloadState {
         case .ready where option.requiresDownload:
-            if let onDeleteDownloadedModel {
-                Button("Delete Download…", systemImage: "trash", role: .destructive) {
-                    onDeleteDownloadedModel()
-                }
-            }
+            Button("Delete Download…", systemImage: "trash", role: .destructive, action: onDeleteDownloadedModel)
         case .downloading:
-            if let onPauseDownload {
-                Button("Pause Download", systemImage: "pause.circle", action: onPauseDownload)
-            }
-            if let onCancelDownload {
-                Button("Cancel Download", systemImage: "xmark.circle", role: .destructive, action: onCancelDownload)
-            }
+            Button("Pause Download", systemImage: "pause.circle", action: onPauseDownload)
+            Button("Cancel Download", systemImage: "xmark.circle", role: .destructive, action: onCancelDownload)
         case .paused:
-            if let onResumeDownload {
-                Button("Resume Download", systemImage: "play.circle", action: onResumeDownload)
-            }
-            if let onCancelDownload {
-                Button("Cancel Download", systemImage: "xmark.circle", role: .destructive, action: onCancelDownload)
-            }
+            Button("Resume Download", systemImage: "play.circle", action: onResumeDownload)
+            Button("Cancel Download", systemImage: "xmark.circle", role: .destructive, action: onCancelDownload)
         default:
             EmptyView()
         }

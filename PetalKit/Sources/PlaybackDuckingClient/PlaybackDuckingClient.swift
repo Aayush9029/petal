@@ -35,10 +35,10 @@ extension PlaybackDuckingClient: DependencyKey {
     public static var liveValue: Self {
         Self(
             startDucking: {
-                try await LivePlaybackDuckingRuntimeContainer.shared.startDucking()
+                try await LivePlaybackDuckingRuntime.shared.startDucking()
             },
             stopDucking: {
-                await LivePlaybackDuckingRuntimeContainer.shared.stopDucking()
+                await LivePlaybackDuckingRuntime.shared.stopDucking()
             }
         )
     }
@@ -61,6 +61,8 @@ public extension DependencyValues {
 }
 
 private actor LivePlaybackDuckingRuntime {
+    static let shared = LivePlaybackDuckingRuntime()
+
     private let logger = Logger(subsystem: "com.optimalapps.petal", category: "PlaybackDuckingClient")
     private var restoreState: RestoreState?
 
@@ -161,8 +163,4 @@ private actor LivePlaybackDuckingRuntime {
         var deviceID: AudioDeviceID
         var volume: Float32
     }
-}
-
-private enum LivePlaybackDuckingRuntimeContainer {
-    static let shared = LivePlaybackDuckingRuntime()
 }

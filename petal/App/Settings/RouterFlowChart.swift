@@ -2,7 +2,6 @@ import RouterFeature
 import Shared
 import SwiftUI
 
-/// Voice flows down into the router, which sends it along one branch per app. The selected branch is the one the inspector edits.
 struct RouterFlowChart<AddButton: View>: View {
     let nodes: [RouterFlowNode]
     let selection: RouterModel.Selection

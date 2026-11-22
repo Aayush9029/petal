@@ -100,8 +100,6 @@ struct AboutView: View {
     }
 }
 
-// MARK: - Supporting Types
-
 private struct AboutInfoRow: View {
     let label: String
     let value: String

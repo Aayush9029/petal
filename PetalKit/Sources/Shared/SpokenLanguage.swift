@@ -1,4 +1,3 @@
-/// A language that the user fixes for models that can otherwise detect the wrong one.
 public enum SpokenLanguage: String, CaseIterable, Identifiable, Sendable {
     case arabic = "ar"
     case cantonese = "yue"

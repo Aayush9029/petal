@@ -18,8 +18,6 @@ public struct FloatingCapsuleView: View {
         }
     }
 
-    /// Glass before macOS 26: separate translucent surfaces, with a blur pulse
-    /// that masks the swap between statuses.
     private var visualEffectFallback: some View {
         VStack(spacing: 12) {
             if state.showsLiveTranscript {
@@ -49,8 +47,6 @@ public struct FloatingCapsuleView: View {
         }
     }
 }
-
-// MARK: - Preview
 
 #Preview("Floating Capsule") {
     FloatingCapsulePreview()

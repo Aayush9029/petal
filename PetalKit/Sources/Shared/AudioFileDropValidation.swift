@@ -30,7 +30,6 @@ public enum AudioFileDropValidator {
         "wav",
     ]
 
-    /// Content types for file pickers; `validate(_:)` remains the source of truth.
     public static var supportedContentTypes: [UTType] {
         [.audio, .mpeg4Audio, .mp3, .wav, .aiff] + supportedExtensions.compactMap {
             UTType(filenameExtension: $0)

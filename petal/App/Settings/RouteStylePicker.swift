@@ -4,7 +4,6 @@ import SwiftUI
 
 struct RouteStylePicker: View {
     let selection: RouterModel.Style
-    /// Names what Custom applies to, such as "Xcode" or "all other apps".
     let target: String
     let onPreset: (CloudPromptPreset) -> Void
     let onCustom: () -> Void

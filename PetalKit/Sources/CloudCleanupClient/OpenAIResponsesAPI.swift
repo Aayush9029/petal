@@ -74,7 +74,7 @@ struct OpenAIResponsesAPI: CloudChatAPI {
         }
         return try CloudHTTP.request(
             Self.endpoint,
-            headers: ["Authorization": "Bearer \(configuration.connection.apiKey)"],
+            headers: configuration.connection.authenticationHeaders,
             body: .object(body),
             timeout: CloudHTTP.timeout(for: configuration.tools)
         )
@@ -92,7 +92,7 @@ struct OpenAIResponsesAPI: CloudChatAPI {
                   let id = item["call_id"]?.stringValue,
                   let name = item["name"]?.stringValue
             else { return nil }
-            return CloudToolCall(id: CloudToolCall.ID(rawValue: id), name: name, arguments: item["arguments"]?.stringValue ?? "{}")
+            return CloudToolCall(id: CloudToolCall.ID(rawValue: id), name: name)
         }
         if !calls.isEmpty {
             return .toolCalls(calls)
@@ -108,7 +108,6 @@ struct OpenAIResponsesAPI: CloudChatAPI {
         return .finished(text: text, model: response["model"]?.stringValue.map { CloudModel.ID(rawValue: $0) })
     }
 
-    /// A model that cannot read images rejects the screenshot, so the request goes again without it.
     mutating func adapt(to error: CloudCleanupError) -> Bool {
         guard screenshot != nil, error.rejectsImages else { return false }
         screenshot = nil

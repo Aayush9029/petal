@@ -26,8 +26,6 @@ public struct MiniDownloadView: View {
             .onHover { isHovered = $0 }
     }
 
-    // MARK: - Subviews
-
     private var progressContent: some View {
         VStack {
             ZStack {
@@ -81,8 +79,6 @@ public struct MiniDownloadView: View {
         }
     }
 
-    // MARK: - Computed
-
     private var progressFraction: Double {
         model.state.progress?.fraction ?? 0
     }
@@ -97,10 +93,8 @@ public struct MiniDownloadView: View {
     }
 }
 
-// MARK: - Previews
-
 @MainActor private func previewModel(state: ModelDownloadState) -> ModelDownloadModel {
-    let model = ModelDownloadModel(isPreviewMode: true)
+    let model = ModelDownloadModel()
     model.state = state
     return model
 }

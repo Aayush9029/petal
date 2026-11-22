@@ -1,7 +1,5 @@
 import SwiftUI
 
-// MARK: - Button Variant
-
 public enum LongButtonVariant {
     case primary
     case secondary
@@ -26,8 +24,6 @@ public enum LongButtonVariant {
         }
     }
 }
-
-// MARK: - LongButton
 
 public struct LongButton: View {
     @Environment(\.isEnabled) private var isEnabled

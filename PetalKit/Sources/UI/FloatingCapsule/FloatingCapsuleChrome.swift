@@ -1,6 +1,5 @@
 import SwiftUI
 
-/// Set by ``CapsuleStage``, which draws the glass behind every phase itself.
 private struct CapsuleStageDrawsGlassKey: EnvironmentKey {
     static let defaultValue = false
 }
@@ -45,15 +44,13 @@ private struct FloatingCapsuleChrome: ViewModifier {
                     }
                 }
         } else {
-            // Liquid Glass is unavailable before macOS 26; a translucent
-            // NSVisualEffectView stands in for it.
             padded
                 .background {
                     if let highlight {
                         Capsule().fill(highlight)
                     }
                 }
-                .background { CapsuleVisualEffectBackground().clipShape(Capsule()) }
+                .background { VisualEffectBackground(material: .hudWindow).clipShape(Capsule()) }
                 .overlay { Capsule().strokeBorder(strokeColor, lineWidth: 1) }
         }
     }

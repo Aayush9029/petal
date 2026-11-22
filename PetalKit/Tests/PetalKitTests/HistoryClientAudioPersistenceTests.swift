@@ -21,7 +21,9 @@ extension HistoryFolderSuite {
             defer { try? FileManager.default.removeItem(at: outputURL) }
 
             #expect(outputURL.pathExtension.lowercased() == "m4a")
-            #expect(try isRIFFFile(outputURL) == false)
+            let file = try AVAudioFile(forReading: outputURL)
+            #expect(file.fileFormat.streamDescription.pointee.mFormatID == kAudioFormatMPEG4AAC)
+            #expect(file.length > 0)
         }
 
         @Test
@@ -48,67 +50,87 @@ extension HistoryFolderSuite {
             let standardSize = try fileSize(of: standardOutputURL)
             let compressedSize = try fileSize(of: compressedOutputURL)
 
-            #expect(try isRIFFFile(standardOutputURL) == false)
-            #expect(try isRIFFFile(compressedOutputURL) == false)
             #expect(compressedSize < standardSize)
         }
 
         @Test
-        func deleteHistoryEntryRemovesEntryAndPersistedArtifacts() async throws {
-            let inputURL = try writeAudioFixture(durationSeconds: 2)
-            defer { try? FileManager.default.removeItem(at: inputURL) }
-
-            let historyClient = HistoryClient.liveValue
-            let entryID = UUID()
-            let modelID = "delete-history-test-\(entryID.uuidString)"
+        func sessionsThatFinishInTheSameSecondKeepIndependentArtifacts() async throws {
+            let input = try writeAudioFixture(durationSeconds: 2)
+            defer { try? FileManager.default.removeItem(at: input) }
+            let history = HistoryClient.liveValue
             let timestamp = Date()
-
-            guard let artifacts = await historyClient.persistArtifacts(
-                PersistArtifactsRequest(
-                    audioURL: inputURL,
-                    transcript: "delete me",
-                    timestamp: timestamp,
-                    mode: "verbatim",
-                    modelID: modelID,
-                    retentionMode: .both,
-                    persistAudio: true
-                )
-            ) else {
-                throw HistoryAudioPersistenceTestError.persistFailed
+            let modelID = UUID().uuidString
+            var days: [TranscriptHistoryDay] = []
+            defer {
+                for id in days.flatMap(\.entries).map(\.id) {
+                    days = history.deleteEntry(days, id)
+                }
             }
 
-            let days = historyClient.appendEntry(
-                AppendEntryRequest(
-                    currentDays: [],
-                    transcript: "delete me",
-                    modelID: modelID,
-                    mode: "verbatim",
-                    audioDuration: 2,
-                    transcriptionElapsed: 1,
-                    pasteResult: "copied",
-                    audioRelativePath: artifacts.audioRelativePath,
-                    transcriptRelativePath: artifacts.transcriptRelativePath,
-                    retentionMode: .both,
-                    timestamp: timestamp,
-                    sessionID: entryID
-                )
-            )
+            for text in ["first take", "second take"] {
+                let saved = await history.persistArtifacts(.init(
+                    audioURL: input, transcript: text, timestamp: timestamp, mode: "verbatim",
+                    modelID: modelID, retentionMode: .both
+                ))
+                let artifacts = try #require(saved)
+                days = history.appendEntry(.init(
+                    currentDays: days, transcript: text, modelID: modelID, mode: "verbatim",
+                    audioDuration: 2, transcriptionElapsed: 1, pasteResult: "copied",
+                    audioRelativePath: artifacts.audioRelativePath, transcriptRelativePath: artifacts.transcriptRelativePath,
+                    retentionMode: .both, timestamp: timestamp, sessionID: UUID()
+                ))
+            }
 
-            #expect(days.flatMap(\.entries).contains(where: { $0.id == entryID }))
-            #expect(historyClient.historyAudioURL(artifacts.audioRelativePath) != nil)
-            #expect(historyClient.transcriptText(artifacts.transcriptRelativePath) == "delete me")
-
-            let updatedDays = historyClient.deleteEntry(days, entryID)
-
-            #expect(updatedDays.flatMap(\.entries).contains(where: { $0.id == entryID }) == false)
-            #expect(historyClient.historyAudioURL(artifacts.audioRelativePath) == nil)
-            #expect(historyClient.transcriptText(artifacts.transcriptRelativePath) == nil)
+            let entries = days.flatMap(\.entries)
+            let first = try #require(entries.first { history.transcriptText($0.preferredTranscriptRelativePath) == "first take" })
+            let second = try #require(entries.first { history.transcriptText($0.preferredTranscriptRelativePath) == "second take" })
+            #expect(history.historyAudioURL(first.audioRelativePath) != nil)
+            days = history.deleteEntry(days, first.id)
+            #expect(days.flatMap(\.entries).map(\.id) == [second.id])
+            #expect(history.historyAudioURL(first.audioRelativePath) == nil)
+            #expect(history.transcriptText(first.preferredTranscriptRelativePath) == nil)
+            #expect(history.historyAudioURL(second.audioRelativePath) != nil)
+            #expect(history.transcriptText(second.preferredTranscriptRelativePath) == "second take")
         }
 
         @Test
-        func historyDoesNotCapEntriesWithinADay() {
+        func enablingTranscriptsKeepsExistingAudioOnlyRecordingsAndTheirSharedFiles() async throws {
+            let input = try writeAudioFixture(durationSeconds: 2)
+            defer { try? FileManager.default.removeItem(at: input) }
+            let history = HistoryClient.liveValue
+            let saved = await history.persistArtifacts(.init(
+                audioURL: input, transcript: "", timestamp: Date(), mode: "verbatim",
+                modelID: "fixture", retentionMode: .audio
+            ))
+            let path = try #require(saved?.audioRelativePath)
+            let audio = try #require(history.historyAudioURL(path))
+            defer { try? FileManager.default.removeItem(at: audio) }
+            let first = UUID()
+            let second = UUID()
+            var days: [TranscriptHistoryDay] = []
+            for id in [first, second] {
+                days = history.appendEntry(.init(
+                    currentDays: days, transcript: "", modelID: "fixture", mode: "verbatim",
+                    audioDuration: 2, transcriptionElapsed: 1, pasteResult: "skipped",
+                    audioRelativePath: path, transcriptRelativePath: nil,
+                    retentionMode: .audio, timestamp: Date(), sessionID: id
+                ))
+            }
+
+            days = history.applyRetention(.both, days)
+            #expect(Set(days.flatMap(\.entries).map(\.id)) == [first, second])
+            days = history.deleteEntry(days, first)
+            let remaining = try #require(days.flatMap(\.entries).first)
+            #expect(remaining.id == second)
+            #expect(history.historyAudioURL(remaining.audioRelativePath) == audio)
+            #expect(history.deleteEntry(days, second).isEmpty)
+            #expect(history.historyAudioURL(path) == nil)
+        }
+
+        @Test
+        func historyDoesNotCapEntriesWithinADay() throws {
             let historyClient = HistoryClient.liveValue
-            let timestamp = Date()
+            let timestamp = try #require(Calendar.current.date(from: DateComponents(year: 2024, month: 6, day: 1, hour: 12)))
             var days: [TranscriptHistoryDay] = []
 
             for index in 0 ..< 250 {
@@ -131,7 +153,7 @@ extension HistoryFolderSuite {
             }
 
             #expect(days.count == 1)
-            #expect(days[0].entries.count == 250)
+            #expect(days.first?.entries.count == 250)
         }
     }
 }
@@ -228,11 +250,6 @@ private func makeSpeechLikeSamples(count: Int, sampleRate: Double) -> [Float] {
     }
 
     return samples
-}
-
-private func isRIFFFile(_ url: URL) throws -> Bool {
-    let header = try Data(contentsOf: url).prefix(4)
-    return header == Data("RIFF".utf8)
 }
 
 private func fileSize(of url: URL) throws -> Int64 {

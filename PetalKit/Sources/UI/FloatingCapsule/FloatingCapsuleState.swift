@@ -4,6 +4,8 @@ import Observation
 @MainActor
 @Observable
 public final class FloatingCapsuleState {
+    public static let cancelConfirmationTimeout: Duration = .seconds(4)
+
     public enum Phase: Equatable, Sendable {
         case hidden
         case recording
@@ -29,15 +31,13 @@ public final class FloatingCapsuleState {
     public var onRecordingTapped: (() -> Void)?
     public var onCancelRecordingTapped: (() -> Void)?
     public var onAccessibilityTapped: (() -> Void)?
-    /// The part of the panel that takes clicks, in top-left points of the panel content.
-    /// The panel lets clicks outside it pass through to the windows behind.
+    // Hit regions use top-left coordinates in panel content.
     public var hitRegion: CGRect?
 
     public init() {}
 }
 
 extension FloatingCapsuleState.Phase {
-    /// Stable identity of the content a phase shows.
     var contentID: String {
         switch self {
         case .hidden: "hidden"

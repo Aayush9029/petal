@@ -1,13 +1,8 @@
-/// How the floating capsule moves when the capsule phase changes.
 enum CapsuleCue: Equatable, Sendable {
     case none
-    /// A drop appears, rises, and sends a ripple.
     case present
-    /// The glass springs to the new content size.
     case resize
-    /// The glass springs to the new size, wobbles, and sends a small ripple.
     case pulse
-    /// The glass merges, shrinks, and lifts away.
     case dismiss
 
     static func transition(
@@ -27,8 +22,6 @@ enum CapsuleCue: Equatable, Sendable {
         }
     }
 
-    /// The stage can first appear while a phase is already showing, so a
-    /// capsule that is not on screen counts as hidden.
     static func transition(
         from old: FloatingCapsuleState.Phase,
         to new: FloatingCapsuleState.Phase,
@@ -59,7 +52,6 @@ enum CapsuleCue: Equatable, Sendable {
 }
 
 extension FloatingCapsuleState.Phase {
-    /// Trimming, speeding, transcribing, and refining: the highlight orbits the rim.
     var isProcessing: Bool {
         switch self {
         case .trimming, .speeding, .transcribing, .refining: true
@@ -67,7 +59,6 @@ extension FloatingCapsuleState.Phase {
         }
     }
 
-    /// Colour of the bloom the label casts inside the Future glass.
     var capsuleGlow: SIMD3<Double> {
         switch self {
         case .hidden, .recording, .confirmCancel:

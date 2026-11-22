@@ -1,7 +1,6 @@
 import AppKit
 import UniformTypeIdentifiers
 
-/// Finder icons are slow to load, and the router redraws its nodes often.
 @MainActor
 enum MacAppIconCache {
     private static var icons: [String: NSImage] = [:]

@@ -32,51 +32,46 @@ extension FloatingCapsuleClient: DependencyKey {
     public static var liveValue: Self {
         return Self(
             showRecording: { onTranscribe, onCancel in
-                await MainActor.run {
-                    LiveFloatingCapsuleRuntimeContainer.shared.showRecording(
-                        onTranscribe: onTranscribe,
-                        onCancel: onCancel
-                    )
-                }
+                await LiveFloatingCapsuleRuntime.shared.showRecording(onTranscribe: onTranscribe, onCancel: onCancel)
             },
             showTrimming: {
-                await MainActor.run { LiveFloatingCapsuleRuntimeContainer.shared.showTrimming() }
+                await LiveFloatingCapsuleRuntime.shared.showTrimming()
             },
             showSpeeding: {
-                await MainActor.run { LiveFloatingCapsuleRuntimeContainer.shared.showSpeeding() }
+                await LiveFloatingCapsuleRuntime.shared.show(.speeding)
             },
             updateLevel: { level in
-                await MainActor.run { LiveFloatingCapsuleRuntimeContainer.shared.updateLevel(level) }
+                await LiveFloatingCapsuleRuntime.shared.updateLevel(level)
             },
             updateLiveTranscript: { text in
-                await MainActor.run { LiveFloatingCapsuleRuntimeContainer.shared.updateLiveTranscript(text) }
+                await LiveFloatingCapsuleRuntime.shared.updateLiveTranscript(text)
             },
             showTranscribing: {
-                await MainActor.run { LiveFloatingCapsuleRuntimeContainer.shared.showTranscribing() }
+                await LiveFloatingCapsuleRuntime.shared.showTranscribing()
             },
             updateTranscriptionProgress: { progress in
-                await MainActor.run { LiveFloatingCapsuleRuntimeContainer.shared.updateTranscriptionProgress(progress) }
+                await LiveFloatingCapsuleRuntime.shared.updateTranscriptionProgress(progress)
             },
             showRefining: {
-                await MainActor.run { LiveFloatingCapsuleRuntimeContainer.shared.showRefining() }
+                await LiveFloatingCapsuleRuntime.shared.show(.refining)
             },
             showCancelConfirmation: {
-                await MainActor.run { LiveFloatingCapsuleRuntimeContainer.shared.showCancelConfirmation() }
+                await LiveFloatingCapsuleRuntime.shared.showCancelConfirmation()
             },
             showCopiedToClipboard: {
-                await MainActor.run { LiveFloatingCapsuleRuntimeContainer.shared.showCopiedToClipboard() }
+                await LiveFloatingCapsuleRuntime.shared.show(.copiedToClipboard)
             },
             showAccessibilityPrompt: { onTap in
-                await MainActor.run { LiveFloatingCapsuleRuntimeContainer.shared.showAccessibilityPrompt(onTap: onTap) }
+                await LiveFloatingCapsuleRuntime.shared.showAccessibilityPrompt(onTap: onTap)
             },
             showAccessibilityEnabled: {
-                await MainActor.run { LiveFloatingCapsuleRuntimeContainer.shared.showAccessibilityEnabled() }
+                await LiveFloatingCapsuleRuntime.shared.showAccessibilityEnabled()
             },
             showError: { message in
-                await MainActor.run { LiveFloatingCapsuleRuntimeContainer.shared.showError(message) }
+                await LiveFloatingCapsuleRuntime.shared.showError(message)
             },
             hide: {
-                await MainActor.run { LiveFloatingCapsuleRuntimeContainer.shared.hide() }
+                await LiveFloatingCapsuleRuntime.shared.hide()
             }
         )
     }
@@ -112,6 +107,8 @@ public extension DependencyValues {
 
 @MainActor
 private final class LiveFloatingCapsuleRuntime: NSObject {
+    static let shared = LiveFloatingCapsuleRuntime()
+
     private let state = FloatingCapsuleState()
     private let panel: NSPanel
     private var preferredScreen: NSScreen?
@@ -164,14 +161,12 @@ private final class LiveFloatingCapsuleRuntime: NSObject {
     func showTrimming() {
         state.onRecordingTapped = nil
         state.onCancelRecordingTapped = nil
-        playHapticForPhaseChange(to: .trimming)
-        state.phase = .trimming
-        showWindowIfNeeded()
+        show(.trimming)
     }
 
-    func showSpeeding() {
-        playHapticForPhaseChange(to: .speeding)
-        state.phase = .speeding
+    func show(_ phase: FloatingCapsuleState.Phase) {
+        playHapticForPhaseChange(to: phase)
+        state.phase = phase
         showWindowIfNeeded()
     }
 
@@ -187,15 +182,7 @@ private final class LiveFloatingCapsuleRuntime: NSObject {
 
     func showTranscribing() {
         state.transcriptionProgress = 0
-        playHapticForPhaseChange(to: .transcribing)
-        state.phase = .transcribing
-        showWindowIfNeeded()
-    }
-
-    func showRefining() {
-        playHapticForPhaseChange(to: .refining)
-        state.phase = .refining
-        showWindowIfNeeded()
+        show(.transcribing)
     }
 
     func updateTranscriptionProgress(_ progress: Double) {
@@ -211,12 +198,6 @@ private final class LiveFloatingCapsuleRuntime: NSObject {
         DispatchQueue.main.async { [state] in
             state.cancelCountdownActive = true
         }
-    }
-
-    func showCopiedToClipboard() {
-        playHapticForPhaseChange(to: .copiedToClipboard)
-        state.phase = .copiedToClipboard
-        showWindowIfNeeded()
     }
 
     func showAccessibilityPrompt(onTap: @escaping @Sendable () -> Void) {
@@ -265,8 +246,6 @@ private final class LiveFloatingCapsuleRuntime: NSObject {
         }
     }
 
-    /// A trackpad tap when processing starts and when the result lands.
-    /// Force Touch trackpads play it only while a finger rests on them.
     private func playHapticForPhaseChange(to phase: FloatingCapsuleState.Phase) {
         let wasProcessing = Self.isProcessing(state.phase)
         let isProcessing = Self.isProcessing(phase)
@@ -461,9 +440,4 @@ private final class LiveFloatingCapsuleRuntime: NSObject {
             panel.animator().setFrameOrigin(origin)
         }
     }
-}
-
-@MainActor
-private enum LiveFloatingCapsuleRuntimeContainer {
-    static let shared = LiveFloatingCapsuleRuntime()
 }

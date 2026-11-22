@@ -1,6 +1,5 @@
 import SwiftUI
 
-/// Dims the desktop tint in Dark Mode, so the glass cards stand out from the window.
 struct SettingsBackdrop: View {
     @Environment(\.colorScheme) private var colorScheme
 

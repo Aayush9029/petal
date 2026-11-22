@@ -1,6 +1,8 @@
 import CustomDump
+import DependenciesTestSupport
 import Foundation
 import Shared
+import SystemContextClient
 import Testing
 @testable import CloudCleanupClient
 @testable import CloudCleanupFeature
@@ -394,29 +396,9 @@ struct CloudCleanupPromptTests {
     @Test
     func systemPromptAppendsToolGuidanceForEnabledTools() {
         #expect(CloudCleanupPrompt.system("  Clean the <transcript>.\n", tools: [], variables: [:]) == "Clean the <transcript>.")
-        #expect(
-            CloudCleanupPrompt.system("Clean the <transcript>.", tools: [.webSearch], variables: [:])
-                == "Clean the <transcript>.\n\n\(CloudCleanupPrompt.instructions(for: .webSearch))"
-        )
-        #expect(
-            CloudCleanupPrompt.system("Clean the <transcript>.", tools: [.selectedText, .dateTime, .clipboard], variables: [:])
-                == [
-                    "Clean the <transcript>.",
-                    CloudCleanupPrompt.instructions(for: .dateTime),
-                    CloudCleanupPrompt.instructions(for: .clipboard),
-                    CloudCleanupPrompt.instructions(for: .selectedText),
-                ].joined(separator: "\n\n")
-        )
-    }
-
-    @Test
-    func screenToolAddsGuidanceButNoFunction() {
-        #expect(CloudTool.screen.functionName == nil)
-        #expect(CloudCleanupPrompt.functionTools(for: [.screen, .dateTime]).map(\.name) == ["get_current_date_time"])
-        #expect(
-            CloudCleanupPrompt.system("Clean the <transcript>.", tools: [.screen], variables: [:])
-                == "Clean the <transcript>.\n\n\(CloudCleanupPrompt.instructions(for: .screen))"
-        )
+        let prompt = CloudCleanupPrompt.system("Clean the <transcript>.", tools: [.clipboard], variables: [:])
+        #expect(prompt.contains("get_clipboard_text"))
+        #expect(!prompt.contains("get_selected_text"))
     }
 
     @Test
@@ -502,9 +484,16 @@ struct CloudCleanupPromptTests {
     }
 }
 
-@Suite
+@Suite(.dependencies {
+    $0.locale = Locale(identifier: "en_US")
+    $0.timeZone = .gmt
+    $0.date.now = Date(timeIntervalSince1970: 1_791_056_340)
+    $0.systemContextClient.screenshot = { nil }
+})
 struct CloudCleanupRuntimeTests {
-    @Test
+    @Test(.dependencies {
+        $0.timeZone = TimeZone(identifier: "America/New_York")!
+    })
     func openAIDateToolLoopSendsTheLocalDateBack() async throws {
         let transport = FakeTransport([
             (200, ["model": "gpt-6-luna", "output": [
@@ -514,13 +503,7 @@ struct CloudCleanupRuntimeTests {
                 ["type": "message", "content": [["type": "output_text", "text": "Call Mom next Friday (October 9)."]]],
             ]]),
         ])
-        let runtime = CloudCleanupRuntime(
-            send: transport.send,
-            context: CloudRuntimeContext(
-                now: { Date(timeIntervalSince1970: 1_791_056_340) },
-                timeZone: TimeZone(identifier: "America/New_York")!
-            )
-        )
+        let runtime = CloudCleanupRuntime(send: transport.send)
 
         let result = try await runtime.clean(
             "call mom next friday",
@@ -545,7 +528,10 @@ struct CloudCleanupRuntimeTests {
         #expect(followUp["input"]?.arrayValue?.count == 3)
     }
 
-    @Test
+    @Test(.dependencies {
+        $0.systemContextClient.clipboardText = { "Launch moved to Tuesday." }
+        $0.systemContextClient.selectedText = { nil }
+    })
     func clipboardAndSelectionToolsReturnTheirText() async throws {
         let transport = FakeTransport([
             (200, ["output": [
@@ -554,14 +540,7 @@ struct CloudCleanupRuntimeTests {
             ]]),
             (200, ["output": [["type": "message", "content": [["type": "output_text", "text": "Done."]]]]]),
         ])
-        let runtime = CloudCleanupRuntime(
-            send: transport.send,
-            context: CloudRuntimeContext(
-                timeZone: .gmt,
-                clipboardText: { "Launch moved to Tuesday." },
-                selectedText: { nil }
-            )
-        )
+        let runtime = CloudCleanupRuntime(send: transport.send)
 
         let result = try await runtime.clean(
             "reply to this",
@@ -576,13 +555,34 @@ struct CloudCleanupRuntimeTests {
         ])
     }
 
-    @Test
+    @Test(.dependencies {
+        $0.systemContextClient.clipboardText = {
+            Issue.record("Read the clipboard while the tool was off")
+            return nil
+        }
+    })
+    func disabledToolCallsCannotReadTheClipboard() async throws {
+        let transport = FakeTransport([
+            (200, ["output": [
+                ["type": "function_call", "call_id": "call_1", "name": "get_clipboard_text", "arguments": "{}"],
+            ]]),
+            (200, ["output": [["type": "message", "content": [["type": "output_text", "text": "Done."]]]]]),
+        ])
+        let runtime = CloudCleanupRuntime(send: transport.send)
+        _ = try await runtime.clean("hello", configuration: Fixtures.configuration(.openAI, model: "gpt-6-luna"))
+
+        let reply = try #require(try Fixtures.body(transport.requests.value[1])["input"]?.arrayValue?.last)
+        #expect(reply["call_id"] == "call_1")
+        #expect(reply["output"]?.stringValue?.contains("Unknown tool") == true)
+    }
+
+    @Test(.dependencies {
+        $0.systemContextClient.frontmostAppName = { "Mail" }
+        $0.systemContextClient.userFullName = { "Alex Kim" }
+    })
     func systemPromptGetsTheSpeakerContext() async throws {
         let transport = FakeTransport([(200, ["output": [["type": "message", "content": [["type": "output_text", "text": "Hi."]]]]])])
-        let runtime = CloudCleanupRuntime(
-            send: transport.send,
-            context: CloudRuntimeContext(timeZone: .gmt, appName: { "Mail" }, userName: { "Alex Kim" })
-        )
+        let runtime = CloudCleanupRuntime(send: transport.send)
         var configuration = Fixtures.configuration(.openAI, model: "gpt-6-luna")
         configuration.systemPrompt = "Write the <transcript> for {{app}} as {{name}}."
 
@@ -591,20 +591,20 @@ struct CloudCleanupRuntimeTests {
         #expect(try Fixtures.body(transport.requests.value[0])["instructions"] == "Write the <transcript> for Mail as Alex Kim.")
     }
 
-    @Test
+    @Test(.dependencies {
+        $0.systemContextClient.frontmostAppName = {
+            Issue.record("Read the app name for a prompt without {{app}}")
+            return nil
+        }
+        $0.systemContextClient.userFullName = {
+            Issue.record("Read the name for a prompt without {{name}} or {{first_name}}")
+            return ""
+        }
+        $0.systemContextClient.frontmostWindowTitle = { "Re: Launch" }
+    })
     func contextIsReadOnlyForVariablesThePromptUses() async throws {
         let transport = FakeTransport([(200, ["output": [["type": "message", "content": [["type": "output_text", "text": "Hi."]]]]])])
-        let runtime = CloudCleanupRuntime(
-            send: transport.send,
-            context: CloudRuntimeContext(
-                timeZone: .gmt,
-                appName: {
-                    Issue.record("Read the app name for a prompt without {{app}}")
-                    return "Mail"
-                },
-                windowTitle: { "Re: Launch" }
-            )
-        )
+        let runtime = CloudCleanupRuntime(send: transport.send)
         var configuration = Fixtures.configuration(.openAI, model: "gpt-6-luna")
         configuration.systemPrompt = "Reply to {{window}} with the <transcript>."
 
@@ -620,7 +620,7 @@ struct CloudCleanupRuntimeTests {
             (200, ["type": "message", "stop_reason": "pause_turn", "content": pausedContent]),
             (200, ["type": "message", "model": "claude-opus-5-5", "stop_reason": "end_turn", "content": [["type": "text", "text": "Done."]]]),
         ])
-        let runtime = CloudCleanupRuntime(send: transport.send, context: CloudRuntimeContext(timeZone: .gmt))
+        let runtime = CloudCleanupRuntime(send: transport.send)
 
         let result = try await runtime.clean(
             "look it up",
@@ -639,7 +639,7 @@ struct CloudCleanupRuntimeTests {
             (400, ["type": "error", "error": ["type": "invalid_request_error", "message": "fallbacks: Extra inputs are not permitted"]]),
             (200, ["type": "message", "stop_reason": "end_turn", "content": [["type": "text", "text": "Hi."]]]),
         ])
-        let runtime = CloudCleanupRuntime(send: transport.send, context: CloudRuntimeContext(timeZone: .gmt))
+        let runtime = CloudCleanupRuntime(send: transport.send)
 
         let result = try await runtime.clean("hi", configuration: Fixtures.configuration(.anthropic, model: "claude-opus-5-5"))
 
@@ -652,7 +652,7 @@ struct CloudCleanupRuntimeTests {
     @Test
     func otherBadRequestsAreNotRetried() async {
         let transport = FakeTransport([(400, ["type": "error", "error": ["message": "max_tokens: too large"]])])
-        let runtime = CloudCleanupRuntime(send: transport.send, context: CloudRuntimeContext(timeZone: .gmt))
+        let runtime = CloudCleanupRuntime(send: transport.send)
 
         await #expect(throws: CloudCleanupError.http(status: 400, message: "max_tokens: too large")) {
             try await runtime.clean("hi", configuration: Fixtures.configuration(.anthropic, model: "claude-opus-5-5"))
@@ -670,7 +670,7 @@ struct CloudCleanupRuntimeTests {
             ]]]]),
             (200, ["model": "openai/gpt-6-luna", "choices": [["message": ["role": "assistant", "content": "Today is Saturday."]]]]),
         ])
-        let runtime = CloudCleanupRuntime(send: transport.send, context: CloudRuntimeContext(timeZone: .gmt))
+        let runtime = CloudCleanupRuntime(send: transport.send)
 
         let result = try await runtime.clean(
             "what day is it",
@@ -685,13 +685,12 @@ struct CloudCleanupRuntimeTests {
         #expect(messages[3]["tool_call_id"] == "call_9")
     }
 
-    @Test
+    @Test(.dependencies {
+        $0.systemContextClient.screenshot = { Fixtures.screenshot }
+    })
     func screenToolSendsTheScreenshotWithItsGuidance() async throws {
         let transport = FakeTransport([(200, ["type": "message", "stop_reason": "end_turn", "content": [["type": "text", "text": "Hi."]]])])
-        let runtime = CloudCleanupRuntime(
-            send: transport.send,
-            context: CloudRuntimeContext(timeZone: .gmt, screenshot: { Fixtures.screenshot })
-        )
+        let runtime = CloudCleanupRuntime(send: transport.send)
 
         _ = try await runtime.clean("hi", configuration: Fixtures.configuration(.anthropic, model: "claude-opus-5-5", tools: [.screen]))
 
@@ -703,7 +702,7 @@ struct CloudCleanupRuntimeTests {
     @Test
     func screenToolWithoutACaptureSendsOnlyTheTranscript() async throws {
         let transport = FakeTransport([(200, ["type": "message", "stop_reason": "end_turn", "content": [["type": "text", "text": "Hi."]]])])
-        let runtime = CloudCleanupRuntime(send: transport.send, context: CloudRuntimeContext(timeZone: .gmt))
+        let runtime = CloudCleanupRuntime(send: transport.send)
 
         _ = try await runtime.clean("hi", configuration: Fixtures.configuration(.anthropic, model: "claude-opus-5-5", tools: [.screen]))
 
@@ -712,34 +711,30 @@ struct CloudCleanupRuntimeTests {
         expectNoDifference(body["messages"], [["role": "user", "content": "<transcript>\nhi\n</transcript>"]])
     }
 
-    @Test
+    @Test(.dependencies {
+        $0.systemContextClient.screenshot = {
+            Issue.record("Captured the screen while the tool was off")
+            return nil
+        }
+    })
     func screenIsCapturedOnlyWhenTheToolIsOn() async throws {
-        let captures = LockIsolated(0)
         let transport = FakeTransport([(200, ["choices": [["message": ["role": "assistant", "content": "Hi."]]]])])
-        let runtime = CloudCleanupRuntime(
-            send: transport.send,
-            context: CloudRuntimeContext(timeZone: .gmt, screenshot: {
-                captures.withValue { $0 += 1 }
-                return Fixtures.screenshot
-            })
-        )
+        let runtime = CloudCleanupRuntime(send: transport.send)
 
         _ = try await runtime.clean("hi", configuration: Fixtures.configuration(.openRouter, model: "openai/gpt-6-luna", tools: [.dateTime]))
 
-        #expect(captures.value == 0)
         #expect(try Fixtures.body(transport.requests.value[0])["messages"]?[1]?["content"] == "<transcript>\nhi\n</transcript>")
     }
 
-    @Test
+    @Test(.dependencies {
+        $0.systemContextClient.screenshot = { Fixtures.screenshot }
+    })
     func aModelThatCannotReadImagesGetsTheTranscriptWithoutTheScreenshot() async throws {
         let transport = FakeTransport([
             (404, ["error": ["message": "No endpoints found that support image input"]]),
             (200, ["model": "deepseek/deepseek-v4.1-flash", "choices": [["message": ["role": "assistant", "content": "Hi."]]]]),
         ])
-        let runtime = CloudCleanupRuntime(
-            send: transport.send,
-            context: CloudRuntimeContext(timeZone: .gmt, screenshot: { Fixtures.screenshot })
-        )
+        let runtime = CloudCleanupRuntime(send: transport.send)
 
         let result = try await runtime.clean(
             "hi",
@@ -757,7 +752,7 @@ struct CloudCleanupRuntimeTests {
     @Test
     func modelCheckSendsATinyRequestWithoutTools() async throws {
         let transport = FakeTransport([(200, ["model": "gpt-6-luna", "output": []])])
-        let runtime = CloudCleanupRuntime(send: transport.send, context: CloudRuntimeContext(timeZone: .gmt))
+        let runtime = CloudCleanupRuntime(send: transport.send)
 
         try await runtime.checkModel(Fixtures.configuration(.openAI, model: "gpt-6-luna", tools: [.dateTime, .webSearch]))
 
@@ -769,7 +764,7 @@ struct CloudCleanupRuntimeTests {
     @Test
     func modelCheckReportsAMissingModel() async {
         let transport = FakeTransport([(404, ["error": ["message": "The model `gpt-9` does not exist."]])])
-        let runtime = CloudCleanupRuntime(send: transport.send, context: CloudRuntimeContext(timeZone: .gmt))
+        let runtime = CloudCleanupRuntime(send: transport.send)
 
         await #expect(throws: CloudCleanupError.http(status: 404, message: "The model `gpt-9` does not exist.")) {
             try await runtime.checkModel(Fixtures.configuration(.openAI, model: "gpt-9"))
@@ -779,7 +774,7 @@ struct CloudCleanupRuntimeTests {
     @Test
     func httpErrorCarriesTheProviderMessage() async {
         let transport = FakeTransport([(401, ["error": ["message": "Incorrect API key provided."]])])
-        let runtime = CloudCleanupRuntime(send: transport.send, context: CloudRuntimeContext(timeZone: .gmt))
+        let runtime = CloudCleanupRuntime(send: transport.send)
 
         await #expect(throws: CloudCleanupError.http(status: 401, message: "Incorrect API key provided.")) {
             try await runtime.clean("hi", configuration: Fixtures.configuration(.openAI, model: "gpt-6-luna"))
@@ -790,7 +785,7 @@ struct CloudCleanupRuntimeTests {
     @Test
     func emptyAnswerIsAnError() async {
         let transport = FakeTransport([(200, ["choices": [["message": ["role": "assistant", "content": "  "]]]])])
-        let runtime = CloudCleanupRuntime(send: transport.send, context: CloudRuntimeContext(timeZone: .gmt))
+        let runtime = CloudCleanupRuntime(send: transport.send)
 
         await #expect(throws: CloudCleanupError.emptyResponse) {
             try await runtime.clean("hi", configuration: Fixtures.configuration(.openRouter, model: "openai/gpt-6-luna"))
@@ -804,7 +799,7 @@ struct CloudCleanupRuntimeTests {
             "tool_calls": [["id": "call_1", "type": "function", "function": ["name": "get_current_date_time", "arguments": "{}"]]],
         ]]]]
         let transport = FakeTransport(Array(repeating: (200, toolCall), count: CloudCleanupRuntime.maxRequests))
-        let runtime = CloudCleanupRuntime(send: transport.send, context: CloudRuntimeContext(timeZone: .gmt))
+        let runtime = CloudCleanupRuntime(send: transport.send)
 
         await #expect(throws: CloudCleanupError.tooManyToolCalls) {
             try await runtime.clean("hi", configuration: Fixtures.configuration(.openRouter, model: "openai/gpt-6-luna", tools: [.dateTime]))

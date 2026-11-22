@@ -1,8 +1,6 @@
 import AppKit
 import QuartzCore
 
-/// The highlight that travels along the active branch. The render server runs it, so the Settings window
-/// does not update SwiftUI on every frame.
 final class RouterFlowHighlightView: NSView {
     struct Style: Equatable {
         var slot: Int
@@ -18,7 +16,6 @@ final class RouterFlowHighlightView: NSView {
     }
 
     private static let period: CFTimeInterval = 2
-    /// The head runs past the end of the branch, so the trail drains out before the next pass starts.
     private static let travel = 1.3
     private static let segmentLength = 0.035
     private static let segmentOpacities: [Float] = [0.85, 0.65, 0.45, 0.25]
@@ -95,7 +92,6 @@ final class RouterFlowHighlightView: NSView {
         }
     }
 
-    /// Each segment trails the one before it by its own length, and is trimmed where it enters and leaves the branch.
     private func animation(step: Int) -> CAAnimation {
         let lag = Double(step) * Self.segmentLength
         let enters = lag / Self.travel
@@ -121,7 +117,7 @@ final class RouterFlowHighlightView: NSView {
         group.duration = Self.period
         group.repeatCount = .infinity
         group.isRemovedOnCompletion = false
-        // Keeps the phase on the wall clock, so a relayout does not restart the pass.
+        // Relayouts must keep neighboring highlights on the same phase.
         let phase = Date().timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: Self.period)
         group.beginTime = segmentLayers[step].convertTime(CACurrentMediaTime(), from: nil) - phase
         return group

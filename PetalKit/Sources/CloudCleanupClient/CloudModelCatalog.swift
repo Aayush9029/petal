@@ -61,16 +61,6 @@ enum CloudModelCatalog {
     }
 
     private static func get(_ url: URL, connection: CloudConnection) throws -> URLRequest {
-        var headers: [String: String] = [:]
-        let key = connection.apiKey
-        switch connection.provider {
-        case .anthropic:
-            headers = ["x-api-key": key, "anthropic-version": AnthropicMessagesAPI.version]
-        case .openAI, .openRouter, .custom:
-            if !key.isEmpty {
-                headers["Authorization"] = "Bearer \(key)"
-            }
-        }
-        return try CloudHTTP.request(url, method: "GET", headers: headers, timeout: 15)
+        try CloudHTTP.request(url, method: "GET", headers: connection.authenticationHeaders, timeout: 15)
     }
 }

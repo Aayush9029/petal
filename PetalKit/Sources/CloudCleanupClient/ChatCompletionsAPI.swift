@@ -74,13 +74,10 @@ struct ChatCompletionsAPI: CloudChatAPI {
             "messages": .array(messages),
             "stream": false,
         ]
-        var headers: [String: String] = [:]
-        if !configuration.connection.apiKey.isEmpty {
-            headers["Authorization"] = "Bearer \(configuration.connection.apiKey)"
-        }
+        var headers = configuration.connection.authenticationHeaders
         if isOpenRouter {
             body["reasoning"] = Self.openRouterReasoning(for: configuration.model)
-            headers["HTTP-Referer"] = CloudHTTP.referer
+            headers["HTTP-Referer"] = "https://github.com/Aayush9029/petal"
             headers["X-Title"] = "Petal"
         }
         if !tools.isEmpty {
@@ -114,7 +111,7 @@ struct ChatCompletionsAPI: CloudChatAPI {
 
         let calls = toolCalls.compactMap { call -> CloudToolCall? in
             guard let id = call["id"]?.stringValue, let name = call["function"]?["name"]?.stringValue else { return nil }
-            return CloudToolCall(id: CloudToolCall.ID(rawValue: id), name: name, arguments: call["function"]?["arguments"]?.stringValue ?? "{}")
+            return CloudToolCall(id: CloudToolCall.ID(rawValue: id), name: name)
         }
         if !calls.isEmpty {
             return .toolCalls(calls)
@@ -131,7 +128,6 @@ struct ChatCompletionsAPI: CloudChatAPI {
             .joined()
     }
 
-    /// A model that cannot read images rejects the screenshot, so the request goes again without it.
     mutating func adapt(to error: CloudCleanupError) -> Bool {
         guard screenshot != nil, error.rejectsImages else { return false }
         screenshot = nil

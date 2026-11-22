@@ -1,3 +1,4 @@
+import AppFeature
 import SwiftUI
 import UI
 
@@ -47,24 +48,19 @@ struct MenuBarPopover: View {
             isAudioDropTargeted = $0
         }
         .animation(.easeOut(duration: 0.16), value: isAudioDropTargeted)
-        .alert("Delete Transcript?", isPresented: isShowingDeleteConfirmation) {
-            Button("Delete", role: .destructive) {
-                if let transcriptPendingDeletion {
-                    viewModel.deleteHistoryEntry(transcriptPendingDeletion.id)
-                }
-                transcriptPendingDeletion = nil
-            }
-            Button("Cancel", role: .cancel) { transcriptPendingDeletion = nil }
-        } message: {
-            Text("This permanently removes it from your history.")
+        .task(id: viewModel.visibleHistoryEntries) { await viewModel.loadHistoryMenu() }
+        .alert(item: $transcriptPendingDeletion) { entry in
+            Alert(
+                title: Text("Delete Transcript?"),
+                message: Text("This permanently removes it from your history."),
+                primaryButton: .destructive(Text("Delete")) { viewModel.deleteHistoryEntry(entry.id) },
+                secondaryButton: .cancel()
+            )
         }
     }
 
-    // MARK: - Status
-
     private var statusCard: some View {
         VStack(spacing: 8) {
-            // The graphics have a fixed width from their bar count; as an overlay they cannot widen the card.
             Color.clear
                 .frame(maxWidth: .infinity)
                 .frame(height: Self.waveformHeight)
@@ -75,8 +71,6 @@ struct MenuBarPopover: View {
         .padding(10)
         .petalGlass(cornerRadius: Self.cornerRadius)
     }
-
-    // MARK: - Permissions
 
     @ViewBuilder
     private var permissionSection: some View {
@@ -97,8 +91,6 @@ struct MenuBarPopover: View {
             }
         }
     }
-
-    // MARK: - Transcripts
 
     private var transcriptsSection: some View {
         VStack(alignment: .leading, spacing: 4) {
@@ -139,8 +131,6 @@ struct MenuBarPopover: View {
         viewModel.shouldShowHistoryMenu ? "No transcripts yet" : "History is turned off"
     }
 
-    // MARK: - Actions
-
     @ViewBuilder
     private var actions: some View {
         if viewModel.isRecording {
@@ -173,8 +163,6 @@ struct MenuBarPopover: View {
         }
     }
 
-    // MARK: - Drop target
-
     private var audioDropOverlay: some View {
         VStack(spacing: 8) {
             Image(systemName: "plus.circle.fill")
@@ -200,16 +188,5 @@ struct MenuBarPopover: View {
         .allowsHitTesting(false)
         .accessibilityElement(children: .combine)
         .accessibilityLabel("Drop an audio file to transcribe it")
-    }
-
-    private var isShowingDeleteConfirmation: Binding<Bool> {
-        Binding(
-            get: { transcriptPendingDeletion != nil },
-            set: { isPresented in
-                if !isPresented {
-                    transcriptPendingDeletion = nil
-                }
-            }
-        )
     }
 }

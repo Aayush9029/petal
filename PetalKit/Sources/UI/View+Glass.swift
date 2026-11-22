@@ -1,6 +1,5 @@
 import SwiftUI
 
-/// Every Liquid Glass availability fork Petal owns lives here, so layout code never branches on the OS version.
 public extension View {
     @ViewBuilder
     func petalGlass(cornerRadius: CGFloat) -> some View {

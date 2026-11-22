@@ -21,9 +21,7 @@ public struct ModelDescriptor: Sendable, Equatable {
     public let parameters: String
     public let provider: ModelProvider
     public let recommended: Bool
-    /// 1–5 rating for transcription speed.
     public let speedScore: Int
-    /// 1–5 rating for transcription quality/intelligence.
     public let smartScore: Int
 
     public init(
@@ -63,20 +61,13 @@ public enum ModelOption: String, CaseIterable, Identifiable, Sendable {
     case whisperLargeV3Turbo = "whisper-large-v3-turbo"
     case mini3b8bit = "voxtral-realtime-4b-2602-4bit"
 
-    public static var allCases: [ModelOption] {
-        var options: [ModelOption] = [
-            .parakeetTDTCTC110M,
-            .qwen3ASR17B8bit,
-            .parakeetUnified06B,
-            .nemotronUnified06B,
-            .parakeetTDT06BV3,
-            .whisperLargeV3Turbo,
-            .mini3b8bit,
-        ]
-        if isAppleSpeechSupportedOnCurrentDevice {
-            options.insert(.appleSpeech, at: 0)
-        }
-        return options
+    private static let downloadableOptions: [Self] = [
+        .parakeetTDTCTC110M, .qwen3ASR17B8bit, .parakeetUnified06B, .nemotronUnified06B,
+        .parakeetTDT06BV3, .whisperLargeV3Turbo, .mini3b8bit,
+    ]
+
+    public static var allCases: [Self] {
+        isAppleSpeechSupportedOnCurrentDevice ? [.appleSpeech] + downloadableOptions : downloadableOptions
     }
 
     public static let defaultOption: Self = .parakeetTDTCTC110M
@@ -235,25 +226,17 @@ public enum ModelOption: String, CaseIterable, Identifiable, Sendable {
     }
 
     public var requiresDownload: Bool {
-        switch self {
-        case .appleSpeech:
-            return false
-        case .parakeetUnified06B, .nemotronUnified06B, .parakeetTDT06BV3, .qwen3ASR17B8bit, .parakeetTDTCTC110M,
-             .whisperLargeV3Turbo, .mini3b8bit:
-            return true
-        }
+        self != .appleSpeech
     }
 
     public var supportedTranscriptionModes: [TranscriptionMode] {
         [.verbatim]
     }
 
-    /// Whether microphone audio can be transcribed before recording stops.
     public var supportsStreamingTranscription: Bool {
         self == .parakeetUnified06B || self == .nemotronUnified06B
     }
 
-    /// Whether the model can be told the spoken language instead of detecting it.
     public var supportsSpokenLanguageChoice: Bool {
         self == .qwen3ASR17B8bit || self == .whisperLargeV3Turbo
     }
@@ -271,62 +254,37 @@ public enum ModelOption: String, CaseIterable, Identifiable, Sendable {
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .lowercased()
 
+        if let option = Self(rawValue: normalized) {
+            return option == .appleSpeech && !isAppleSpeechSupportedOnCurrentDevice ? .defaultOption : option
+        }
+        if let option = downloadableOptions.first(where: {
+            $0 != .whisperLargeV3Turbo && $0.descriptor.repoID.lowercased() == normalized
+        }) {
+            return option
+        }
+
         switch normalized {
-        case Self.appleSpeech.rawValue,
-             "apple-speech-transcriber",
-             "speechtranscriber":
+        case "apple-speech-transcriber", "speechtranscriber":
             return isAppleSpeechSupportedOnCurrentDevice ? .appleSpeech : .defaultOption
-        case Self.qwen3ASR17B8bit.rawValue,
-             "qwen3-asr-1.7b",
-             "mlx-community/qwen3-asr-1.7b-8bit",
-             "qwen3-asr-0.6b-4bit",
-             "qwen3-asr-0.6b",
-             "mlx-community/qwen3-asr-0.6b-4bit",
-             "fluidinference/qwen3-asr-0.6b-coreml/f32",
+        case "qwen3-asr-1.7b", "qwen3-asr-0.6b-4bit", "qwen3-asr-0.6b",
+             "mlx-community/qwen3-asr-0.6b-4bit", "fluidinference/qwen3-asr-0.6b-coreml/f32",
              "fluidinference/qwen3-asr-0.6b-coreml/int8":
             return .qwen3ASR17B8bit
-        case Self.parakeetUnified06B.rawValue,
-             "fluidinference/parakeet-unified-en-0.6b-coreml":
-            return .parakeetUnified06B
-        case Self.nemotronUnified06B.rawValue,
-             "nemotron-unified",
-             "nvidia/nemotron-labs-unified-asr-0.6b",
-             "fluidinference/nemotron-labs-unified-asr-0.6b-coreml":
+        case "nemotron-unified", "nvidia/nemotron-labs-unified-asr-0.6b":
             return .nemotronUnified06B
-        case Self.parakeetTDT06BV3.rawValue,
-             "mlx-community/parakeet-tdt-0.6b-v3",
-             "fluidinference/parakeet-tdt-0.6b-v3-coreml":
+        case "mlx-community/parakeet-tdt-0.6b-v3":
             return .parakeetTDT06BV3
-        // Parakeet TDT v2 was replaced by Parakeet Unified.
-        case "parakeet",
-             "paracrete",
-             "parakeet-tdt",
-             "parakeet-tdt-0.6b",
-             "parakeet-tdt-0.6b-v2",
-             "fluidinference/parakeet-tdt-0.6b-v2-coreml",
-             "parakeet-ctc",
-             "parakeet-ctc-0.6b",
+        case "parakeet", "paracrete", "parakeet-tdt", "parakeet-tdt-0.6b", "parakeet-tdt-0.6b-v2",
+             "fluidinference/parakeet-tdt-0.6b-v2-coreml", "parakeet-ctc", "parakeet-ctc-0.6b",
              "mlx-community/parakeet-ctc-0.6b":
             return .parakeetUnified06B
-        case Self.parakeetTDTCTC110M.rawValue,
-             "parakeet-flash",
-             "parakeet-tdt-ctc-110m",
-             "fluidinference/parakeet-tdt-ctc-110m-coreml":
+        case "parakeet-flash":
             return .parakeetTDTCTC110M
-        case Self.whisperLargeV3Turbo.rawValue,
-             "whisper-large-v3-turbo-asr-fp16",
-             "whisper-large-v3",
-             "mlx-community/whisper-large-v3-turbo-asr-fp16",
-             "whisper-tiny",
-             "whisper-small",
-             "openai_whisper-small_216mb",
-             "whisper-tiny-mlx",
+        case "whisper-large-v3-turbo-asr-fp16", "whisper-large-v3", "mlx-community/whisper-large-v3-turbo-asr-fp16",
+             "whisper-tiny", "whisper-small", "openai_whisper-small_216mb", "whisper-tiny-mlx",
              "mlx-community/whisper-tiny-mlx":
             return .whisperLargeV3Turbo
-        case Self.mini3b8bit.rawValue,
-             "mlx-community/voxtral-mini-4b-realtime-2602-4bit",
-             "mini-3b",
-             "mlx-community/voxtral-mini-3b-2507-bf16":
+        case "mini-3b", "mlx-community/voxtral-mini-3b-2507-bf16":
             return .mini3b8bit
         default:
             return .defaultOption

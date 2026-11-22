@@ -37,28 +37,28 @@ public struct CLIUsageError: Error, Equatable, LocalizedError {
 }
 
 public extension CLICommand {
-    static let subcommands: Set<String> = ["transcribe", "models", "help"]
-
     /// Finder and Xcode launch the app with flags such as `-NSDocumentRevisionsDebugMode`, so only these first arguments start the CLI.
     static func isInvocation(_ arguments: [String]) -> Bool {
-        guard let first = arguments.first else { return false }
-        return subcommands.contains(first) || ["-h", "--help", "--version"].contains(first)
+        arguments.first.flatMap(Verb.init(rawValue:)) != nil
+    }
+
+    private enum Verb: String {
+        case help, shortHelp = "-h", longHelp = "--help", version = "--version", models, transcribe
     }
 
     static func parse(_ arguments: [String]) throws -> CLICommand {
         guard let first = arguments.first else { return .help }
+        guard let verb = Verb(rawValue: first) else { throw CLIUsageError("Unknown command '\(first)'.") }
         let rest = Array(arguments.dropFirst())
-        switch first {
-        case "help", "-h", "--help":
+        switch verb {
+        case .help, .shortHelp, .longHelp:
             return .help
-        case "--version":
+        case .version:
             return .version
-        case "models":
+        case .models:
             return try parseModels(rest)
-        case "transcribe":
+        case .transcribe:
             return try parseTranscribe(rest)
-        default:
-            throw CLIUsageError("Unknown command '\(first)'.")
         }
     }
 
@@ -113,9 +113,9 @@ public extension CLICommand {
             case "-h", "--help":
                 return .help
             default:
-                if let inline = inlineValue(argument, flags: ["--model"]) {
+                if let inline = inlineValue(argument, flag: "--model") {
                     modelID = inline
-                } else if let inline = inlineValue(argument, flags: ["--output"]) {
+                } else if let inline = inlineValue(argument, flag: "--output") {
                     outputPath = inline
                 } else if argument.hasPrefix("-") {
                     throw CLIUsageError("Unknown option '\(argument)' for 'transcribe'.")
@@ -131,11 +131,9 @@ public extension CLICommand {
         return .transcribe(TranscribeOptions(input: input, modelID: modelID, outputPath: outputPath, json: json))
     }
 
-    private static func inlineValue(_ argument: String, flags: [String]) -> String? {
-        for flag in flags where argument.hasPrefix(flag + "=") {
-            return String(argument.dropFirst(flag.count + 1))
-        }
-        return nil
+    private static func inlineValue(_ argument: String, flag: String) -> String? {
+        guard argument.hasPrefix(flag + "=") else { return nil }
+        return String(argument.dropFirst(flag.count + 1))
     }
 }
 

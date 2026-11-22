@@ -37,47 +37,16 @@ extension SystemContextClient: DependencyKey {
                 guard let pid = await MainActor.run(body: { NSWorkspace.shared.frontmostApplication?.processIdentifier }) else {
                     return nil
                 }
-                var window: CFTypeRef?
-                guard AXUIElementCopyAttributeValue(
-                    AXUIElementCreateApplication(pid),
-                    kAXFocusedWindowAttribute as CFString,
-                    &window
-                ) == .success,
-                    let window,
-                    CFGetTypeID(window) == AXUIElementGetTypeID()
-                else { return nil }
-                var title: CFTypeRef?
-                guard AXUIElementCopyAttributeValue(
-                    unsafeDowncast(window, to: AXUIElement.self),
-                    kAXTitleAttribute as CFString,
-                    &title
-                ) == .success,
-                    let title = (title as? String)?.trimmingCharacters(in: .whitespacesAndNewlines),
-                    !title.isEmpty
-                else { return nil }
-                return title
+                let window = AXUIElementCreateApplication(pid).element(for: kAXFocusedWindowAttribute)
+                let title = (window?.value(for: kAXTitleAttribute) as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
+                return title?.isEmpty == false ? title : nil
             },
             userFullName: { NSFullUserName() },
             clipboardText: {
                 await MainActor.run { NSPasteboard.general.string(forType: .string) }
             },
             selectedText: {
-                var focused: CFTypeRef?
-                guard AXUIElementCopyAttributeValue(
-                    AXUIElementCreateSystemWide(),
-                    kAXFocusedUIElementAttribute as CFString,
-                    &focused
-                ) == .success,
-                    let focused,
-                    CFGetTypeID(focused) == AXUIElementGetTypeID()
-                else { return nil }
-                var selected: CFTypeRef?
-                guard AXUIElementCopyAttributeValue(
-                    unsafeDowncast(focused, to: AXUIElement.self),
-                    kAXSelectedTextAttribute as CFString,
-                    &selected
-                ) == .success else { return nil }
-                return selected as? String
+                AXUIElementCreateSystemWide().element(for: kAXFocusedUIElementAttribute)?.value(for: kAXSelectedTextAttribute) as? String
             },
             screenshot: {
                 do {

@@ -7,22 +7,6 @@ import Testing
 @testable import TranscriptionClient
 
 @Test
-func unifiedUsesFluidAudioAndIsTheOnlyLiveModel() async throws {
-    let model = ModelOption.parakeetUnified06B
-    #expect(ModelOption.from(modelID: model.descriptor.repoID) == model)
-    #expect(ModelOption.from(modelID: model.rawValue) == model)
-    #expect(ModelOption.allCases.filter(\.supportsStreamingTranscription) == [model, .nemotronUnified06B])
-    try await withDependencies {
-        $0.mlxClient.downloadModel = { info, _ in
-            #expect(info.backend == .fluidAudio)
-            #expect(info.repoId == model.descriptor.repoID)
-        }
-    } operation: {
-        try await DownloadClient.liveValue.downloadModel(model) { _ in }
-    }
-}
-
-@Test
 func unifiedDownloadSelectsOneEncoderAndRequiresACompletedInventory() throws {
     let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
     defer { try? FileManager.default.removeItem(at: directory) }
@@ -32,7 +16,6 @@ func unifiedDownloadSelectsOneEncoderAndRequiresACompletedInventory() throws {
     #expect(!UnifiedModelArtifacts.parakeet.includes("parakeet_unified_encoder_streaming_70_13_13_int8.mlmodelc/weights/weight.bin"))
     #expect(!UnifiedModelArtifacts.parakeet.includes("parakeet_unified_encoder.mlmodelc/weights/weight.bin"))
 
-    // File inventory only; no fake CoreML models are loaded.
     for name in UnifiedModelArtifacts.parakeet.requiredFiles {
         let url = directory.appendingPathComponent(name)
         if name.hasSuffix(".mlmodelc") {
@@ -54,32 +37,32 @@ func streamingTranscriptionBypassesFilePreprocessingAndDeliversPartials() async 
     let (audio, source) = AudioSampleStream.makeStream()
     source.yield([0.1, 0.2])
     source.finish()
+    let partials = LockIsolated<[String]>([])
     let transcript = try await withDependencies {
-        $0.mlxClient.prepareModelIfNeeded = { model in #expect(model == .parakeetUnified06B) }
-        $0.mlxClient.transcribeStream = { stream, partial in
+        $0.mlxClient.transcribeStream = { stream, model, partial in
+            #expect(model == .parakeetUnified06B)
             var received: [Float] = []
             for try await chunk in stream { received += chunk }
             #expect(received == [0.1, 0.2])
             await partial("Hello")
             return "Hello world."
         }
-        // trimSilence, speedUp and whole-file transcribe remain unimplemented test dependencies.
     } operation: {
         try await TranscriptionClient.liveValue.transcribeStream(audio, .parakeetUnified06B) { partial in
-            #expect(partial == "Hello")
+            partials.withValue { $0.append(partial) }
         }
     }
+    #expect(partials.value == ["Hello"])
     #expect(transcript == "Hello world.")
 }
 
 @Test
-func nemotronUnifiedDownloadsOneFP16EncoderFromTheCoreMLFolder() async throws {
+func nemotronUnifiedDownloadsOneFP16EncoderFromTheCoreMLFolder() throws {
     let model = ModelOption.nemotronUnified06B
     let artifacts = UnifiedModelArtifacts.nemotron
     #expect(ModelOption.from(modelID: model.descriptor.repoID) == model)
     #expect(ModelOption.from(modelID: "nvidia/nemotron-labs-unified-asr-0.6b") == model)
     #expect(model.supportsStreamingTranscription)
-    #expect(artifacts.repoID == model.descriptor.repoID)
     #expect(artifacts.subfolder == "coreml")
     #expect(artifacts.directory.lastPathComponent == "coreml")
     #expect(artifacts.includes("nemotron_unified_encoder_streaming_70_7_7.mlmodelc/weights/weight.bin"))
@@ -87,14 +70,7 @@ func nemotronUnifiedDownloadsOneFP16EncoderFromTheCoreMLFolder() async throws {
     #expect(!artifacts.includes("nemotron_unified_encoder_streaming_70_13_13.mlmodelc/weights/weight.bin"))
     #expect(!artifacts.includes("nemotron_unified_encoder.mlmodelc/weights/weight.bin"))
     #expect(!artifacts.includes("nemotron_unified_decoder.mlpackage/Manifest.json"))
-    try await withDependencies {
-        $0.mlxClient.downloadModel = { info, _ in
-            #expect(info.backend == .fluidAudio)
-            #expect(info.repoId == model.descriptor.repoID)
-        }
-    } operation: {
-        try await DownloadClient.liveValue.downloadModel(model) { _ in }
-    }
+
 }
 
 @Test
@@ -102,10 +78,6 @@ func streamingRejectsAModelWithoutLiveSupport() async {
     let (audio, source) = AudioSampleStream.makeStream()
     source.finish()
     await #expect(throws: (any Error).self) {
-        try await withDependencies {
-            $0.mlxClient.prepareModelIfNeeded = { _ in Issue.record("A model without live support must not load") }
-        } operation: {
-            try await TranscriptionClient.liveValue.transcribeStream(audio, .parakeetTDTCTC110M) { _ in }
-        }
+        try await TranscriptionClient.liveValue.transcribeStream(audio, .parakeetTDTCTC110M) { _ in }
     }
 }

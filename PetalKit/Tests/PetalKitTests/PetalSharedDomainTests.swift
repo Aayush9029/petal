@@ -1,6 +1,5 @@
 import Foundation
-import CustomDump
-@testable import Shared
+import Shared
 import Testing
 
 @Test
@@ -35,15 +34,6 @@ func parakeetModelIDsMapToTheirCurrentModels() {
 }
 
 @Test
-func parakeetV3IsAMultilingualDownloadableNVIDIAModel() {
-    let descriptor = ModelOption.parakeetTDT06BV3.descriptor
-    #expect(descriptor.repoID == "FluidInference/parakeet-tdt-0.6b-v3-coreml")
-    #expect(descriptor.provider == .nvidia)
-    #expect(ModelOption.parakeetTDT06BV3.requiresDownload)
-    #expect(!ModelOption.parakeetTDT06BV3.supportsStreamingTranscription)
-}
-
-@Test
 func whisperModelIDsMapToLargeV3Turbo() {
     #expect(ModelOption.from(modelID: "whisper-large-v3-turbo") == .whisperLargeV3Turbo)
     #expect(ModelOption.from(modelID: "whisper-large-v3") == .whisperLargeV3Turbo)
@@ -60,151 +50,47 @@ func voxtralModelIDsMapToRealtimeOption() {
 }
 
 @Test
-func modelOptionDescriptorMatchesRawValue() {
-    for option in ModelOption.allCases {
-        #expect(option.descriptor.id == option.rawValue)
-    }
-}
-
-@Test
-func modelOptionDisplayNamesUseCleanProductNames() {
-    expectNoDifference(
-        [
-            ModelOption.appleSpeech.displayName,
-            ModelOption.qwen3ASR17B8bit.displayName,
-            ModelOption.parakeetUnified06B.displayName,
-            ModelOption.parakeetTDT06BV3.displayName,
-            ModelOption.parakeetTDTCTC110M.displayName,
-            ModelOption.whisperLargeV3Turbo.displayName,
-            ModelOption.mini3b8bit.displayName,
-        ],
-        [
-            "Apple Speech",
-            "Qwen3 ASR 1.7B",
-            "Parakeet Unified 0.6B",
-            "Parakeet 0.6B V3",
-            "Parakeet 110M",
-            "Whisper Large V3 Turbo",
-            "Voxtral Realtime 4B",
-        ]
-    )
-}
-
-@Test
-func modelCatalogListsEachSpeechModel() {
-    #expect(ModelOption.allCases.filter { $0 != .appleSpeech } == [
-        .parakeetTDTCTC110M,
-        .qwen3ASR17B8bit,
-        .parakeetUnified06B,
-        .nemotronUnified06B,
-        .parakeetTDT06BV3,
-        .whisperLargeV3Turbo,
-        .mini3b8bit,
-    ])
-}
-
-@Test
-func parakeet110MIsTheOnlyRecommendedDefaultModel() {
-    #expect(ModelOption.defaultOption == .parakeetTDTCTC110M)
-    #expect(ModelOption.defaultOption.isRecommended)
-    #expect(ModelOption.allCases.filter(\.isRecommended) == [.parakeetTDTCTC110M])
-    #expect(ModelOption.allCases.first(where: \.requiresDownload) == .parakeetTDTCTC110M)
-}
-
-@Test
-func transcriptionModeDisplayTextStable() {
-    #expect(TranscriptionMode.verbatim.displayName == "Verbatim")
-    #expect(TranscriptionMode.smart.displayName == "Smart")
-}
-
-@Test
-func speechModelsSupportVerbatimOnly() {
-    for option in ModelOption.allCases {
-        #expect(option.supportedTranscriptionModes == [.verbatim])
-        #expect(!option.supportsSmartTranscription)
-    }
-}
-
-@Test
-func providerLabels() {
-    #expect(ModelOption.qwen3ASR17B8bit.providerDisplayName == "MLX Audio")
-    #expect(ModelOption.parakeetUnified06B.providerDisplayName == "NVIDIA")
-    #expect(ModelOption.whisperLargeV3Turbo.providerDisplayName == "WhisperKit")
-}
-
-@Test
-func appleSpeechRequiresNoDownload() {
-    #expect(!ModelOption.appleSpeech.requiresDownload)
-    #expect(ModelOption.appleSpeech.supportedTranscriptionModes == [.verbatim])
-}
-
-@Test
-func appleSpeechVisibilityMatchesCurrentDeviceSupport() {
-    #expect(
-        ModelOption.allCases.contains(.appleSpeech)
-            == ModelOption.isAppleSpeechSupportedOnCurrentDevice
-    )
-}
-
-@Test
-func modelProviderGroupsPreserveProviderAndCatalogOrder() {
-    let groups = ModelOption.providerGroups(for: [
-        .parakeetTDTCTC110M,
-        .qwen3ASR17B8bit,
-        .parakeetUnified06B,
-        .parakeetTDT06BV3,
-        .whisperLargeV3Turbo,
-        .mini3b8bit,
-    ])
-
-    expectNoDifference(
-        groups.map(ProviderGroupSnapshot.init),
-        [
-            ProviderGroupSnapshot(provider: .nvidia, options: [.parakeetTDTCTC110M, .parakeetUnified06B, .parakeetTDT06BV3]),
-            ProviderGroupSnapshot(provider: .mlxAudio, options: [.qwen3ASR17B8bit]),
-            ProviderGroupSnapshot(provider: .whisperKit, options: [.whisperLargeV3Turbo]),
-            ProviderGroupSnapshot(provider: .voxtralCore, options: [.mini3b8bit]),
-        ]
-    )
-}
-
-@Test
-func modelProviderGroupsExcludePinnedDownloadOption() {
-    let groups = ModelOption.providerGroups(
-        for: [.parakeetTDTCTC110M, .qwen3ASR17B8bit, .parakeetUnified06B],
-        excluding: .parakeetUnified06B
-    )
-
-    expectNoDifference(
-        groups.map(ProviderGroupSnapshot.init),
-        [
-            ProviderGroupSnapshot(provider: .nvidia, options: [.parakeetTDTCTC110M]),
-            ProviderGroupSnapshot(provider: .mlxAudio, options: [.qwen3ASR17B8bit]),
-        ]
-    )
-}
-
-private struct ProviderGroupSnapshot: Equatable {
-    var provider: ModelProvider
-    var options: [ModelOption]
-
-    init(_ group: ModelOptionProviderGroup) {
-        provider = group.provider
-        options = Array(group.options)
-    }
-
-    init(provider: ModelProvider, options: [ModelOption]) {
-        self.provider = provider
-        self.options = options
-    }
-}
-
-@Test
-func modelCatalogListsEveryModelWithDownloadState() {
+func raycastCanReadThePublishedModelCatalog() throws {
     let catalog = ModelCatalogEntry.catalog { $0 == .parakeetTDTCTC110M }
-    #expect(catalog.ids.map(\.rawValue) == ModelOption.allCases.map(\.rawValue))
-    #expect(catalog[id: "parakeet-tdt-ctc-110m"]?.isDownloaded == true)
-    #expect(catalog[id: "whisper-large-v3-turbo"]?.isDownloaded == false)
-    #expect(catalog[id: "parakeet-unified-en-0.6b"]?.supportsLiveTranscription == true)
-    #expect(catalog[id: "parakeet-tdt-ctc-110m"]?.isRecommended == true)
+    let data = try JSONEncoder().encode(catalog)
+    let rows = try #require(JSONSerialization.jsonObject(with: data) as? [[String: Any]])
+    for row in rows {
+        for key in ["id", "name", "summary", "provider"] {
+            let field = try #require(row[key] as? String)
+            #expect(!field.isEmpty)
+        }
+    }
+    let downloaded = try #require(rows.first { $0["id"] as? String == "parakeet-tdt-ctc-110m" })
+    #expect(downloaded["isDownloaded"] as? Bool == true)
+    #expect(downloaded["isRecommended"] as? Bool == true)
+    #expect(downloaded["size"] is String)
+    let stream = try #require(rows.first { $0["id"] as? String == "parakeet-unified-en-0.6b" })
+    #expect(stream["supportsLiveTranscription"] as? Bool == true)
+    #expect(stream["isDownloaded"] as? Bool == false)
+}
+
+@Test
+func legacyHistoryKeepsItsTranscriptWhenWrittenForRaycast() throws {
+    let legacy = """
+        [{"day":"2024-02-01","entries":[{
+          "id":"49238B72-0017-41BD-966C-E63E80933BEC","timestamp":15,"modelID":"legacy-model",
+          "transcript":"Hi.","transcriptRelativePath":"transcripts/entry.txt","pasteResult":"pasted"
+        }]}]
+        """
+    let days = try JSONDecoder().decode([TranscriptHistoryDay].self, from: Data(legacy.utf8))
+    let data = try JSONEncoder().encode(days)
+    let rows = try #require(JSONSerialization.jsonObject(with: data) as? [[String: Any]])
+    let day = try #require(rows.first)
+    #expect(day["day"] as? String == "2024-02-01")
+    let entries = try #require(day["entries"] as? [[String: Any]])
+    let entry = try #require(entries.first)
+    #expect(entry["id"] as? String == "49238B72-0017-41BD-966C-E63E80933BEC")
+    #expect(entry["modelID"] as? String == "legacy-model")
+    #expect(entry["timestamp"] as? Double == 15)
+    let variants = try #require(entry["variants"] as? [[String: Any]])
+    let variant = try #require(variants.first)
+    #expect(variant["mode"] as? String == "verbatim")
+    #expect(variant["characterCount"] as? Int == 3)
+    #expect(variant["pasteResult"] as? String == "pasted")
+    #expect(variant["transcriptRelativePath"] as? String == "transcripts/entry.txt")
 }

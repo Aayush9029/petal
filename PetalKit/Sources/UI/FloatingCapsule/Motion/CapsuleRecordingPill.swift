@@ -6,14 +6,11 @@ enum CapsuleRecordingInteraction: Hashable {
     case confirmingCancel
     case submitted
 
-    /// The stop button splits off the pill while the pointer is over the capsule.
     var showsSecondary: Bool {
         self == .hovered || self == .confirmingCancel
     }
 }
 
-/// The recording pill of the stage capsule. The stop button lives in the
-/// secondary drop that splits off the pill, see ``CapsuleStage``.
 struct CapsuleRecordingPill: View {
     let level: Double
     let interaction: CapsuleRecordingInteraction
@@ -76,7 +73,6 @@ struct CapsuleRecordingPill: View {
         .accessibilityHint("Stops recording and starts transcription")
     }
 
-    /// A thin pane of glass: a faint top-lit fill and a hairline edge.
     private var thinGlass: some View {
         let lift = isTranscribeHovering ? 1.8 : 1.0
         return Squircle()

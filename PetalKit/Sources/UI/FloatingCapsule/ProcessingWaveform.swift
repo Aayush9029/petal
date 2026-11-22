@@ -1,8 +1,5 @@
 import SwiftUI
 
-/// A seamless, deterministic working loop used while Petal processes audio.
-/// Two counter-moving waves create a breathing ribbon without timers or
-/// mutable per-frame state.
 public struct ProcessingWaveform: View {
     private let bars: Int
     private let rows: Int
@@ -80,8 +77,6 @@ public struct ProcessingWaveform: View {
     }
 }
 
-/// The Apple Intelligence refinement state uses the same moving helix as
-/// transcription, but the helix itself masks the intelligence color field.
 public struct IntelligenceProcessingWaveform: View {
     private let bars: Int
     private let rows: Int

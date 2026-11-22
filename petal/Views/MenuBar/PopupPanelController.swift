@@ -2,12 +2,12 @@ import AppKit
 import SwiftUI
 
 @MainActor
-final class PopupPanelController {
+final class PopupPanelController: NSObject, NSWindowDelegate {
     static let contentWidth: CGFloat = 312
 
     private static let menuBarGap: CGFloat = 6
     private static let screenEdgeInset: CGFloat = 8
-    /// The status item click that dismisses the panel (via resign-key) must not also reopen it; anything inside this window is the tail of that same dismissal.
+    // AppKit delivers the status-item click after resign-key dismisses the panel.
     private static let reopenSuppression: TimeInterval = 0.25
 
     private let panel: PopupPanel
@@ -26,14 +26,15 @@ final class PopupPanelController {
     init<Content: View>(content: Content, onDismiss: @escaping () -> Void) {
         self.onDismiss = onDismiss
         self.hostingController = NSHostingController(rootView: AnyView(content))
-        hostingController.sizingOptions = [.preferredContentSize]
-
         panel = PopupPanel(
             contentRect: NSRect(x: 0, y: 0, width: Self.contentWidth, height: 400),
             styleMask: [.borderless, .nonactivatingPanel, .fullSizeContentView],
             backing: .buffered,
             defer: true
         )
+        super.init()
+
+        hostingController.sizingOptions = [.preferredContentSize]
         panel.contentViewController = hostingController
         panel.isOpaque = false
         panel.backgroundColor = .clear
@@ -43,21 +44,15 @@ final class PopupPanelController {
         panel.level = .popUpMenu
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .ignoresCycle]
         panel.animationBehavior = .utilityWindow
+        panel.delegate = self
+    }
 
-        NotificationCenter.default.addObserver(
-            forName: NSWindow.didResignKeyNotification,
-            object: panel,
-            queue: .main
-        ) { [weak self] _ in
-            MainActor.assumeIsolated { self?.dismiss() }
-        }
-        NotificationCenter.default.addObserver(
-            forName: NSWindow.didResizeNotification,
-            object: panel,
-            queue: .main
-        ) { [weak self] _ in
-            MainActor.assumeIsolated { self?.pinTopEdge() }
-        }
+    func windowDidResignKey(_ notification: Notification) {
+        dismiss()
+    }
+
+    func windowDidResize(_ notification: Notification) {
+        pinTopEdge()
     }
 
     func show(below anchor: NSRect) {
@@ -82,7 +77,7 @@ final class PopupPanelController {
         onDismiss()
     }
 
-    /// Growth must extend downward from the menu bar; AppKit otherwise keeps the bottom-left corner fixed and pushes the panel up under the status item.
+    // AppKit anchors resizing at the bottom left. Keep the top edge below the menu bar.
     private func pinTopEdge() {
         guard anchorFrame != .zero else { return }
         let size = panel.frame.size

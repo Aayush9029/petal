@@ -1,9 +1,6 @@
 import SwiftUI
 
-/// Draws the spine from the voice node through the router, and a branch to each route card.
-/// A soft highlight travels along the active branch.
 struct RouterFlowConnectors: View {
-    /// Route cards plus the add card, which is always last.
     let slotCount: Int
     let activeSlot: Int?
     var routeTint = Color.accentColor
@@ -25,7 +22,6 @@ struct RouterFlowConnectors: View {
         .accessibilityHidden(true)
     }
 
-    /// Stops the highlight while Settings is in the background.
     private var isAnimating: Bool {
         !reduceMotion && controlActiveState != .inactive
     }

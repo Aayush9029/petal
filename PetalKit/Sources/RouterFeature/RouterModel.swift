@@ -7,7 +7,6 @@ import FoundationModelClient
 import Observation
 import Shared
 
-/// Decides which instructions cleanup uses for each app and website, and edits them.
 @DebugSnapshot
 @MainActor
 @Observable
@@ -42,18 +41,20 @@ public final class RouterModel {
         case failed(String)
     }
 
-    @ObservationIgnored @Shared(.cleanupRoutes) public var routes: IdentifiedArrayOf<CleanupRoute> = []
-    @ObservationIgnored @Shared(.cleanupFallbackAction) public var fallbackAction: CleanupRoute.Action = .cleanUp
-    @ObservationIgnored @Shared(.cleanupModel) public var cleanupModel: CleanupModel = .off
-    @ObservationIgnored @Shared(.cloudSystemPrompt) public var cloudSystemPrompt: String = CloudPromptPreset.cleanUp.prompt
-    @ObservationIgnored @Shared(.smartPrompt) public var smartPrompt: String = TranscriptionMode.defaultSmartPrompt
+    @ObservationIgnored @Shared(.cleanupRoutes) public var routes: IdentifiedArrayOf<CleanupRoute>
+    @ObservationIgnored @Shared(.cleanupFallbackAction) public var fallbackAction: CleanupRoute.Action
+    @ObservationIgnored @Shared(.cleanupModel) public var cleanupModel: CleanupModel
+    @ObservationIgnored @Shared(.cloudSystemPrompt) public var cloudSystemPrompt: String
+    @ObservationIgnored @Shared(.smartPrompt) public var smartPrompt: String
 
     public var selection: Selection = .fallback
     public var destination: Destination?
-    /// Filters open apps and accepts a website address in the add popover.
     public var addRouteQuery: String = ""
     public var sampleTranscript: String = CloudPromptPreset.cleanUp.sampleTranscript
-    public var testRun: TestRun = .idle
+    public var testRun: TestRun = .idle {
+        didSet { testRunRevision += 1 }
+    }
+    @ObservationIgnored @DebugSnapshotIgnored private var testRunRevision = 0
     public private(set) var runningApps: [MacApp] = []
     /// The preset each prompt started from, so Reset returns there after the user edits it.
     public private(set) var basePresets: [Selection: CloudPromptPreset] = [:]
@@ -69,7 +70,6 @@ public final class RouterModel {
         self.cloud = cloud
     }
 
-    /// Apple Intelligence keeps its own tuned default, so the fallback edits a different prompt for it.
     public var fallbackUsesSmartPrompt: Bool {
         cleanupModel == .appleIntelligence
     }
@@ -79,7 +79,6 @@ public final class RouterModel {
         effectiveCleanupModel == .appleIntelligence || effectiveCleanupModel == .cloud
     }
 
-    /// The engine the selected route runs on: its own choice, or the one from Intelligence.
     public var effectiveCleanupModel: CleanupModel {
         selectedRoute?.cleanupModel ?? cleanupModel
     }
@@ -149,22 +148,18 @@ public final class RouterModel {
         selectedPrompt != resetPrompt
     }
 
-    /// Only cloud models read the tag. Petal adds the sentence anyway, so this is a hint, not an error.
     public var isTranscriptTagMissing: Bool {
         effectiveCleanupModel == .cloud && !CloudPromptTranscript.isMentioned(in: selectedPrompt)
     }
 
-    /// Engines that routes pick for themselves instead of the one chosen in Intelligence.
     public var routeCleanupModels: Set<CleanupModel> {
         Set(routes.filter { $0.action == .cleanUp }.compactMap(\.cleanupModel))
     }
 
-    /// Only a route can pick its own engine, and only while it cleans up.
     public var canPickCleanupModel: Bool {
         selectedRoute != nil && selectedAction == .cleanUp
     }
 
-    /// The selected route's own engine. `nil` uses the one chosen in Intelligence.
     public var selectedCleanupModel: CleanupModel? {
         get { selectedRoute?.cleanupModel }
         set {
@@ -188,25 +183,15 @@ public final class RouterModel {
         return addableRunningApps.filter { $0.name.localizedStandardContains(query) }
     }
 
-    /// Only text that looks like an address becomes a website, so typing an app name does not offer "slack" as a site.
     public var addRouteWebsite: String? {
         let query = addRouteQuery.trimmingCharacters(in: .whitespacesAndNewlines)
         guard query.contains(".") || query.lowercased().hasPrefix("localhost") else { return nil }
         return CleanupRoute.domain(from: query)
     }
 
-    /// Polls because the add menu has no open event, and launches and quits should show without reopening Settings.
     public func task() async {
-        while !Task.isCancelled {
-            let apps = applicationsClient.runningApplications()
-            if apps != runningApps {
-                runningApps = apps
-            }
-            do {
-                try await clock.sleep(for: .seconds(3))
-            } catch {
-                return
-            }
+        for await apps in applicationsClient.runningApplications() {
+            runningApps = apps
         }
     }
 
@@ -239,7 +224,6 @@ public final class RouterModel {
         addRoute(.website(domain))
     }
 
-    /// Return adds the website when the text is an address, or the only app that matches.
     public func addRouteSubmitted() {
         if addRouteWebsite != nil {
             websiteTapped()
@@ -303,8 +287,7 @@ public final class RouterModel {
     public func addTranscriptTagButtonTapped() {
         guard isTranscriptTagMissing else { return }
         updateSelection { _, prompt in
-            let trimmed = prompt.trimmingCharacters(in: .whitespacesAndNewlines)
-            prompt = trimmed.isEmpty ? CloudPromptTranscript.sentence : "\(trimmed)\n\n\(CloudPromptTranscript.sentence)"
+            prompt = CloudPromptTranscript.instructions(for: prompt).joined(separator: "\n\n")
         }
     }
 
@@ -312,33 +295,33 @@ public final class RouterModel {
         let transcript = sampleTranscript.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !transcript.isEmpty, canRunTest else { return }
         let prompt = selectedPrompt
-        switch effectiveCleanupModel {
-        case .cloud:
-            guard var configuration = cloud.configuration else {
-                testRun = .failed(cloud.provider.requiresAPIKey ? "Verify an API key first." : "Enter a server URL and a model first.")
-                return
-            }
-            configuration.systemPrompt = prompt
-            testRun = .running
-            do {
-                testRun = .finished(try await cloudCleanupClient.clean(transcript, configuration))
-            } catch {
-                testRun = .failed(error.localizedDescription)
-            }
-        case .appleIntelligence:
-            testRun = .running
-            do {
+        let engine = effectiveCleanupModel
+        testRun = .running
+        let revision = testRunRevision
+        let result: TestRun
+        do {
+            switch engine {
+            case .cloud:
+                guard var configuration = cloud.configuration else {
+                    testRun = .failed(cloud.provider.requiresAPIKey ? "Verify an API key first." : "Enter a server URL and a model first.")
+                    return
+                }
+                configuration.systemPrompt = prompt
+                result = .finished(try await cloudCleanupClient.clean(transcript, configuration))
+            case .appleIntelligence:
                 var text = ""
                 let elapsed = try await clock.measure {
                     text = try await foundationModelClient.refine(transcript, prompt)
                 }
-                testRun = .finished(CloudCleanupResult(text: text, elapsed: elapsed))
-            } catch {
-                testRun = .failed(error.localizedDescription)
+                result = .finished(CloudCleanupResult(text: text, elapsed: elapsed))
+            case .off, .petalW1:
+                return
             }
-        case .off, .petalW1:
-            return
+        } catch {
+            result = .failed(error.localizedDescription)
         }
+        guard testRunRevision == revision else { return }
+        testRun = result
     }
 
     private func select(_ selection: Selection) {

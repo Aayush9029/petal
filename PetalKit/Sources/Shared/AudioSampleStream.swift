@@ -1,3 +1,4 @@
-/// Ordered, owned 16 kHz mono Float32 PCM chunks. Finishing the stream marks
-/// the end of captured audio; a consumer must drain it before finalizing ASR.
+package let speechSampleRate = 16_000
+
+/// Consumers drain the mono PCM stream before finalizing recognition.
 public typealias AudioSampleStream = AsyncThrowingStream<[Float], any Error>

@@ -1,6 +1,6 @@
 import Foundation
 
-public enum JSONValue: Hashable, Sendable {
+enum JSONValue: Hashable, Sendable {
     case null
     case bool(Bool)
     case number(Double)
@@ -8,33 +8,28 @@ public enum JSONValue: Hashable, Sendable {
     case array([JSONValue])
     case object([String: JSONValue])
 
-    public subscript(key: String) -> JSONValue? {
+    subscript(key: String) -> JSONValue? {
         guard case let .object(object) = self else { return nil }
         return object[key]
     }
 
-    public subscript(index: Int) -> JSONValue? {
+    subscript(index: Int) -> JSONValue? {
         guard case let .array(array) = self, array.indices.contains(index) else { return nil }
         return array[index]
     }
 
-    public var stringValue: String? {
+    var stringValue: String? {
         guard case let .string(value) = self else { return nil }
         return value
     }
 
-    public var doubleValue: Double? {
+    var doubleValue: Double? {
         guard case let .number(value) = self else { return nil }
         return value
     }
 
-    public var arrayValue: [JSONValue]? {
+    var arrayValue: [JSONValue]? {
         guard case let .array(value) = self else { return nil }
-        return value
-    }
-
-    public var objectValue: [String: JSONValue]? {
-        guard case let .object(value) = self else { return nil }
         return value
     }
 
@@ -54,7 +49,7 @@ public enum JSONValue: Hashable, Sendable {
 }
 
 extension JSONValue: Codable {
-    public init(from decoder: any Decoder) throws {
+    init(from decoder: any Decoder) throws {
         let container = try decoder.singleValueContainer()
         if container.decodeNil() {
             self = .null
@@ -71,7 +66,7 @@ extension JSONValue: Codable {
         }
     }
 
-    public func encode(to encoder: any Encoder) throws {
+    func encode(to encoder: any Encoder) throws {
         var container = encoder.singleValueContainer()
         switch self {
         case .null: try container.encodeNil()
@@ -87,14 +82,14 @@ extension JSONValue: Codable {
 extension JSONValue: ExpressibleByNilLiteral, ExpressibleByBooleanLiteral, ExpressibleByIntegerLiteral,
     ExpressibleByFloatLiteral, ExpressibleByStringLiteral, ExpressibleByArrayLiteral, ExpressibleByDictionaryLiteral
 {
-    public init(nilLiteral: ()) { self = .null }
-    public init(booleanLiteral value: Bool) { self = .bool(value) }
-    public init(integerLiteral value: Int) { self = .number(Double(value)) }
-    public init(floatLiteral value: Double) { self = .number(value) }
-    public init(stringLiteral value: String) { self = .string(value) }
-    public init(arrayLiteral elements: JSONValue...) { self = .array(elements) }
+    init(nilLiteral: ()) { self = .null }
+    init(booleanLiteral value: Bool) { self = .bool(value) }
+    init(integerLiteral value: Int) { self = .number(Double(value)) }
+    init(floatLiteral value: Double) { self = .number(value) }
+    init(stringLiteral value: String) { self = .string(value) }
+    init(arrayLiteral elements: JSONValue...) { self = .array(elements) }
 
-    public init(dictionaryLiteral elements: (String, JSONValue)...) {
+    init(dictionaryLiteral elements: (String, JSONValue)...) {
         self = .object(Dictionary(elements) { $1 })
     }
 }

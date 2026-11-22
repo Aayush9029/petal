@@ -117,9 +117,7 @@ public extension SharedKey where Self == FileStorageKey<[TranscriptHistoryDay]>.
     static var transcriptHistoryDays: Self {
         Self[
             .fileStorage(
-                .documentsDirectory
-                    .appending(component: "petal")
-                    .appending(component: "history")
+                PetalPaths.history
                     .appending(component: "history.json")
             ),
             default: []
@@ -175,8 +173,7 @@ public extension SharedKey where Self == FileStorageKey<IdentifiedArrayOf<ModelC
     static var modelCatalog: Self {
         Self[
             .fileStorage(
-                .documentsDirectory
-                    .appending(component: "petal")
+                PetalPaths.documents
                     .appending(component: "model-catalog.json")
             ),
             default: []
@@ -188,8 +185,7 @@ public extension SharedKey where Self == FileStorageKey<IdentifiedArrayOf<Cleanu
     static var cleanupRoutes: Self {
         Self[
             .fileStorage(
-                .documentsDirectory
-                    .appending(component: "petal")
+                PetalPaths.documents
                     .appending(component: "cleanup-routes.json")
             ),
             default: []
@@ -198,7 +194,6 @@ public extension SharedKey where Self == FileStorageKey<IdentifiedArrayOf<Cleanu
 }
 
 public extension SharedKey where Self == AppStorageKey<CleanupRoute.Action>.Default {
-    /// What happens in apps and websites without their own route.
     static var cleanupFallbackAction: Self {
         Self[.appStorage("cleanup_fallback_action"), default: .cleanUp]
     }

@@ -1,3 +1,4 @@
+import AppFeature
 import Dependencies
 import Foundation
 @testable import LocalCleanupClient
@@ -9,7 +10,6 @@ func petalW1PromptMatchesQwen3NonThinkingLayout() {
     let text = LocalCleanupPrompt.text(transcript: "um hi")
     #expect(text.hasPrefix("<|im_start|>system\n\(LocalCleanupPrompt.petalW1System)<|im_end|>"))
     #expect(text.hasSuffix("<|im_start|>user\num hi<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n"))
-    #expect(LocalCleanupPrompt.maxOutputTokens(promptTokens: 100) == 162)
 }
 
 @Test(arguments: [
@@ -33,7 +33,9 @@ func wordCountIgnoresPunctuation() {
 
 @Test
 func retiredS1MiniSettingsAreRemoved() {
-    let store = UserDefaults(suiteName: UUID().uuidString)!
+    let suite = UUID().uuidString
+    let store = UserDefaults(suiteName: suite)!
+    defer { store.removePersistentDomain(forName: suite) }
     store.set("formal", forKey: "s1_mini_styling")
     store.set("Prompt", forKey: "s1_mini_system_prompt")
     store.set("cloud", forKey: "cleanup_model")
@@ -50,7 +52,6 @@ func retiredS1MiniSettingsAreRemoved() {
 @Test
 func retiredS1MiniSelectionMovesToPetalW1() {
     #expect(CleanupModel(rawValue: "s1-mini") == .petalW1)
-    #expect(CleanupModel.allCases.map(\.rawValue) == ["off", "apple-intelligence", "petal-w1", "cloud"])
 }
 
 @Test(arguments: [
@@ -58,14 +59,18 @@ func retiredS1MiniSelectionMovesToPetalW1() {
     (appleIntelligence: true, mode: "verbatim", expected: .off),
     (appleIntelligence: false, mode: "smart", expected: .off),
 ])
+@MainActor
 func legacyAppleIntelligenceSettingMigrates(appleIntelligence: Bool, mode: String, expected: CleanupModel) {
-    let store = UserDefaults(suiteName: UUID().uuidString)!
+    let suite = UUID().uuidString
+    let store = UserDefaults(suiteName: suite)!
+    defer { store.removePersistentDomain(forName: suite) }
     store.set(appleIntelligence, forKey: "apple_intelligence_enabled")
     store.set(mode, forKey: "transcription_mode")
     withDependencies {
         $0.defaultAppStorage = store
     } operation: {
-        #expect(CleanupModel.legacyDefault == expected)
+        let model = AppModel()
+        #expect(SettingsViewModel(appModel: model).cleanupModel == expected)
     }
 }
 

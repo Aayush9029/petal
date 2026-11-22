@@ -4,11 +4,13 @@ import Shared
 
 @MainActor
 final class LiveDoubleTapRuntime {
+    static let shared = LiveDoubleTapRuntime()
+
     private enum TapState {
         case idle
-        case firstTapDown(Date)
+        case firstTapDown
         case firstTapUp(Date)
-        case secondTapDown(Date)
+        case secondTapDown
     }
 
     private var eventTap: CFMachPort?
@@ -20,7 +22,6 @@ final class LiveDoubleTapRuntime {
     private var onKeyUp: (@Sendable () -> Void)?
 
     private var state: TapState = .idle
-    private var isSecondTapHeld = false
 
     func start(
         key: DoubleTapKey,
@@ -33,8 +34,6 @@ final class LiveDoubleTapRuntime {
         self.interval = interval
         self.onKeyDown = onKeyDown
         self.onKeyUp = onKeyUp
-        self.state = .idle
-        self.isSecondTapHeld = false
         installEventTap()
     }
 
@@ -51,14 +50,13 @@ final class LiveDoubleTapRuntime {
         onKeyDown = nil
         onKeyUp = nil
         state = .idle
-        isSecondTapHeld = false
     }
 
     private func installEventTap() {
         let userInfo = Unmanaged.passUnretained(self).toOpaque()
 
         let callback: CGEventTapCallBack = { _, type, event, userInfo in
-            guard let userInfo else { return Unmanaged.passRetained(event) }
+            guard let userInfo else { return Unmanaged.passUnretained(event) }
             let runtime = Unmanaged<LiveDoubleTapRuntime>.fromOpaque(userInfo)
                 .takeUnretainedValue()
 
@@ -66,11 +64,11 @@ final class LiveDoubleTapRuntime {
                 if let tap = runtime.eventTap {
                     CGEvent.tapEnable(tap: tap, enable: true)
                 }
-                return Unmanaged.passRetained(event)
+                return Unmanaged.passUnretained(event)
             }
 
             runtime.handleEvent(type: type, event: event)
-            return Unmanaged.passRetained(event)
+            return Unmanaged.passUnretained(event)
         }
 
         let eventMask: CGEventMask =
@@ -98,104 +96,50 @@ final class LiveDoubleTapRuntime {
 
     private func handleEvent(type: CGEventType, event: CGEvent) {
         guard let key = configuredKey else { return }
-        let now = Date()
-
+        let modifiers = event.flags.intersection([.maskCommand, .maskShift, .maskAlternate, .maskControl])
+        let isDown: Bool
         if key.isModifier {
-            guard type == .flagsChanged else {
-                // Another key type event — reset if we're waiting
+            guard type == .flagsChanged, modifiers.rawValue.nonzeroBitCount <= 1 else {
                 resetIfNotHeld()
                 return
             }
-            handleModifierEvent(event: event, key: key, now: now)
+            isDown = isModifierDown(flags: event.flags, keyCode: key.keyCode)
         } else {
-            guard type == .keyDown || type == .keyUp else {
-                // flagsChanged while waiting for regular key — reset (concurrent modifier)
-                if type == .flagsChanged, hasConcurrentModifiers(event: event) {
-                    resetIfNotHeld()
-                }
+            if type == .flagsChanged {
+                if !modifiers.isEmpty { resetIfNotHeld() }
                 return
             }
-            handleRegularKeyEvent(type: type, event: event, key: key, now: now)
-        }
-    }
-
-    private func handleModifierEvent(event: CGEvent, key: DoubleTapKey, now: Date) {
-        let flags = event.flags
-        let isDown = isModifierDown(flags: flags, keyCode: key.keyCode)
-        let hasConcurrent = hasConcurrentModifiersForModifier(flags: flags)
-
-        if hasConcurrent {
-            resetIfNotHeld()
-            return
+            guard event.getIntegerValueField(.keyboardEventKeycode) == key.keyCode else {
+                resetIfNotHeld()
+                return
+            }
+            isDown = type == .keyDown
+            if isDown, event.getIntegerValueField(.keyboardEventAutorepeat) != 0 { return }
         }
 
+        let now = Date()
         switch (state, isDown) {
         case (.idle, true):
-            state = .firstTapDown(now)
-
+            state = .firstTapDown
         case (.firstTapDown, false):
             state = .firstTapUp(now)
-
-        case let (.firstTapUp(firstUpTime), true):
-            if now.timeIntervalSince(firstUpTime) <= interval {
-                state = .secondTapDown(now)
-                isSecondTapHeld = true
+        case let (.firstTapUp(releasedAt), true):
+            if now.timeIntervalSince(releasedAt) <= interval {
+                state = .secondTapDown
                 onKeyDown?()
             } else {
-                state = .firstTapDown(now)
+                state = .firstTapDown
             }
-
         case (.secondTapDown, false):
-            isSecondTapHeld = false
-            onKeyUp?()
             state = .idle
-
-        default:
-            break
-        }
-    }
-
-    private func handleRegularKeyEvent(type: CGEventType, event: CGEvent, key: DoubleTapKey, now: Date) {
-        let eventKeyCode = Int(event.getIntegerValueField(.keyboardEventKeycode))
-        guard eventKeyCode == key.keyCode else {
-            resetIfNotHeld()
-            return
-        }
-
-        let isDown = type == .keyDown
-        // Ignore key-repeat events (auto-repeat)
-        if isDown, event.getIntegerValueField(.keyboardEventAutorepeat) != 0 {
-            return
-        }
-
-        switch (state, isDown) {
-        case (.idle, true):
-            state = .firstTapDown(now)
-
-        case (.firstTapDown, false):
-            state = .firstTapUp(now)
-
-        case let (.firstTapUp(firstUpTime), true):
-            if now.timeIntervalSince(firstUpTime) <= interval {
-                state = .secondTapDown(now)
-                isSecondTapHeld = true
-                onKeyDown?()
-            } else {
-                state = .firstTapDown(now)
-            }
-
-        case (.secondTapDown, false):
-            isSecondTapHeld = false
             onKeyUp?()
-            state = .idle
-
         default:
             break
         }
     }
 
     private func resetIfNotHeld() {
-        guard !isSecondTapHeld else { return }
+        if case .secondTapDown = state { return }
         state = .idle
     }
 
@@ -215,28 +159,4 @@ final class LiveDoubleTapRuntime {
             return false
         }
     }
-
-    private func hasConcurrentModifiersForModifier(flags: CGEventFlags) -> Bool {
-        var count = 0
-        if flags.contains(.maskCommand) { count += 1 }
-        if flags.contains(.maskShift) { count += 1 }
-        if flags.contains(.maskAlternate) { count += 1 }
-        if flags.contains(.maskControl) { count += 1 }
-        return count > 1
-    }
-
-    private func hasConcurrentModifiers(event: CGEvent) -> Bool {
-        let flags = event.flags
-        var count = 0
-        if flags.contains(.maskCommand) { count += 1 }
-        if flags.contains(.maskShift) { count += 1 }
-        if flags.contains(.maskAlternate) { count += 1 }
-        if flags.contains(.maskControl) { count += 1 }
-        return count > 0
-    }
-}
-
-@MainActor
-enum LiveDoubleTapRuntimeContainer {
-    static let shared = LiveDoubleTapRuntime()
 }

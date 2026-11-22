@@ -1,7 +1,5 @@
 import CoreGraphics
 
-/// Voice and the router sit on a center spine. Routes branch off it in two columns, left then right.
-/// The nodes and the connector canvas share these numbers, so each line ends on its card.
 enum RouterFlowLayout {
     static let nodeHeight: CGFloat = 46
     static let rowSpacing: CGFloat = 10
@@ -35,14 +33,12 @@ enum RouterFlowLayout {
         (width - spineGap) / 2
     }
 
-    /// Where a branch meets its card.
     static func edge(slot: Int, width: CGFloat) -> CGPoint {
         let column = columnWidth(in: width)
         let x = isLeft(slot: slot) ? column : column + spineGap
         return CGPoint(x: x, y: midY(slot: slot))
     }
 
-    /// Voice to router, down the spine, then a rounded turn into the card.
     static func activePath(slot: Int, width: CGFloat) -> CGPath {
         let spineX = width / 2
         let path = CGMutablePath()
@@ -52,7 +48,6 @@ enum RouterFlowLayout {
         return path
     }
 
-    /// Router to the card, with a rounded turn at the end.
     static func routePath(slot: Int, width: CGFloat) -> CGPath {
         let spineX = width / 2
         let end = edge(slot: slot, width: width)

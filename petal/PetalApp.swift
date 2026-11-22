@@ -1,3 +1,4 @@
+import AppFeature
 import Dependencies
 import Darwin
 import os
@@ -9,39 +10,20 @@ import WindowClient
 
 @MainActor
 struct PetalApp: App {
-    @State private var model: AppModel
-    @State private var menuBarViewModel: MenuBarContentViewModel
-    @State private var statusItemController: StatusItemController
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
-    private let logger = Logger(subsystem: "com.optimalapps.petal", category: "App")
 
     init() {
-        let appModel = AppModel()
-        let menuBarViewModel = MenuBarContentViewModel(appModel: appModel)
-        _model = State(initialValue: appModel)
-        _menuBarViewModel = State(initialValue: menuBarViewModel)
-        _statusItemController = State(initialValue: StatusItemController(viewModel: menuBarViewModel))
-        AppDelegate.bootstrapModel = appModel
-        AppDelegate.bootstrapMenuBarViewModel = menuBarViewModel
-
         guard SingleInstanceLock.shared.acquire() else {
             Logger(subsystem: "com.optimalapps.petal", category: "App")
                 .error("Another petal instance is already running. exiting duplicate process.")
             exit(0)
         }
         NSApplication.shared.setActivationPolicy(.accessory)
-        prepareDependencies { _ in }
-        logger.info("petal app initialized")
     }
 
     var body: some Scene {
         Settings {
             EmptyView()
-                .onAppear {
-                    _ = statusItemController
-                    appDelegate.model = model
-                    appDelegate.menuBarViewModel = menuBarViewModel
-                }
         }
         .commands {
             CommandGroup(replacing: .appInfo) {
@@ -51,13 +33,11 @@ struct PetalApp: App {
             }
             CommandGroup(replacing: .appSettings) {
                 Button("Settings…") {
-                    model.openSettingsWindow()
+                    appDelegate.model.openSettingsWindow()
                 }
                 .keyboardShortcut(",", modifiers: .command)
             }
         }
-
-
     }
 }
 
@@ -94,43 +74,43 @@ private final class SingleInstanceLock {
 }
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
-    static var bootstrapModel: AppModel?
-    static var bootstrapMenuBarViewModel: MenuBarContentViewModel?
+    private(set) lazy var model = AppModel(
+        isPreviewMode: ProcessInfo.processInfo.environment["XCODE_RUNNING_FOR_PREVIEWS"] == "1"
+    ) { [windowClient] appModel in
+        NSApp.setActivationPolicy(.regular)
+        Task {
+            await windowClient.show(.settings, {
+                let settings = withDependencies(from: appModel) { SettingsViewModel(appModel: appModel) }
+                return NSHostingView(rootView: SettingsView(viewModel: settings))
+            }, {
+                NSApp.setActivationPolicy(.accessory)
+            })
+        }
+    }
+    private lazy var menuBarViewModel = MenuBarContentViewModel(appModel: model)
+    private var statusItem: StatusItemController?
 
     private(set) lazy var updaterController = SPUStandardUpdaterController(
         startingUpdater: false,
         updaterDelegate: self,
         userDriverDelegate: nil
     )
-    weak var model: AppModel? {
-        didSet { flushPendingDeepLinksIfNeeded() }
-    }
-    weak var menuBarViewModel: MenuBarContentViewModel?
-    var updatesModel: CheckForUpdatesModel?
+    private lazy var updatesModel = CheckForUpdatesModel(updater: updaterController.updater)
     @Dependency(\.windowClient) private var windowClient
     @Dependency(\.playbackDuckingClient) private var playbackDuckingClient
     private let logger = Logger(subsystem: "com.optimalapps.petal", category: "AppDelegate")
-    private var pendingDeepLinkCommands: [PetalDeepLinkCommand] = []
-    private var pendingUpdateCheckFromDeepLink = false
     private var pendingUpdateInstall: (() -> Void)?
     private static let updateInstallRetryInterval: TimeInterval = 30
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        if model == nil, let bootstrapModel = Self.bootstrapModel {
-            model = bootstrapModel
-        }
-        if menuBarViewModel == nil, let bootstrapMenuBarViewModel = Self.bootstrapMenuBarViewModel {
-            menuBarViewModel = bootstrapMenuBarViewModel
-        }
-        configureUpdatesModelIfNeeded()
+        statusItem = StatusItemController(viewModel: menuBarViewModel)
+        Task { await model.appDidLaunch() }
         registerDeepLinkAppleEventHandler()
         logger.info("Registered deep link AppleEvent handler")
-        enforceSingleInstance()
         #if !DEBUG
         // Debug builds have build number 1, so Sparkle would install the release over them when they quit.
         updaterController.startUpdater()
         #endif
-        flushPendingUpdateCheckIfReady()
     }
 
     func applicationWillTerminate(_ notification: Notification) {
@@ -147,7 +127,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         for url in urls {
             guard let command = PetalDeepLinkCommand.parse(url) else { continue }
             logger.info("Parsed deep link from application(open:): \(command.rawValue, privacy: .public)")
-            handleOrQueueDeepLink(command)
+            handleDeepLink(command)
         }
     }
 
@@ -162,15 +142,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 NSApp.setActivationPolicy(.accessory)
             })
         }
-    }
-
-    private func enforceSingleInstance() {
-        guard let bundleIdentifier = Bundle.main.bundleIdentifier else { return }
-        let running = NSRunningApplication.runningApplications(withBundleIdentifier: bundleIdentifier)
-        guard running.count > 1 else { return }
-
-        logger.error("Detected multiple running instances. terminating pid=\(ProcessInfo.processInfo.processIdentifier, privacy: .public)")
-        NSApp.terminate(nil)
     }
 
     private func registerDeepLinkAppleEventHandler() {
@@ -189,67 +160,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
               let command = PetalDeepLinkCommand.parse(url)
         else { return }
         logger.info("Parsed deep link from kAEGetURL: \(command.rawValue, privacy: .public)")
-        handleOrQueueDeepLink(command)
+        handleDeepLink(command)
     }
 
-    private func handleOrQueueDeepLink(_ command: PetalDeepLinkCommand) {
+    private func handleDeepLink(_ command: PetalDeepLinkCommand) {
         if command == .checkForUpdates {
-            triggerUpdateCheckFromDeepLink()
-            return
-        }
-
-        guard let model else {
-            pendingDeepLinkCommands.append(command)
-            logger.debug("Queued deep link command because model is not ready: \(command.rawValue, privacy: .public)")
-            return
-        }
-        Task { @MainActor in
-            await model.handleDeepLink(command)
+            updatesModel.checkWhenReady()
+        } else {
+            Task { await model.handleDeepLink(command) }
         }
     }
 
-    private func flushPendingDeepLinksIfNeeded() {
-        guard let model, !pendingDeepLinkCommands.isEmpty else { return }
-        let queued = pendingDeepLinkCommands
-        pendingDeepLinkCommands.removeAll()
-        for command in queued {
-            Task { @MainActor in
-                await model.handleDeepLink(command)
-            }
-        }
-    }
-
-    private func triggerUpdateCheckFromDeepLink() {
-        pendingUpdateCheckFromDeepLink = true
-        flushPendingUpdateCheckIfReady()
-    }
-
-    private func configureUpdatesModelIfNeeded() {
-        guard updatesModel == nil else { return }
-        let updatesModel = CheckForUpdatesModel(updater: updaterController.updater)
-        self.updatesModel = updatesModel
-    }
-
-    private func flushPendingUpdateCheckIfReady(attempt: Int = 0) {
-        guard pendingUpdateCheckFromDeepLink else { return }
-        let updater = updaterController.updater
-        guard updater.canCheckForUpdates else {
-            guard attempt < 20 else {
-                logger.error("Dropping pending check-for-updates deep link because updater never became ready")
-                pendingUpdateCheckFromDeepLink = false
-                return
-            }
-
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { [weak self] in
-                self?.flushPendingUpdateCheckIfReady(attempt: attempt + 1)
-            }
-            return
-        }
-
-        pendingUpdateCheckFromDeepLink = false
-        logger.info("Triggering Sparkle update check from deep link")
-        updater.checkForUpdates()
-    }
 }
 
 extension AppDelegate: SPUUpdaterDelegate {
@@ -267,8 +188,8 @@ extension AppDelegate: SPUUpdaterDelegate {
 
     private func installPendingUpdateWhenIdle() {
         guard let install = pendingUpdateInstall else { return }
-        let hasOpenWindow = NSApp.activationPolicy() != .accessory || menuBarViewModel?.isPopupVisible == true
-        guard let model, model.isIdle, !hasOpenWindow else {
+        let hasOpenWindow = NSApp.activationPolicy() != .accessory || menuBarViewModel.isPopupVisible
+        guard model.isIdle, !hasOpenWindow else {
             DispatchQueue.main.asyncAfter(deadline: .now() + Self.updateInstallRetryInterval) { [weak self] in
                 self?.installPendingUpdateWhenIdle()
             }

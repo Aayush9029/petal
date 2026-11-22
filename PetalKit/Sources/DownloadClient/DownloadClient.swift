@@ -1,20 +1,6 @@
-import Dependencies
-import DependenciesMacros
 import Foundation
-import MLXClient
 import Shared
-
-public struct DownloadProgress: Sendable, Equatable {
-    public var fractionCompleted: Double
-    public var status: String
-    public var speedText: String?
-
-    public init(fractionCompleted: Double, status: String, speedText: String?) {
-        self.fractionCompleted = fractionCompleted
-        self.status = status
-        self.speedText = speedText
-    }
-}
+import VoxtralCore
 
 public enum DownloadClientFailure: LocalizedError, Sendable, Equatable {
     case paused
@@ -24,180 +10,67 @@ public enum DownloadClientFailure: LocalizedError, Sendable, Equatable {
 
     public var errorDescription: String? {
         switch self {
-        case .paused:
-            return "Download paused"
-        case .cancelled:
-            return "Download cancelled"
-        case .aria2BinaryMissing:
-            return "aria2c binary is missing from the app bundle or system PATH."
-        case let .failed(message):
-            return message
+        case .paused: "Download paused"
+        case .cancelled: "Download cancelled"
+        case .aria2BinaryMissing: "aria2c binary is missing from the app bundle or system PATH."
+        case let .failed(message): message
+        }
+    }
+
+    package init(_ error: ModelDownloaderError) {
+        switch error {
+        case .downloadPaused: self = .paused
+        case .downloadCancelled: self = .cancelled
+        case .aria2BinaryMissing: self = .aria2BinaryMissing
+        case let .downloadFailed(message): self = .failed(message)
+        case .modelNotFound: self = .failed(error.localizedDescription)
         }
     }
 }
 
 @DependencyClient
 public struct DownloadClient: Sendable {
-    public var isModelDownloaded: @Sendable (ModelOption) -> Bool = { _ in false }
-    public var downloadModel: @Sendable (ModelOption, @escaping @Sendable (DownloadProgress) -> Void) async throws -> Void
-    public var pauseDownload: @Sendable () -> Void = {}
-    public var cancelDownload: @Sendable () -> Void = {}
+    public var downloadModel: @MainActor @Sendable (ModelOption, @escaping @Sendable (ModelDownloadState.Progress) -> Void) async throws -> Void
+    public var pauseDownload: @MainActor @Sendable () -> Void = {}
+    public var cancelDownload: @MainActor @Sendable () -> Void = {}
     public var modelDirectoryURL: @Sendable (ModelOption) -> URL? = { _ in nil }
     public var deleteModel: @Sendable (ModelOption) async throws -> Void
+
+    public func isModelDownloaded(_ option: ModelOption) -> Bool {
+        !option.requiresDownload || modelDirectoryURL(option) != nil
+    }
 }
 
 extension DownloadClient: DependencyKey {
     public static var liveValue: Self {
         Self(
-            isModelDownloaded: { option in
-                if !option.requiresDownload {
-                    return true
-                }
-                @Dependency(\.mlxClient) var mlxClient
-                guard let info = option.mlxModelInfo else { return false }
-                return mlxClient.isModelDownloaded(info)
-            },
             downloadModel: { option, progress in
-                if !option.requiresDownload {
-                    progress(
-                        DownloadProgress(
-                            fractionCompleted: 1,
-                            status: "No download required for this model.",
-                            speedText: nil
-                        )
-                    )
+                guard let files = SpeechModelFiles(option) else {
+                    progress(.init(fraction: 1, statusText: "No download required for this model."))
                     return
                 }
-
-                @Dependency(\.mlxClient) var mlxClient
-                guard let info = option.mlxModelInfo else {
-                    throw DownloadClientFailure.failed("Selected model does not support downloads.")
-                }
-                do {
-                    try await mlxClient.downloadModel(info, { fractionCompleted, status in
-                        progress(
-                            DownloadProgress(
-                                fractionCompleted: min(max(fractionCompleted, 0), 1),
-                                status: status,
-                                speedText: speedText(from: status)
-                            )
-                        )
-                    })
-                } catch {
-                    throw DownloadClientFailure(error)
+                try await ModelTransfer.speech.run(progress: progress) { callback in
+                    try await files.download(repoID: option.descriptor.repoID, progress: callback)
                 }
             },
-            pauseDownload: {
-                @Dependency(\.mlxClient) var mlxClient
-                mlxClient.pauseDownload()
-            },
-            cancelDownload: {
-                @Dependency(\.mlxClient) var mlxClient
-                mlxClient.cancelDownload()
-            },
-            modelDirectoryURL: { option in
-                if !option.requiresDownload {
-                    return nil
-                }
-                @Dependency(\.mlxClient) var mlxClient
-                guard let info = option.mlxModelInfo else { return nil }
-                return mlxClient.modelDirectoryURL(info)
-            },
+            pauseDownload: { ModelTransfer.speech.pause() },
+            cancelDownload: { ModelTransfer.speech.cancel() },
+            modelDirectoryURL: { SpeechModelFiles($0)?.installedDirectory },
             deleteModel: { option in
-                if !option.requiresDownload {
-                    return
-                }
-                @Dependency(\.mlxClient) var mlxClient
-                guard let info = option.mlxModelInfo else { return }
-                try await mlxClient.deleteModel(info)
+                guard let files = SpeechModelFiles(option) else { return }
+                let directory = files.installedDirectory ?? files.directory
+                guard FileManager.default.fileExists(atPath: directory.path) else { return }
+                try FileManager.default.removeItem(at: directory)
             }
         )
     }
-}
 
-extension DownloadClient: TestDependencyKey {
-    public static var testValue: Self {
-        Self(
-            isModelDownloaded: { _ in false },
-            downloadModel: { _, _ in },
-            pauseDownload: {},
-            cancelDownload: {},
-            modelDirectoryURL: { _ in nil },
-            deleteModel: { _ in }
-        )
-    }
+    public static let testValue = Self()
 }
 
 public extension DependencyValues {
     var downloadClient: DownloadClient {
         get { self[DownloadClient.self] }
         set { self[DownloadClient.self] = newValue }
-    }
-}
-
-private func speedText(from status: String) -> String? {
-    guard let openingParen = status.lastIndex(of: "("), let closingParen = status.lastIndex(of: ")") else {
-        return nil
-    }
-    guard openingParen < closingParen else { return nil }
-    let candidate = status[status.index(after: openingParen)..<closingParen]
-    let speed = String(candidate)
-    return speed.hasSuffix("/s") ? speed : nil
-}
-
-private extension DownloadClientFailure {
-    init(_ error: any Error) {
-        if let failure = error as? DownloadClientFailure {
-            self = failure
-            return
-        }
-
-        if let mlxFailure = error as? MLXDownloadError {
-            switch mlxFailure {
-            case .paused:
-                self = .paused
-            case .cancelled:
-                self = .cancelled
-            case .aria2BinaryMissing:
-                self = .aria2BinaryMissing
-            case let .failed(message):
-                self = .failed(message)
-            }
-            return
-        }
-
-        self = .failed(error.localizedDescription)
-    }
-}
-
-private extension ModelOption {
-    var mlxModelInfo: MLXModelInfo? {
-        guard requiresDownload else { return nil }
-        let descriptor = descriptor
-        return MLXModelInfo(
-            id: descriptor.id,
-            repoId: descriptor.repoID,
-            name: descriptor.name,
-            summary: descriptor.summary,
-            size: descriptor.size,
-            quantization: descriptor.quantization,
-            parameters: descriptor.parameters,
-            backend: mlxBackend,
-            recommended: descriptor.recommended
-        )
-    }
-
-    var mlxBackend: MLXModelBackend {
-        switch self {
-        case .appleSpeech:
-            // Apple Speech is handled outside MLX download/runtime paths.
-            return .fluidAudio
-        case .mini3b8bit, .qwen3ASR17B8bit:
-            return .voxtral
-        case .parakeetUnified06B, .nemotronUnified06B, .parakeetTDT06BV3, .parakeetTDTCTC110M:
-            return .fluidAudio
-        case .whisperLargeV3Turbo:
-            return .whisperKit
-        }
     }
 }

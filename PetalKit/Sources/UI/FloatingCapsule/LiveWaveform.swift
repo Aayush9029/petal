@@ -1,8 +1,5 @@
 import SwiftUI
 
-/// A continuously sampled microphone waveform. Its animation task is tied to
-/// the view's lifetime instead of to the incoming level value, so frequent
-/// observation updates cannot reset or stall the sampling cadence.
 public struct LiveWaveform: View {
     private let level: Double
     private let bars: Int

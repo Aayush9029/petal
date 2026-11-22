@@ -26,7 +26,7 @@ struct CleanupPage: View {
         }
         .animation(.smooth(duration: 0.25), value: model.cleanupModel)
         .onAppear { isAnimating = true }
-        .task { model.cleanupDownloads.task() }
+        .task { model.cleanupDownload.task() }
     }
 
     private var cards: some View {
@@ -47,9 +47,9 @@ struct CleanupPage: View {
 
     @ViewBuilder
     private var localModelDetails: some View {
-        if let download = model.cleanupDownloads[model.cleanupModel] {
+        if model.cleanupModel.isLocal {
             HStack(spacing: 16) {
-                Text(status(download))
+                Text(status(model.cleanupDownload))
                     .font(.callout)
                     .foregroundStyle(.secondary)
                     .monospacedDigit()

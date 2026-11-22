@@ -26,14 +26,14 @@ public final class CloudCleanupModel {
         case failed(String)
     }
 
-    @ObservationIgnored @Shared(.cloudProvider) public var provider: CloudProvider = .openAI
-    @ObservationIgnored @Shared(.cloudCustomBaseURL) public var customBaseURL: String = ""
-    @ObservationIgnored @Shared(.cloudSystemPrompt) public var systemPrompt: String = CloudPromptPreset.cleanUp.prompt
-    @ObservationIgnored @Shared(.cloudDateTimeToolEnabled) public var dateTimeToolEnabled: Bool = false
-    @ObservationIgnored @Shared(.cloudWebSearchEnabled) public var webSearchEnabled: Bool = false
-    @ObservationIgnored @Shared(.cloudClipboardToolEnabled) public var clipboardToolEnabled: Bool = false
-    @ObservationIgnored @Shared(.cloudSelectedTextToolEnabled) public var selectedTextToolEnabled: Bool = false
-    @ObservationIgnored @Shared(.cloudScreenToolEnabled) public var screenToolEnabled: Bool = false
+    @ObservationIgnored @Shared(.cloudProvider) public var provider: CloudProvider
+    @ObservationIgnored @Shared(.cloudCustomBaseURL) public var customBaseURL: String
+    @ObservationIgnored @Shared(.cloudSystemPrompt) public var systemPrompt: String
+    @ObservationIgnored @Shared(.cloudDateTimeToolEnabled) public var dateTimeToolEnabled: Bool
+    @ObservationIgnored @Shared(.cloudWebSearchEnabled) public var webSearchEnabled: Bool
+    @ObservationIgnored @Shared(.cloudClipboardToolEnabled) public var clipboardToolEnabled: Bool
+    @ObservationIgnored @Shared(.cloudSelectedTextToolEnabled) public var selectedTextToolEnabled: Bool
+    @ObservationIgnored @Shared(.cloudScreenToolEnabled) public var screenToolEnabled: Bool
     @ObservationIgnored @Shared(.cloudModel(.openAI)) private var openAIModelID: CloudModel.ID
     @ObservationIgnored @Shared(.cloudModel(.anthropic)) private var anthropicModelID: CloudModel.ID
     @ObservationIgnored @Shared(.cloudModel(.openRouter)) private var openRouterModelID: CloudModel.ID
@@ -41,12 +41,16 @@ public final class CloudCleanupModel {
 
     public var apiKey: String = "" {
         didSet {
-            guard apiKey != oldValue, !verification.is(\.verifying) else { return }
+            guard apiKey != oldValue else { return }
             verification = .idle
         }
     }
 
-    public var verification: Verification = .idle
+    public var verification: Verification = .idle {
+        didSet { verificationRevision += 1 }
+    }
+    @ObservationIgnored @DebugSnapshotIgnored private var verificationRevision = 0
+    @ObservationIgnored @DebugSnapshotIgnored private var catalogRevisions: [CloudProvider: Int] = [:]
     public private(set) var savedKeys: [CloudProvider: String] = [:]
     public private(set) var modelLists: [CloudProvider: ModelList] = [:]
     public private(set) var hasScreenRecordingPermission = false
@@ -59,11 +63,15 @@ public final class CloudCleanupModel {
     public init() {}
 
     public var modelID: CloudModel.ID {
+        modelSelection.wrappedValue
+    }
+
+    private var modelSelection: Shared<CloudModel.ID> {
         switch provider {
-        case .openAI: openAIModelID
-        case .anthropic: anthropicModelID
-        case .openRouter: openRouterModelID
-        case .custom: customModelID
+        case .openAI: $openAIModelID
+        case .anthropic: $anthropicModelID
+        case .openRouter: $openRouterModelID
+        case .custom: $customModelID
         }
     }
 
@@ -119,11 +127,7 @@ public final class CloudCleanupModel {
     }
 
     public var isConfigured: Bool {
-        guard !modelID.rawValue.trimmed.isEmpty else { return false }
-        switch provider {
-        case .custom: return !customBaseURL.trimmed.isEmpty
-        case .openAI, .anthropic, .openRouter: return hasSavedKey
-        }
+        configuration(apiKey: savedKeys[provider] ?? "") != nil
     }
 
     public var tools: Set<CloudTool> {
@@ -131,19 +135,22 @@ public final class CloudCleanupModel {
     }
 
     public func isToolEnabled(_ tool: CloudTool) -> Bool {
+        setting(for: tool).wrappedValue
+    }
+
+    private func setting(for tool: CloudTool) -> Shared<Bool> {
         switch tool {
-        case .dateTime: dateTimeToolEnabled
-        case .webSearch: webSearchEnabled
-        case .clipboard: clipboardToolEnabled
-        case .selectedText: selectedTextToolEnabled
-        case .screen: screenToolEnabled
+        case .dateTime: $dateTimeToolEnabled
+        case .webSearch: $webSearchEnabled
+        case .clipboard: $clipboardToolEnabled
+        case .selectedText: $selectedTextToolEnabled
+        case .screen: $screenToolEnabled
         }
     }
 
     public func isToolAvailable(_ tool: CloudTool) -> Bool {
         switch tool {
-        case .webSearch: provider.supportsWebSearch
-        case .screen: provider.supportsScreenshots
+        case .webSearch, .screen: provider != .custom
         case .dateTime, .clipboard, .selectedText: true
         }
     }
@@ -163,7 +170,7 @@ public final class CloudCleanupModel {
         apiKey = savedKeys[provider] ?? ""
     }
 
-    /// Checks again each second while Screen is on without access, so the row updates as soon as the user allows Petal in System Settings.
+    // Screen Recording has no permission-change notification.
     public func screenRecordingPermissionTask() async {
         guard screenToolEnabled else { return }
         hasScreenRecordingPermission = await permissionsClient.hasScreenRecordingPermission()
@@ -194,21 +201,25 @@ public final class CloudCleanupModel {
         }
 
         verification = .verifying
+        let revision = verificationRevision
+        let connection = connection(apiKey: key)
+        func isCurrent() -> Bool {
+            verificationRevision == revision && self.connection(apiKey: apiKey.trimmed) == connection
+        }
         do {
-            try await cloudCleanupClient.verifyKey(
-                CloudConnection(provider: provider, apiKey: key, baseURL: customBaseURL.trimmed)
-            )
+            try await cloudCleanupClient.verifyKey(connection)
+            guard isCurrent() else { return }
             try save(key: key, for: provider)
         } catch {
-            guard provider == self.provider else { return }
+            guard isCurrent() else { return }
             verification = .failed(error.localizedDescription)
             return
         }
 
-        guard provider == self.provider else { return }
-        await loadModels(force: true)
+        await loadModels()
+        guard isCurrent() else { return }
         if provider == .custom, modelID.rawValue.trimmed.isEmpty, case let .loaded(models) = modelList, let first = models.first {
-            setModelID(first.id, for: provider)
+            modelSelection.withLock { $0 = first.id }
         }
         guard let configuration = configuration(apiKey: key) else {
             verification = .failed("The key works. Choose a model to finish.")
@@ -216,21 +227,17 @@ public final class CloudCleanupModel {
         }
         do {
             try await cloudCleanupClient.checkModel(configuration)
-            guard provider == self.provider else { return }
+            guard isCurrent() else { return }
             verification = .verified
         } catch {
-            guard provider == self.provider else { return }
+            guard isCurrent() else { return }
             verification = .failed("The key works, but \(configuration.model) did not answer. \(error.localizedDescription)")
         }
     }
 
     public func removeKeyButtonTapped() {
         do {
-            try keychainClient.delete(provider.keychainAccount)
-            savedKeys[provider] = nil
-            if provider.requiresAPIKey {
-                modelLists[provider] = nil
-            }
+            try save(key: "", for: provider)
             apiKey = ""
             verification = .idle
         } catch {
@@ -239,62 +246,50 @@ public final class CloudCleanupModel {
     }
 
     public func modelPickerOpened() async {
-        await loadModels(force: false)
+        guard !modelList.is(\.loaded), !modelList.is(\.loading) else { return }
+        await loadModels()
     }
 
     public func reloadModelsButtonTapped() async {
-        await loadModels(force: true)
+        await loadModels()
     }
 
     public func modelSelected(_ id: CloudModel.ID) {
         let id = CloudModel.ID(rawValue: id.rawValue.trimmed)
         guard !id.rawValue.isEmpty else { return }
-        setModelID(id, for: provider)
+        modelSelection.withLock { $0 = id }
         verification = .idle
     }
 
     public func toolToggled(_ tool: CloudTool, isOn: Bool) {
-        switch tool {
-        case .dateTime: $dateTimeToolEnabled.withLock { $0 = isOn }
-        case .webSearch: $webSearchEnabled.withLock { $0 = isOn }
-        case .clipboard: $clipboardToolEnabled.withLock { $0 = isOn }
-        case .selectedText: $selectedTextToolEnabled.withLock { $0 = isOn }
-        case .screen:
-            $screenToolEnabled.withLock { $0 = isOn }
-            if isOn, !hasScreenRecordingPermission {
-                hasScreenRecordingPermission = permissionsClient.requestScreenRecordingPermission()
-            }
+        setting(for: tool).withLock { $0 = isOn }
+        if tool == .screen, isOn, !hasScreenRecordingPermission {
+            hasScreenRecordingPermission = permissionsClient.requestScreenRecordingPermission()
         }
     }
 
-    private func loadModels(force: Bool) async {
+    private func loadModels() async {
         let provider = provider
-        if !force, modelLists[provider]?.is(\.loaded) == true || modelLists[provider]?.is(\.loading) == true {
+        let connection = connection(apiKey: savedKeys[provider] ?? "")
+        if provider == .custom, connection.baseURL.isEmpty {
+            modelLists[provider] = .failed("Enter a server URL to see its models.")
             return
         }
-        let connection: CloudConnection
-        switch provider {
-        case .openAI, .anthropic:
-            guard let key = savedKeys[provider] else {
-                modelLists[provider] = .failed("Verify your API key to see every model.")
-                return
-            }
-            connection = CloudConnection(provider: provider, apiKey: key)
-        case .openRouter:
-            connection = CloudConnection(provider: provider, apiKey: savedKeys[provider] ?? "")
-        case .custom:
-            guard !customBaseURL.trimmed.isEmpty else {
-                modelLists[provider] = .failed("Enter a server URL to see its models.")
-                return
-            }
-            connection = CloudConnection(provider: provider, apiKey: savedKeys[provider] ?? "", baseURL: customBaseURL.trimmed)
+        if provider != .openRouter, provider.requiresAPIKey, connection.apiKey.isEmpty {
+            modelLists[provider] = .failed("Verify your API key to see every model.")
+            return
         }
+        catalogRevisions[provider, default: 0] += 1
+        let revision = catalogRevisions[provider]
         modelLists[provider] = .loading
+        let result: ModelList
         do {
-            modelLists[provider] = .loaded(try await cloudCleanupClient.availableModels(connection))
+            result = .loaded(try await cloudCleanupClient.availableModels(connection))
         } catch {
-            modelLists[provider] = .failed(error.localizedDescription)
+            result = .failed(error.localizedDescription)
         }
+        guard catalogRevisions[provider] == revision, modelLists[provider]?.is(\.loading) == true else { return }
+        modelLists[provider] = result
     }
 
     private func configuration(apiKey: String) -> CloudCleanupConfiguration? {
@@ -302,29 +297,28 @@ public final class CloudCleanupModel {
         guard !model.rawValue.isEmpty, !provider.requiresAPIKey || !apiKey.isEmpty else { return nil }
         if provider == .custom, customBaseURL.trimmed.isEmpty { return nil }
         return CloudCleanupConfiguration(
-            connection: CloudConnection(provider: provider, apiKey: apiKey, baseURL: customBaseURL.trimmed),
+            connection: connection(apiKey: apiKey),
             model: model,
             systemPrompt: systemPrompt,
             tools: tools
         )
     }
 
-    private func setModelID(_ id: CloudModel.ID, for provider: CloudProvider) {
-        switch provider {
-        case .openAI: $openAIModelID.withLock { $0 = id }
-        case .anthropic: $anthropicModelID.withLock { $0 = id }
-        case .openRouter: $openRouterModelID.withLock { $0 = id }
-        case .custom: $customModelID.withLock { $0 = id }
-        }
+    private func connection(apiKey: String) -> CloudConnection {
+        CloudConnection(provider: provider, apiKey: apiKey, baseURL: provider == .custom ? customBaseURL.trimmed : "")
     }
 
     private func save(key: String, for provider: CloudProvider) throws {
+        let previousKey = savedKeys[provider]
         if key.isEmpty {
             try keychainClient.delete(provider.keychainAccount)
             savedKeys[provider] = nil
         } else {
             try keychainClient.setString(key, provider.keychainAccount)
             savedKeys[provider] = key
+        }
+        if savedKeys[provider] != previousKey {
+            modelLists[provider] = nil
         }
     }
 }

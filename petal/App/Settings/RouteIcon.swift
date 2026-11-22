@@ -1,7 +1,6 @@
 import Shared
 import SwiftUI
 
-/// `nil` is the fallback route for every other app.
 struct RouteIcon: View {
     let trigger: CleanupRoute.Trigger?
     var size: CGFloat = 26

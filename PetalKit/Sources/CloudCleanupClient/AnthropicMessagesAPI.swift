@@ -3,7 +3,6 @@ import Shared
 
 struct AnthropicMessagesAPI: CloudChatAPI {
     static let endpoint = URL(string: "https://api.anthropic.com/v1/messages")!
-    static let version = "2023-06-01"
     static let fallbackBeta = "server-side-fallback-2026-07-01"
 
     static let fallbackModels: Set<CloudModel.ID> = ["claude-fable-5-1", "claude-opus-5-5", "claude-opus-5", "claude-sonnet-5-5"]
@@ -13,13 +12,14 @@ struct AnthropicMessagesAPI: CloudChatAPI {
     var transcript: String
     var screenshot: Data?
     var messages: [JSONValue]
-    var usesFallbacks = true
+    var usesFallbacks: Bool
 
     init(configuration: CloudCleanupConfiguration, system: String, transcript: String, screenshot: Data? = nil) {
         self.configuration = configuration
         self.system = system
         self.transcript = transcript
         self.screenshot = screenshot
+        usesFallbacks = Self.fallbackModels.contains(configuration.model)
         messages = [Self.userMessage(transcript, screenshot: screenshot)]
     }
 
@@ -72,10 +72,7 @@ struct AnthropicMessagesAPI: CloudChatAPI {
 
     func request() throws -> URLRequest {
         try configuration.connection.requireAPIKey()
-        var headers = [
-            "x-api-key": configuration.connection.apiKey,
-            "anthropic-version": Self.version,
-        ]
+        var headers = configuration.connection.authenticationHeaders
         var body: [String: JSONValue] = [
             "model": .string(configuration.model.rawValue),
             "max_tokens": 16000,
@@ -85,7 +82,7 @@ struct AnthropicMessagesAPI: CloudChatAPI {
         if Self.isCurrentGeneration(configuration.model) {
             body["output_config"] = ["effort": "low"]
         }
-        if usesFallbacks, Self.fallbackModels.contains(configuration.model) {
+        if usesFallbacks {
             body["fallbacks"] = "default"
             headers["anthropic-beta"] = Self.fallbackBeta
         }
@@ -120,7 +117,7 @@ struct AnthropicMessagesAPI: CloudChatAPI {
                       let id = block["id"]?.stringValue,
                       let name = block["name"]?.stringValue
                 else { return nil }
-                return CloudToolCall(id: CloudToolCall.ID(rawValue: id), name: name, arguments: (block["input"] ?? [:]).encodedString())
+                return CloudToolCall(id: CloudToolCall.ID(rawValue: id), name: name)
             }
             if !calls.isEmpty {
                 return .toolCalls(calls)
@@ -141,7 +138,6 @@ struct AnthropicMessagesAPI: CloudChatAPI {
             .joined()
     }
 
-    /// Server-side fallback is a beta, and some models cannot read images, so a request that the API rejects for either goes again without it.
     mutating func adapt(to error: CloudCleanupError) -> Bool {
         if usesFallbacks, case let .http(400, message) = error, message?.localizedCaseInsensitiveContains("fallback") == true {
             usesFallbacks = false

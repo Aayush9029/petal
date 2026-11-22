@@ -1,4 +1,3 @@
-import AVFoundation
 import Darwin
 import Dependencies
 import DownloadClient
@@ -9,10 +8,6 @@ import Synchronization
 import TranscriptionClient
 
 public enum PetalCLI {
-    public static func isInvocation(_ arguments: [String]) -> Bool {
-        CLICommand.isInvocation(arguments)
-    }
-
     /// Speech libraries print to stdout, so the transcript goes to a copy of the original stdout and fd 1 points at stderr.
     @MainActor
     public static func runAndExit(_ arguments: [String], version: String) -> Never {
@@ -56,8 +51,6 @@ public enum PetalCLI {
         }
     }
 
-    // MARK: - Models
-
     static func modelsReport(json: Bool) throws -> String {
         @Dependency(\.downloadClient) var downloadClient
         let defaultModel = try? defaultModel()
@@ -67,7 +60,7 @@ public enum PetalCLI {
                 name: option.displayName,
                 provider: option.providerDisplayName,
                 size: option.sizeLabel,
-                downloaded: !option.requiresDownload || downloadClient.isModelDownloaded(option),
+                downloaded: downloadClient.isModelDownloaded(option),
                 isDefault: option == defaultModel
             )
         }
@@ -123,8 +116,6 @@ public enum PetalCLI {
         )
     }
 
-    // MARK: - Transcribe
-
     static func transcribe(_ options: TranscribeOptions, output: Int32) async throws {
         @Dependency(\.transcriptionClient) var transcriptionClient
 
@@ -138,15 +129,21 @@ public enum PetalCLI {
         try Task.checkCancellation()
 
         status.show("Reading \(sourceURL.lastPathComponent)…")
-        let audioURL = try await normalizedAudio(from: sourceURL)
+        let audioURL = TemporaryFiles.makeURL(pathExtension: "wav")
+        do {
+            try await transcriptionClient.importAudio(sourceURL, audioURL)
+        } catch AudioImportError.unreadable {
+            throw CLIFailure("Cannot read '\(sourceURL.lastPathComponent)' as audio.")
+        }
         let duration = transcriptionClient.audioDurationSeconds(audioURL)
         try Task.checkCancellation()
 
         status.show("Transcribing \(formattedDuration(duration)) of audio with \(model.displayName)…")
-        let text = try await transcriptionClient.transcribe(audioURL, model, .verbatim, nil)
+        let text = try await transcriptionClient.transcribe(audioURL, model)
             .trimmingCharacters(in: .whitespacesAndNewlines)
         try Task.checkCancellation()
         status.clear()
+        guard !text.isEmpty else { throw CLIFailure("No speech detected.") }
 
         let result: String
         if options.json {
@@ -195,36 +192,9 @@ public enum PetalCLI {
         }
     }
 
-    /// Matches the app's file import: decode any AVFoundation format to PCM, so each backend gets a plain file.
-    static func normalizedAudio(from sourceURL: URL) async throws -> URL {
-        let outputURL = TemporaryFiles.makeURL(pathExtension: "wav")
-        try await Task.detached(priority: .userInitiated) {
-            let input: AVAudioFile
-            do {
-                input = try AVAudioFile(forReading: sourceURL)
-            } catch {
-                throw CLIFailure("Cannot read '\(sourceURL.lastPathComponent)' as audio.")
-            }
-            let output = try AVAudioFile(forWriting: outputURL, settings: input.processingFormat.settings)
-            let capacity = AVAudioFrameCount(min(input.processingFormat.sampleRate, 48_000))
-            guard let buffer = AVAudioPCMBuffer(pcmFormat: input.processingFormat, frameCapacity: max(capacity, 1)) else {
-                throw CLIFailure("Cannot read '\(sourceURL.lastPathComponent)' as audio.")
-            }
-            while input.framePosition < input.length {
-                try Task.checkCancellation()
-                try input.read(into: buffer)
-                guard buffer.frameLength > 0 else { break }
-                try output.write(from: buffer)
-            }
-        }.value
-        return outputURL
-    }
-
     static func formattedDuration(_ seconds: Double) -> String {
         Duration.seconds(seconds.rounded()).formatted(.time(pattern: seconds >= 3600 ? .hourMinuteSecond : .minuteSecond))
     }
-
-    // MARK: - Output
 
     static func write(_ text: String, to fd: Int32) throws {
         var bytes = Array(text.utf8)[...]
@@ -249,7 +219,6 @@ struct CLIFailure: Error, LocalizedError {
     var errorDescription: String? { message }
 }
 
-/// Shows progress on stderr only for a terminal, so pipes and logs get no control characters.
 struct StatusLine {
     private let isTerminal = isatty(STDERR_FILENO) != 0
 
@@ -286,7 +255,6 @@ enum TemporaryFiles {
     }
 }
 
-/// The first SIGINT or SIGTERM cancels the work and gives it a short time to stop. A second signal exits at once.
 @MainActor
 final class SignalTrap {
     private let task: Task<Int32, Never>

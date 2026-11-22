@@ -1,8 +1,6 @@
 import Foundation
 
 enum CloudHTTP {
-    static let referer = "https://github.com/Aayush9029/petal"
-
     static func request(
         _ url: URL,
         method: String = "POST",

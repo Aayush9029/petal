@@ -4,7 +4,6 @@ import UI
 
 struct OnboardingChoiceCard: View {
     var symbol: String
-    /// Replaces the symbol with a brand icon.
     var image: Image?
     var title: String
     var description: String
@@ -13,8 +12,6 @@ struct OnboardingChoiceCard: View {
     var onSelect: () -> Void
 
     @State private var isHovering = false
-
-    // MARK: - Computed
 
     private var borderColor: Color {
         isSelected ? Color.white.opacity(0.6) : Color.white.opacity(0.15)
@@ -27,8 +24,6 @@ struct OnboardingChoiceCard: View {
     private var checkmarkIcon: String {
         isSelected ? "checkmark.circle.fill" : "circle"
     }
-
-    // MARK: - Body
 
     var body: some View {
         Button(action: onSelect) {
@@ -57,8 +52,6 @@ struct OnboardingChoiceCard: View {
         .animation(.easeOut(duration: 0.2), value: isHovering)
         .onHover { isHovering = $0 }
     }
-
-    // MARK: - Subviews
 
     @ViewBuilder
     private var symbolImage: some View {
@@ -107,8 +100,6 @@ struct OnboardingChoiceCard: View {
             .strokeBorder(borderColor, lineWidth: borderWidth)
     }
 }
-
-// MARK: - Previews
 
 #Preview("Selected") {
     OnboardingChoiceCard(

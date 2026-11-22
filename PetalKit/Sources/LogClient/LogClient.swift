@@ -9,7 +9,6 @@ public struct LogClient: Sendable {
     public var debug: @Sendable (_ category: String, _ message: String) -> Void = { _, _ in }
     public var info: @Sendable (_ category: String, _ message: String) -> Void = { _, _ in }
     public var error: @Sendable (_ category: String, _ message: String) -> Void = { _, _ in }
-    public var dumpDebug: @Sendable (_ category: String, _ label: String, _ valueDescription: String) -> Void = { _, _, _ in }
     public var logFileURL: @Sendable () -> URL? = { nil }
 }
 
@@ -33,11 +32,6 @@ extension LogClient: DependencyKey {
                     .error("\(message, privacy: .public)")
                 fileWriter.write(level: "ERROR", category: category, message: message)
             },
-            dumpDebug: { category, label, valueDescription in
-                Logger(subsystem: "com.optimalapps.petal", category: category)
-                    .debug("\(label, privacy: .public): \(valueDescription, privacy: .public)")
-                fileWriter.write(level: "DEBUG", category: category, message: "\(label): \(valueDescription)")
-            },
             logFileURL: {
                 fileWriter.currentFileURLIfExists()
             }
@@ -58,18 +52,9 @@ public extension DependencyValues {
     }
 }
 
-public func appDumpString<T>(_ value: T) -> String {
-    String(reflecting: value)
-}
-
-// MARK: - File Writer
-
 private final class LogFileWriter: @unchecked Sendable {
-    private static let logsEnabledDefaultsKey = "logs_enabled"
-    private static let logsDirectory: URL = {
-        let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
-        return docs.appendingPathComponent("petal/logs", isDirectory: true)
-    }()
+    @SharedReader(.logsEnabled) private var logsEnabled
+    private static let logsDirectory = PetalPaths.documents.appending(path: "logs", directoryHint: .isDirectory)
 
     private let queue = DispatchQueue(label: "com.optimalapps.petal.log-file-writer", qos: .utility)
     private var fileHandle: FileHandle?
@@ -91,7 +76,7 @@ private final class LogFileWriter: @unchecked Sendable {
     }
 
     func write(level: String, category: String, message: String) {
-        guard Self.isFileLoggingEnabled else { return }
+        guard logsEnabled else { return }
 
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
@@ -113,7 +98,4 @@ private final class LogFileWriter: @unchecked Sendable {
         }
     }
 
-    private static var isFileLoggingEnabled: Bool {
-        UserDefaults.standard.bool(forKey: logsEnabledDefaultsKey)
-    }
 }

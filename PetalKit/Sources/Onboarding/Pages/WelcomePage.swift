@@ -1,11 +1,9 @@
-import Dependencies
-import SoundClient
 import SwiftUI
 import UI
 
 struct WelcomePage: View {
     @State private var isAnimating = false
-    @Dependency(\.soundClient) private var soundClient
+    let model: OnboardingModel
 
     var body: some View {
         VStack(spacing: 24) {
@@ -33,8 +31,8 @@ struct WelcomePage: View {
         }
         .onAppear {
             isAnimating = true
-            Task { await soundClient.playWelcome() }
         }
+        .task { await model.welcomeAppeared() }
     }
 }
 

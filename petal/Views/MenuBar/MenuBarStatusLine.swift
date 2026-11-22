@@ -1,6 +1,6 @@
+import AppFeature
 import SwiftUI
 
-/// A separate view, so download progress re-renders this line and not the whole popup.
 struct MenuBarStatusLine: View {
     let viewModel: MenuBarContentViewModel
 

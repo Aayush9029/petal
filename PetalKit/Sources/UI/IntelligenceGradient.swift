@@ -41,8 +41,6 @@ public extension View {
     }
 }
 
-// MARK: - Animated Progress Bar
-
 public struct AnimatedIntelligenceBar: View {
     let progress: Double
 

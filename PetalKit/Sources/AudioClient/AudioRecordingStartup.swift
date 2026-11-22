@@ -5,7 +5,6 @@ enum PreparedCaptureStartFailure: Error {
 }
 
 enum AudioRecordingStartup {
-    /// A failed prepared session gets one fresh attempt, with its own audio stream.
     static func start(
         streaming: Bool,
         attempt: (AudioSampleProducer?) throws -> Void

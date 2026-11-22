@@ -8,8 +8,7 @@ import Sharing
 import Testing
 import TranscriptionClient
 
-/// Opt-in accuracy and speed check for every speech model on synthesized speech.
-/// `PETAL_TEST_ASR_EVAL=1` enables it. `PETAL_ASR_EVAL_MODELS` limits it to comma-separated model IDs.
+/// PETAL_ASR_EVAL_MODELS limits the evaluation to comma-separated model IDs.
 @Suite(.enabled(if: ProcessInfo.processInfo.environment["PETAL_TEST_ASR_EVAL"] == "1"), .serialized)
 struct SpeechModelEvaluationTests {
     struct Clip: Sendable {
@@ -61,15 +60,14 @@ struct SpeechModelEvaluationTests {
             .split(separator: ",").map { String($0).trimmingCharacters(in: .whitespaces) }
         let models = ModelOption.allCases.filter { requested?.contains($0.rawValue) ?? true }
 
+        try #require(!models.isEmpty, "No speech models matched the requested IDs.")
         var report = ["model | en WER | worst voice | multilingual WER | RTFx | failures"]
         for model in models {
             let result = try await withDependencies {
                 $0.logClient.debug = { _, _ in }
                 $0.logClient.error = { _, _ in }
-                $0.logClient.dumpDebug = { _, _, _ in }
                 $0.mlxClient = .liveValue
-                $0.audioTrimClient = .liveValue
-                $0.audioSpeedClient = .liveValue
+                $0.downloadClient = .liveValue
             } operation: {
                 try await evaluate(model, audio: audio)
             }
@@ -79,7 +77,6 @@ struct SpeechModelEvaluationTests {
         print("ASR_EVAL_REPORT\n" + report.joined(separator: "\n"))
     }
 
-    /// An English clip that is forced to Spanish must change, and the same clip forced to English must not.
     @Test
     func qwenUsesTheSpokenLanguage() async throws {
         let directory = FileManager.default.temporaryDirectory.appending(path: "petal-asr-eval")
@@ -91,10 +88,8 @@ struct SpeechModelEvaluationTests {
         try await withDependencies {
             $0.logClient.debug = { _, _ in }
             $0.logClient.error = { _, _ in }
-            $0.logClient.dumpDebug = { _, _, _ in }
             $0.mlxClient = .liveValue
-            $0.audioTrimClient = .liveValue
-            $0.audioSpeedClient = .liveValue
+            $0.downloadClient = .liveValue
         } operation: {
             @Shared(.spokenLanguageCode) var code
             let transcription = TranscriptionClient.liveValue
@@ -102,7 +97,7 @@ struct SpeechModelEvaluationTests {
             var texts: [String: String] = [:]
             for language in ["", "en", "hi"] {
                 $code.withLock { $0 = language }
-                texts[language] = try await transcription.transcribe(url, .qwen3ASR17B8bit, .verbatim, nil)
+                texts[language] = try await transcription.transcribe(url, .qwen3ASR17B8bit)
                 print("ASR_LANGUAGE [\(language)] \(texts[language] ?? "")")
             }
             $code.withLock { $0 = "" }
@@ -130,9 +125,10 @@ struct SpeechModelEvaluationTests {
             let start = ContinuousClock.now
             let text: String
             do {
-                text = try await transcription.transcribe(item.url, model, .verbatim, nil)
+                text = try await transcription.transcribe(item.url, model)
             } catch {
                 failures += 1
+                Issue.record(error, "Could not transcribe \(item.url.lastPathComponent) with \(model.rawValue).")
                 continue
             }
             elapsed += ContinuousClock.now - start
@@ -154,6 +150,7 @@ struct SpeechModelEvaluationTests {
         }
         await transcription.unloadModel()
 
+        #expect(englishErrors < englishWords, "English speech must score better than an empty transcript.")
         let worst = voiceErrors.max { Double($0.value.0) / Double($0.value.1) < Double($1.value.0) / Double($1.value.1) }
         let seconds = Double(elapsed.components.seconds) + Double(elapsed.components.attoseconds) / 1e18
         return [

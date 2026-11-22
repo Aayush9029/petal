@@ -1,6 +1,5 @@
 import SwiftUI
 
-/// The content of one capsule phase, shared by every capsule style.
 struct FloatingCapsulePhaseContent: View {
     @Bindable var state: FloatingCapsuleState
     let phase: FloatingCapsuleState.Phase
@@ -29,8 +28,6 @@ struct FloatingCapsulePhaseContent: View {
             error
         }
     }
-
-    // MARK: - Phase content
 
     private var recording: some View {
         RecordingCapsuleButton(

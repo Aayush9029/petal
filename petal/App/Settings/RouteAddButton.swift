@@ -1,6 +1,5 @@
 import SwiftUI
 
-/// The empty last branch of the router. It opens the add popover.
 struct RouteAddButton: View {
     let isPresented: Bool
     let action: () -> Void

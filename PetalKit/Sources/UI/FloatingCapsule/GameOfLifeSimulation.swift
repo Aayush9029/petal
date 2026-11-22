@@ -1,12 +1,10 @@
 import Foundation
 
-/// Conway's Game of Life on a wrapping board. A reference type, so a frame can advance it without a SwiftUI state write.
 @MainActor
 public final class GameOfLifeSimulation {
     public let columns: Int
     public let rows: Int
 
-    /// Displayed brightness of each cell, eased toward its live or dead target.
     private(set) var levels: [Float]
 
     private var cells: [Bool]
@@ -21,7 +19,6 @@ public final class GameOfLifeSimulation {
 
     private static let generationInterval: TimeInterval = 0.14
     private static let fadeTimeConstant: TimeInterval = 0.11
-    /// The old board fades to empty before the next pattern appears, so two patterns never overlap.
     private static let clearingDuration: TimeInterval = 0.5
     private static let stagnationLimit = 14
     private static let longestFrame: TimeInterval = 0.1
@@ -36,7 +33,6 @@ public final class GameOfLifeSimulation {
         seedNextPattern()
     }
 
-    /// Advances to `date`. A long gap, such as a hidden popup, counts as one frame so the board does not jump.
     func advance(to date: Date) {
         let elapsed = lastFrame.map { min(max(date.timeIntervalSince($0), 0), Self.longestFrame) } ?? 0
         lastFrame = date
@@ -60,7 +56,6 @@ public final class GameOfLifeSimulation {
         }
     }
 
-    /// Shows the current board with no fade, for Reduce Motion.
     func settle() {
         for index in levels.indices {
             levels[index] = cells[index] ? 1 : 0

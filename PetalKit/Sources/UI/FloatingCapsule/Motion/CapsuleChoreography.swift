@@ -1,8 +1,6 @@
 import CoreGraphics
 import Foundation
 
-/// Stage geometry and motion curves of the floating capsule, adapted from the
-/// Liquid Circle reference with every distance scaled to the capsule height.
 enum CapsuleChoreography {
     static let stageSize = CGSize(width: 440, height: 150)
     static let pillHeight: CGFloat = 50
@@ -10,11 +8,10 @@ enum CapsuleChoreography {
     static let restCenter = CGPoint(x: stageSize.width / 2, y: stageSize.height - bottomInset - pillHeight / 2)
     static let secondarySize = CGSize(width: 52, height: 49)
     static let gap: CGFloat = 7
-    /// Size of the tucked stop drop relative to the pill height.
     static let tuckedScale: CGFloat = 0.5
     static let riseDistance: CGFloat = 30
     static let liftDistance: CGFloat = 38
-    /// Points per point of the 98-point-tall Liquid Circle pill.
+    // The shader is calibrated for a 98-point pill.
     static let shaderScale = pillHeight / 98
 
     static let dismissDuration = 0.55
@@ -29,7 +26,6 @@ enum CapsuleChoreography {
         reduceMotion ? reducedMotionFade : dismissDuration
     }
 
-    /// Step response of a critically damped spring that starts at rest at `t = 0`.
     static func criticallyDamped(_ t: Double, omega: Double) -> Double {
         guard t > 0 else { return 0 }
         let x = omega * t
@@ -43,13 +39,12 @@ enum CapsuleChoreography {
 
     static func clamp(_ x: Double) -> Double { min(max(x, 0), 1) }
 
-    /// `max(x, 0)` with a rounded knee, so motion starts without a velocity jump.
+    // Smooth the knee to avoid a velocity jump at zero.
     static func smoothMax(_ x: Double, knee: Double = 0.05) -> Double {
         0.5 * (x + (x * x + knee * knee).squareRoot()) - 0.5 * knee
     }
 }
 
-/// A value that springs from `from` to `to`, starting at `start`.
 struct CapsuleSpring: Equatable, Sendable {
     var from: Double
     var to: Double

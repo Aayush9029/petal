@@ -4,11 +4,15 @@ import Testing
 @testable import AudioClient
 
 @Suite
-struct RecordingRecoveryTests {
+final class RecordingRecoveryTests: Sendable {
     let directory = FileManager.default.temporaryDirectory.appending(path: "petal-recovery-\(UUID().uuidString)")
 
     init() throws {
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    }
+
+    deinit {
+        try? FileManager.default.removeItem(at: directory)
     }
 
     @Test

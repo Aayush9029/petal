@@ -3,17 +3,12 @@ import AVFoundation
 import Dependencies
 import DependenciesMacros
 import Foundation
-import Shared
+import OSLog
 
 @DependencyClient
 public struct SoundClient: Sendable {
     public var warmup: @Sendable () async -> Void = {}
-    public var playRecordingStarted: @Sendable () async -> Void = {}
-    public var playTranscriptionStarted: @Sendable () async -> Void = {}
-    public var playTranscriptionCompleted: @Sendable () async -> Void = {}
-    public var playTranscriptionNoResult: @Sendable () async -> Void = {}
-    public var playWelcome: @Sendable () async -> Void = {}
-    public var playRefineStarted: @Sendable () async -> Void = {}
+    public var play: @Sendable (SoundEffect) async -> Void = { _ in }
 }
 
 extension SoundClient: DependencyKey {
@@ -23,24 +18,7 @@ extension SoundClient: DependencyKey {
             warmup: {
                 await runtime.warmup()
             },
-            playRecordingStarted: {
-                await runtime.play(.recordingStarted)
-            },
-            playTranscriptionStarted: {
-                await runtime.play(.transcriptionStarted)
-            },
-            playTranscriptionCompleted: {
-                await runtime.play(.transcriptionCompleted)
-            },
-            playTranscriptionNoResult: {
-                await runtime.play(.transcriptionNoResult)
-            },
-            playWelcome: {
-                await runtime.play(.welcome)
-            },
-            playRefineStarted: {
-                await runtime.play(.refineStarted)
-            }
+            play: { effect in await runtime.play(effect) }
         )
     }
 }
@@ -58,49 +36,49 @@ public extension DependencyValues {
     }
 }
 
-private actor SoundRuntime {
-    enum Effect {
-        case recordingStarted
-        case transcriptionStarted
-        case transcriptionCompleted
-        case transcriptionNoResult
-        case welcome
-        case refineStarted
+public enum SoundEffect: Sendable {
+    case recordingStarted
+    case transcriptionStarted
+    case transcriptionCompleted
+    case transcriptionNoResult
+    case welcome
+    case refineStarted
 
-        var variants: [SoundLibrary] {
-            switch self {
-            case .recordingStarted: [.start1, .start2, .start3, .start4]
-            case .transcriptionStarted: [.prestop]
-            case .transcriptionCompleted: [.stop1, .stop2, .stop3, .stop4]
-            case .transcriptionNoResult: [.noresult1, .noresult2, .noresult3, .noresult4]
-            case .welcome: [.welcome]
-            case .refineStarted: [.refine]
-            }
-        }
-
-        var volume: Float {
-            switch self {
-            case .recordingStarted: 0.3
-            case .transcriptionStarted: 0.2
-            case .transcriptionCompleted: 0.25
-            case .transcriptionNoResult: 0.2
-            case .welcome: 0.3
-            case .refineStarted: 0.25
-            }
+    fileprivate var variants: [SoundLibrary] {
+        switch self {
+        case .recordingStarted: [.start1, .start2, .start3, .start4]
+        case .transcriptionStarted: [.prestop]
+        case .transcriptionCompleted: [.stop1, .stop2, .stop3, .stop4]
+        case .transcriptionNoResult: [.noresult1, .noresult2, .noresult3, .noresult4]
+        case .welcome: [.welcome]
+        case .refineStarted: [.refine]
         }
     }
 
+    fileprivate var volume: Float {
+        switch self {
+        case .recordingStarted: 0.3
+        case .transcriptionStarted: 0.2
+        case .transcriptionCompleted: 0.25
+        case .transcriptionNoResult: 0.2
+        case .welcome: 0.3
+        case .refineStarted: 0.25
+        }
+    }
+}
+
+private actor SoundRuntime {
     private var players: [SoundLibrary: AVAudioPlayer] = [:]
 
     func warmup() {
-        for effect in [Effect.recordingStarted, .transcriptionCompleted] {
+        for effect in [SoundEffect.recordingStarted, .transcriptionCompleted] {
             for variant in effect.variants {
                 _ = try? player(for: variant)
             }
         }
     }
 
-    func play(_ effect: Effect) {
+    func play(_ effect: SoundEffect) {
         let variants = effect.variants
         let variant = variants[Int.random(in: 0..<variants.count)]
         do {
@@ -108,7 +86,10 @@ private actor SoundRuntime {
             player.volume = effect.volume
             player.currentTime = 0
             player.play()
-        } catch {}
+        } catch {
+            Logger(subsystem: "com.optimalapps.petal", category: "SoundClient")
+                .error("Could not play sound: \(error.localizedDescription, privacy: .public)")
+        }
     }
 
     private func player(for sound: SoundLibrary) throws -> AVAudioPlayer {

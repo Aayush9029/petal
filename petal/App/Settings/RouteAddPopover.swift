@@ -1,7 +1,6 @@
 import Shared
 import SwiftUI
 
-/// Picks the app or website for a new route. Typing filters open apps; an address offers a website route.
 struct RouteAddPopover: View {
     let query: String
     let apps: [MacApp]

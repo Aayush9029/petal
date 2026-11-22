@@ -4,9 +4,7 @@ import UniformTypeIdentifiers
 
 @DependencyClient
 public struct ApplicationsClient: Sendable {
-    /// Apps with a Dock presence, sorted by name, without Petal itself.
-    public var runningApplications: @MainActor @Sendable () -> [MacApp] = { [] }
-    /// Opens the Applications folder so the user can pick an app that is not running.
+    public var runningApplications: @MainActor @Sendable () -> AsyncStream<[MacApp]> = { AsyncStream { $0.finish() } }
     public var chooseApplication: @MainActor @Sendable () -> MacApp? = { nil }
 }
 
@@ -14,14 +12,21 @@ extension ApplicationsClient: DependencyKey {
     public static var liveValue: Self {
         Self(
             runningApplications: {
-                var seen = Set<String>()
-                return NSWorkspace.shared.runningApplications
-                    .filter { $0.activationPolicy == .regular && $0.bundleIdentifier != Bundle.main.bundleIdentifier }
-                    .compactMap { app -> MacApp? in
-                        guard let bundleID = app.bundleIdentifier, seen.insert(bundleID).inserted else { return nil }
-                        return MacApp(bundleID: bundleID, name: app.localizedName ?? bundleID)
+                AsyncStream(bufferingPolicy: .bufferingNewest(1)) { continuation in
+                    let observation = NSWorkspace.shared.observe(\.runningApplications, options: [.initial, .new]) { workspace, _ in
+                        var seen = Set<String>()
+                        let apps = workspace.runningApplications.compactMap { app -> MacApp? in
+                            guard app.activationPolicy == .regular,
+                                  let id = app.bundleIdentifier,
+                                  id != Bundle.main.bundleIdentifier,
+                                  seen.insert(id).inserted
+                            else { return nil }
+                            return MacApp(bundleID: id, name: app.localizedName ?? id)
+                        }
+                        continuation.yield(apps.sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending })
                     }
-                    .sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
+                    continuation.onTermination = { _ in observation.invalidate() }
+                }
             },
             chooseApplication: {
                 let panel = NSOpenPanel()
@@ -45,12 +50,15 @@ extension ApplicationsClient: DependencyKey {
     public static var previewValue: Self {
         Self(
             runningApplications: {
-                [
-                    MacApp(bundleID: "com.apple.mail", name: "Mail"),
-                    MacApp(bundleID: "com.apple.MobileSMS", name: "Messages"),
-                    MacApp(bundleID: "com.apple.Safari", name: "Safari"),
-                    MacApp(bundleID: "com.apple.Terminal", name: "Terminal"),
-                ]
+                AsyncStream { continuation in
+                    continuation.yield([
+                        MacApp(bundleID: "com.apple.mail", name: "Mail"),
+                        MacApp(bundleID: "com.apple.MobileSMS", name: "Messages"),
+                        MacApp(bundleID: "com.apple.Safari", name: "Safari"),
+                        MacApp(bundleID: "com.apple.Terminal", name: "Terminal"),
+                    ])
+                    continuation.finish()
+                }
             },
             chooseApplication: { MacApp(bundleID: "com.apple.Notes", name: "Notes") }
         )

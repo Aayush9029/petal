@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// A capsule whose round ends follow a superellipse, matching `squircle()` in FutureGlass.metal.
+// Keep the exponent in sync with squircle() in FutureGlass.metal.
 public struct Squircle: Shape {
     public var exponent: Double = 2.15
 

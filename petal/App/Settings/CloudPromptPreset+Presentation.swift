@@ -24,7 +24,6 @@ extension CloudPromptPreset {
         }
     }
 
-    /// Fits under the title on a style card.
     var shortSummary: String {
         switch self {
         case .cleanUp: "Fixes fillers"

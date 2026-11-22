@@ -3,7 +3,7 @@ import SwiftUI
 import UI
 
 struct ShortcutPage: View {
-    var model: OnboardingModel
+    @Bindable var model: OnboardingModel
     @State private var isAnimating = false
 
     var body: some View {
@@ -19,7 +19,7 @@ struct ShortcutPage: View {
 
             Spacer()
 
-            UnifiedShortcutRecorder(shortcut: model.unifiedShortcutBinding)
+            UnifiedShortcutRecorder(shortcut: $model.shortcut)
                 .scaleEffect(2.0)
                 .slideIn(active: isAnimating, delay: 0.5)
 

@@ -1,3 +1,4 @@
+import AppFeature
 import SwiftUI
 
 struct TranscriptRow: View {

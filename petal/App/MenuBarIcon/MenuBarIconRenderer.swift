@@ -1,30 +1,13 @@
 import AppKit
 import UI
 
-/// Draws the animated menu bar icon as a pixel grid into template `NSImage`s.
-///
-/// Everything is rendered on a 9×9 conceptual pixel grid mapped into an 18pt
-/// square. Images are marked as template so the menu bar tints them for light
-/// and dark appearances. Drawing is vector (rounded-rect cells), so it stays
-/// crisp on Retina and is cheap enough to regenerate every animation frame.
 enum MenuBarIconRenderer {
-    static let grid = 9
-    static let canvas: CGFloat = 18
+    private static let grid = 9
+    private static let canvas: CGFloat = 18
 
-    /// Inset applied when redrawing the petal into the menu bar canvas. Kept
-    /// small because the source artwork already carries ~10% internal margin;
-    /// stacking a large inset on top made the glyph read smaller than adjacent
-    /// SF Symbols.
+    // The source artwork already includes its own margin.
     private static let contentInset: CGFloat = 0.02
 
-    // MARK: - Idle petal
-
-    /// The static pixel-petal, padded into the standard menu bar canvas.
-    ///
-    /// The raw `menuBarPetal` asset is 128pt and edge-to-edge, so the status
-    /// item would otherwise scale it to the full bar height and read too large.
-    /// We redraw it centered in an 18pt template with the same inset the
-    /// animated frames use, so idle and active states share one visual size.
     static let idlePetal: NSImage? = {
         guard let base = NSImage(named: "menuBarPetal") else { return nil }
         let size = NSSize(width: canvas, height: canvas)
@@ -37,7 +20,6 @@ enum MenuBarIconRenderer {
         return image
     }()
 
-    /// Static pixel plus shown while an audio file is hovering over the status item.
     static let dropTarget = image(cells: [
         Cell(col: 4, row: 2),
         Cell(col: 4, row: 3),
@@ -50,30 +32,18 @@ enum MenuBarIconRenderer {
         Cell(col: 4, row: 6),
     ])
 
-    // MARK: - Public frames
-
-    /// A tiny audio-reactive pixel equalizer. The bars share the smoothed input
-    /// power (which already carries a fast-attack / slow-decay envelope), shaped
-    /// only by a fixed spatial profile with slight center emphasis — so they rise
-    /// and fall together with loudness rather than flickering on their own.
     static func recording(level: Double) -> NSImage {
-        // Preserve the approved icon geometry while giving speech more visual
-        // headroom. The old linear response plus near-uniform profile pushed
-        // all four bars to maximum height and read as a square blob.
         let power = pow(max(0, min(1, level)), 1.25) * 0.94
         return barsImage(values: recordingProfile.map { $0 * power })
     }
 
-    /// The same equalizer, self-animated as a looping wave, for processing +
-    /// downloads — reads as a steady "working" pulse without any audio input.
     static func working(tick: Int) -> NSImage {
-        let values = (0..<barCount).map { index in
+        let values = (0..<recordingProfile.count).map { index in
             0.5 + 0.5 * sin(Double(tick) * 0.3 + Double(index) * 1.1)
         }
         return barsImage(values: values)
     }
 
-    /// Static pixel exclamation mark.
     static func error() -> NSImage {
         let cells = [
             Cell(col: 4, row: 1),
@@ -85,18 +55,13 @@ enum MenuBarIconRenderer {
         return image(cells: cells)
     }
 
-    // MARK: - Geometry
+    private struct Cell {
+        let col: Int
+        let row: Int
+    }
 
-    private struct Cell { let col: Int; let row: Int }
-
-    // MARK: - Equalizer bars
-
-    private static let barCount = 4
-    /// An asymmetric voice-like silhouette that stays legible at loud peaks.
     private static let recordingProfile: [Double] = [0.46, 0.78, 1.0, 0.6]
 
-    /// Draws `values` (0...1) as symmetric pixel bars centered in the canvas,
-    /// using the shared `PixelEQ` grid so it matches the capsule meter.
     private static func barsImage(values: [Double]) -> NSImage {
         let size = NSSize(width: canvas, height: canvas)
         let count = values.count
@@ -111,7 +76,7 @@ enum MenuBarIconRenderer {
         let image = NSImage(size: size, flipped: false) { _ in
             NSColor.black.setFill()
             for (index, raw) in values.enumerated() {
-                let litHalf = PixelEQ.litHalf(raw, maxHalf: 2) // 0...2 → 1, 3 or 5 pixels tall
+                let litHalf = PixelEQ.litHalf(raw, maxHalf: 2)
                 let x = startX + CGFloat(index) * (cell + gapX)
                 for half in 0...litHalf {
                     let centers = half == 0
@@ -129,8 +94,6 @@ enum MenuBarIconRenderer {
         return image
     }
 
-    // MARK: - Rasterization
-
     private static func image(cells: [Cell]) -> NSImage {
         let size = NSSize(width: canvas, height: canvas)
         let pitch = canvas / CGFloat(grid)
@@ -141,7 +104,6 @@ enum MenuBarIconRenderer {
             NSColor.black.setFill()
             for cell in cells {
                 let originX = CGFloat(cell.col) * pitch + (pitch - dot) / 2
-                // Flip row so row 0 is visually at the top.
                 let flippedRow = CGFloat(grid - 1 - cell.row)
                 let originY = flippedRow * pitch + (pitch - dot) / 2
                 let square = NSRect(x: originX, y: originY, width: dot, height: dot)

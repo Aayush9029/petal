@@ -10,8 +10,6 @@ struct ModelOptionCard: View {
 
     @State private var isHovering = false
 
-    // MARK: - Computed
-
     private var checkmarkIcon: String {
         isSelected ? "checkmark.circle.fill" : "circle"
     }
@@ -23,8 +21,6 @@ struct ModelOptionCard: View {
     private var borderWidth: CGFloat {
         isSelected ? 2 : 1
     }
-
-    // MARK: - Body
 
     var body: some View {
         Button(action: onSelect) {
@@ -54,8 +50,6 @@ struct ModelOptionCard: View {
         }
     }
 }
-
-// MARK: - Previews
 
 #Preview("Selected") {
     ModelOptionCard(option: .mini3b8bit, isSelected: true) {}

@@ -1,10 +1,20 @@
 import AppKit
+import DependenciesTestSupport
 import Foundation
 import Shared
+import SystemContextClient
 import Testing
 @testable import CloudCleanupClient
 
-@Suite(.enabled(if: ProcessInfo.processInfo.environment["PETAL_CLOUD_TESTS"] == "1"))
+@Suite(
+    .enabled(if: ProcessInfo.processInfo.environment["PETAL_CLOUD_TESTS"] == "1"),
+    .dependencies {
+        $0.date.now = Date(timeIntervalSince1970: 1_791_056_340)
+        $0.locale = Locale(identifier: "en_US")
+        $0.timeZone = .gmt
+        $0.systemContextClient.clipboardText = { "The launch moved to Tuesday at 10 AM." }
+    }
+)
 struct CloudCleanupIntegrationTests {
     struct Target: CustomTestStringConvertible, Sendable {
         var provider: CloudProvider
@@ -40,10 +50,7 @@ struct CloudCleanupIntegrationTests {
         Target(provider: .openRouter, model: "anthropic/claude-sonnet-5.5"),
     ].filter { $0.apiKey != nil }
 
-    let runtime = CloudCleanupRuntime(
-        send: { try await URLSession.shared.data(for: $0) },
-        context: CloudRuntimeContext(clipboardText: { "The launch moved to Tuesday at 10 AM." })
-    )
+    let runtime = CloudCleanupRuntime(send: { try await URLSession.shared.data(for: $0) })
 
     @Test(arguments: targets)
     func cleansFillersAndCorrections(target: Target) async throws {
@@ -84,10 +91,10 @@ struct CloudCleanupIntegrationTests {
     @Test(arguments: targets)
     func webSearchFillsInAFact(target: Target) async throws {
         let result = try await runtime.clean(
-            "tell sam who the current ceo of openai is, look it up",
+            "tell Sam which city hosted the 2010 Winter Olympics, look it up",
             configuration: target.configuration(tools: [.webSearch])
         )
-        #expect(result.text.contains("Altman"), "\(result.text)")
+        #expect(result.text.localizedCaseInsensitiveContains("Vancouver"), "\(result.text)")
         #expect(!result.text.contains("]("), "\(result.text)")
     }
 
@@ -115,14 +122,14 @@ struct CloudCleanupIntegrationTests {
     @Test(arguments: targets)
     func screenshotSpellsANameFromTheScreen(target: Target) async throws {
         let screenshot = try Self.screenshot(showing: "To: Siobhán Ó Ceallaigh\nSubject: Launch review")
-        let runtime = CloudCleanupRuntime(
-            send: { try await URLSession.shared.data(for: $0) },
-            context: CloudRuntimeContext(screenshot: { screenshot })
-        )
-        let result = try await runtime.clean(
-            "hey shivawn o kelly can we move the launch review to monday",
-            configuration: target.configuration(tools: [.screen])
-        )
+        let result = try await withDependencies {
+            $0.systemContextClient.screenshot = { screenshot }
+        } operation: {
+            try await runtime.clean(
+                "hey shivawn o kelly can we move the launch review to monday",
+                configuration: target.configuration(tools: [.screen])
+            )
+        }
         #expect(result.text.contains("Siobhán"), "\(result.text)")
     }
 

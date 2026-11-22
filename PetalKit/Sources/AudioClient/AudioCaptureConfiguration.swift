@@ -1,6 +1,5 @@
 import Foundation
 
-/// A single snapshot of the route requested for a recording.
 struct AudioCaptureConfiguration: Sendable {
     let inputDeviceID: String
     let defaultInputUID: String?

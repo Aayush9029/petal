@@ -16,22 +16,22 @@ public enum KeyPress: Equatable, Sendable {
 }
 
 /// Return `true` from the handler to swallow the event (prevent it from reaching text fields).
-public typealias KeyPressHandler = @Sendable (KeyPress) -> Bool
+public typealias KeyPressHandler = @MainActor @Sendable (KeyPress) -> Bool
 
 @DependencyClient
 public struct KeyboardClient: Sendable {
-    public var start: @Sendable (@escaping KeyPressHandler) async -> Void = { _ in }
-    public var stop: @Sendable () async -> Void = {}
+    public var start: @MainActor @Sendable (@escaping KeyPressHandler) -> Void = { _ in }
+    public var stop: @MainActor @Sendable () -> Void = {}
 }
 
 extension KeyboardClient: DependencyKey {
     public static var liveValue: Self {
         return Self(
             start: { handler in
-                await MainActor.run { LiveKeyboardRuntimeContainer.shared.start(handler: handler) }
+                LiveKeyboardRuntime.shared.start(handler: handler)
             },
             stop: {
-                await MainActor.run { LiveKeyboardRuntimeContainer.shared.stop() }
+                LiveKeyboardRuntime.shared.stop()
             }
         )
     }
@@ -55,6 +55,8 @@ public extension DependencyValues {
 
 @MainActor
 private final class LiveKeyboardRuntime {
+    static let shared = LiveKeyboardRuntime()
+
     private var localMonitor: Any?
     private var globalMonitor: Any?
     private var eventTap: CFMachPort?
@@ -101,7 +103,7 @@ private final class LiveKeyboardRuntime {
         let userInfo = Unmanaged.passUnretained(self).toOpaque()
 
         let callback: CGEventTapCallBack = { _, type, event, userInfo in
-            guard let userInfo else { return Unmanaged.passRetained(event) }
+            guard let userInfo else { return Unmanaged.passUnretained(event) }
             let runtime = Unmanaged<LiveKeyboardRuntime>.fromOpaque(userInfo)
                 .takeUnretainedValue()
 
@@ -110,15 +112,15 @@ private final class LiveKeyboardRuntime {
                 if let tap = runtime.eventTap {
                     CGEvent.tapEnable(tap: tap, enable: true)
                 }
-                return Unmanaged.passRetained(event)
+                return Unmanaged.passUnretained(event)
             }
 
             guard let nsEvent = NSEvent(cgEvent: event) else {
-                return Unmanaged.passRetained(event)
+                return Unmanaged.passUnretained(event)
             }
 
             let consumed = runtime.handle(nsEvent)
-            return consumed ? nil : Unmanaged.passRetained(event)
+            return consumed ? nil : Unmanaged.passUnretained(event)
         }
 
         guard let tap = CGEvent.tapCreate(
@@ -180,9 +182,4 @@ private final class LiveKeyboardRuntime {
         }
         return .character(character)
     }
-}
-
-@MainActor
-private enum LiveKeyboardRuntimeContainer {
-    static let shared = LiveKeyboardRuntime()
 }

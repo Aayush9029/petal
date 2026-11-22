@@ -5,9 +5,8 @@ import KeyboardShortcuts
 import ModelDownloadFeature
 import Observation
 import PermissionsClient
-import Sauce
 import Shared
-import SwiftUI
+import SoundClient
 
 @MainActor
 @Observable
@@ -23,9 +22,12 @@ public final class OnboardingModel {
         case download
     }
 
-    // MARK: - Navigation
-
-    public var currentPage: Page
+    public var currentPage: Page {
+        didSet {
+            lastPageTransitionDate = now
+            lastError = nil
+        }
+    }
 
     public var pageOrder: [Page] {
         var pages: [Page] = [
@@ -59,23 +61,10 @@ public final class OnboardingModel {
         return pageOrder[currentIndex - 1]
     }
 
-    public func moveForward() {
-        guard let nextPage else { return }
-        currentPage = nextPage
-        lastPageTransitionDate = Date()
-        lastError = nil
-        transientMessage = nil
-    }
-
     public func moveBack() {
         guard let previousPage else { return }
         currentPage = previousPage
-        lastPageTransitionDate = Date()
-        lastError = nil
-        transientMessage = nil
     }
-
-    // MARK: - Page Container
 
     public var showBack: Bool {
         guard previousPage != nil else { return false }
@@ -83,14 +72,14 @@ public final class OnboardingModel {
             let downloadState = modelDownloadViewModel.state
             if downloadState.isActive || downloadState.isPaused { return false }
         }
-        if currentPage == .cleanup, cleanupDownloads.isAnyActive { return false }
+        if currentPage == .cleanup, cleanupDownload.state.isActive { return false }
         return true
     }
 
     public var currentPrimaryTitle: String {
         switch currentPage {
         case .model:
-            if shouldCompleteAfterModelSelection {
+            if selectedModelOption != nil && nextPage == nil {
                 return "Finish Setup"
             }
             return currentPage.primaryTitle
@@ -99,8 +88,8 @@ public final class OnboardingModel {
         case .microphone:
             return microphoneAuthorized ? "Continue" : "Enable Microphone"
         case .cleanup:
-            if let download = pendingCleanupDownload {
-                return download.state.isActive ? "Downloading..." : "Download \(cleanupModel.displayName)"
+            if pendingCleanupDownload {
+                return cleanupDownload.state.isActive ? "Downloading..." : "Download \(cleanupModel.displayName)"
             }
             return nextPage == nil ? "Finish Setup" : "Continue"
         case .download:
@@ -115,66 +104,41 @@ public final class OnboardingModel {
     public var primaryDisabled: Bool {
         switch currentPage {
         case .welcome, .historyRetention: false
-        case .cleanup: cleanupDownloads.isAnyActive
+        case .cleanup: cleanupDownload.state.isActive
         case .model: selectedModelOption == nil
-        case .shortcut: !hasConfiguredShortcut
+        case .shortcut: !shortcut.isConfigured
         case .microphone: false
         case .accessibility: false
         case .download: modelDownloadViewModel.state.isActive
         }
     }
 
-    public func primaryActionTapped() {
-        if let last = lastPageTransitionDate, Date().timeIntervalSince(last) < 0.35 {
+    public func primaryActionTapped() async {
+        if let last = lastPageTransitionDate, now.timeIntervalSince(last) < 0.35 {
             return
         }
 
+        guard !primaryDisabled else { return }
         switch currentPage {
-        case .model:
-            guard selectedModelOption != nil else { return }
-            if nextPage != nil {
-                moveForward()
-            } else {
-                completeSetup()
-            }
-        case .shortcut:
-            guard hasConfiguredShortcut else { return }
-            moveForward()
-        case .download:
-            if modelDownloadViewModel.state.isDownloaded {
-                completeSetup()
-            } else {
-                Task { await downloadModel() }
-            }
-        case .microphone:
-            if microphoneAuthorized {
-                moveForward()
-            } else {
-                Task { await microphonePermissionButtonTapped() }
-            }
-        case .accessibility:
-            if accessibilityAuthorized {
-                moveForward()
-            } else {
-                accessibilityPermissionButtonTapped()
-            }
-        case .cleanup:
-            if let download = pendingCleanupDownload {
-                Task { await download.downloadButtonTapped() }
-            } else if nextPage != nil {
-                moveForward()
-            } else {
-                completeSetup()
-            }
+        case .download where !modelDownloadViewModel.state.isDownloaded:
+            await modelDownloadViewModel.downloadButtonTapped()
+        case .microphone where !microphoneAuthorized:
+            await microphonePermissionButtonTapped()
+        case .accessibility where !accessibilityAuthorized:
+            await ensureAccessibilityPermission()
+        case .cleanup where pendingCleanupDownload:
+            await cleanupDownload.downloadButtonTapped()
         default:
-            moveForward()
+            if let nextPage {
+                currentPage = nextPage
+            } else {
+                completeSetup()
+            }
         }
     }
 
-    // MARK: - Model Download
-
     public let modelDownloadViewModel: ModelDownloadModel
-    public let cleanupDownloads: LocalCleanupDownloads
+    public let cleanupDownload: LocalCleanupDownloadModel
 
     public var selectedModelID: String {
         get { modelDownloadViewModel.selectedModelID }
@@ -182,16 +146,11 @@ public final class OnboardingModel {
     }
 
     public var microphonePermissionState: MicrophonePermissionState = .notDetermined
-    public var microphoneAuthorized = false
+    public var microphoneAuthorized: Bool { microphonePermissionState == .authorized }
     public var accessibilityAuthorized = false
-    @ObservationIgnored @Shared(.historyRetentionMode) public var historyRetentionMode: HistoryRetentionMode = .both
-    @ObservationIgnored @Shared(.cleanupModel) public var cleanupModel: CleanupModel = .off
-    @ObservationIgnored @Shared(.shortcutTriggerMode) var shortcutTriggerMode: ShortcutTriggerMode = .combo
-    @ObservationIgnored @Shared(.doubleTapKey) var doubleTapKey: DoubleTapKey = .unconfigured
-    @ObservationIgnored @Shared(.doubleTapInterval) var doubleTapInterval: Double = 0.4
-
+    @ObservationIgnored @Shared(.historyRetentionMode) public var historyRetentionMode: HistoryRetentionMode
+    @ObservationIgnored @Shared(.cleanupModel) public var cleanupModel: CleanupModel
     public var lastError: String?
-    public var transientMessage: String?
 
     public var onCompleted: (@MainActor () -> Void)?
     public var onMinimize: (@MainActor () -> Void)?
@@ -200,35 +159,31 @@ public final class OnboardingModel {
     @ObservationIgnored @Dependency(\.foundationModelClient) private var foundationModelClient
     @ObservationIgnored @Dependency(\.continuousClock) private var clock
 
-    @ObservationIgnored @Shared(.hasCompletedSetup) private var hasCompletedSetup = false
+    @ObservationIgnored @Shared(.hasCompletedSetup) private var hasCompletedSetup
 
-    @ObservationIgnored private var permissionMonitorTask: Task<Void, Never>?
+    @ObservationIgnored @Dependency(\.soundClient) private var soundClient
+    @ObservationIgnored @Dependency(\.recordingShortcut) private var recordingShortcut
+    @ObservationIgnored @Dependency(\.date.now) private var now
     @ObservationIgnored private var lastPageTransitionDate: Date?
     @ObservationIgnored private let isPreviewMode: Bool
 
     public init(
         initialPage: Page = .welcome,
         downloadViewModel: ModelDownloadModel? = nil,
-        cleanupDownloads: LocalCleanupDownloads = LocalCleanupDownloads(),
+        cleanupDownload: LocalCleanupDownloadModel = LocalCleanupDownloadModel(),
         isPreviewMode: Bool = false
     ) {
         self.currentPage = initialPage
         self.isPreviewMode = isPreviewMode
-        modelDownloadViewModel = downloadViewModel ?? ModelDownloadModel(isPreviewMode: isPreviewMode)
-        self.cleanupDownloads = cleanupDownloads
+        modelDownloadViewModel = downloadViewModel ?? ModelDownloadModel()
+        self.cleanupDownload = cleanupDownload
 
         if isPreviewMode {
             $historyRetentionMode.withLock { $0 = .both }
             microphonePermissionState = .authorized
-            microphoneAuthorized = true
             accessibilityAuthorized = true
-            return
         }
-
-        startPermissionMonitoring()
     }
-
-    // MARK: - Computed
 
     public var selectedModelOption: ModelOption? {
         modelDownloadViewModel.selectedModelOption
@@ -236,89 +191,39 @@ public final class OnboardingModel {
 
     private var shouldShowCleanupPage: Bool {
         guard let selectedModelOption else { return false }
-        if selectedModelOption.provider == .voxtralCore {
-            return false
-        }
-        return !selectedModelOption.supportsSmartTranscription
+        return selectedModelOption.provider != .voxtralCore
     }
 
     public var cleanupModels: [CleanupModel] {
         CleanupModel.allCases.filter { $0 != .cloud && ($0 != .appleIntelligence || foundationModelClient.isAvailable()) }
     }
 
-    private var pendingCleanupDownload: LocalCleanupDownloadModel? {
-        cleanupDownloads[cleanupModel].flatMap { $0.state.isDownloaded ? nil : $0 }
+    private var pendingCleanupDownload: Bool {
+        cleanupModel.isLocal && !cleanupDownload.state.isDownloaded
     }
 
-    private var shouldCompleteAfterModelSelection: Bool {
-        guard selectedModelOption != nil else { return false }
-        return nextPage == nil
+    public var shortcut: RecordedShortcut {
+        get {
+            access(keyPath: \.shortcut)
+            return recordingShortcut.current()
+        }
+        set { withMutation(keyPath: \.shortcut) { recordingShortcut.record(newValue) } }
     }
 
-    public var hasConfiguredShortcut: Bool {
-        KeyboardShortcuts.getShortcut(for: .pushToTalk) != nil || doubleTapKey.isConfigured
+    func welcomeAppeared() async {
+        await soundClient.play(.welcome)
     }
 
-    public var unifiedShortcutBinding: Binding<RecordedShortcut> {
-        Binding(
-            get: { [weak self] in
-                guard let self else { return .unconfigured }
-                switch self.shortcutTriggerMode {
-                case .combo:
-                    guard let shortcut = KeyboardShortcuts.getShortcut(for: .pushToTalk) else {
-                        return .unconfigured
-                    }
-                    var displayNames = [String]()
-                    let mods = shortcut.modifiers
-                    if mods.contains(.control) { displayNames.append("\u{2303}") }
-                    if mods.contains(.option) { displayNames.append("\u{2325}") }
-                    if mods.contains(.command) { displayNames.append("\u{2318}") }
-                    let keyChar = shortcut.keyToCharacter()?.capitalized ?? "Key \(shortcut.carbonKeyCode)"
-                    displayNames.append(keyChar)
-                    return .combo(
-                        keyCode: shortcut.carbonKeyCode,
-                        carbonModifiers: shortcut.carbonModifiers,
-                        displayNames: displayNames
-                    )
-                case .doubleTap:
-                    guard self.doubleTapKey.isConfigured else { return .unconfigured }
-                    return .singleKey(
-                        keyCode: self.doubleTapKey.keyCode,
-                        isModifier: self.doubleTapKey.isModifier,
-                        displayName: self.doubleTapKey.displayName
-                    )
-                }
-            },
-            set: { [weak self] newValue in
-                guard let self else { return }
-                switch newValue {
-                case .unconfigured:
-                    KeyboardShortcuts.setShortcut(nil, for: .pushToTalk)
-                    self.$doubleTapKey.withLock { $0 = .unconfigured }
-
-                case let .singleKey(keyCode, isModifier, _):
-                    self.$shortcutTriggerMode.withLock { $0 = .doubleTap }
-                    self.$doubleTapKey.withLock { $0 = DoubleTapKey(keyCode: keyCode, isModifier: isModifier) }
-                    self.$doubleTapInterval.withLock { $0 = 0.4 }
-                    KeyboardShortcuts.setShortcut(nil, for: .pushToTalk)
-
-                case let .combo(keyCode, carbonModifiers, _):
-                    self.$shortcutTriggerMode.withLock { $0 = .combo }
-                    KeyboardShortcuts.setShortcut(
-                        .init(carbonKeyCode: keyCode, carbonModifiers: carbonModifiers),
-                        for: .pushToTalk
-                    )
-                    self.$doubleTapKey.withLock { $0 = .unconfigured }
-                }
+    public func monitorPermissions() async {
+        guard !isPreviewMode else { return }
+        while !Task.isCancelled {
+            await refreshPermissionStatus()
+            do {
+                try await clock.sleep(for: .seconds(1))
+            } catch {
+                return
             }
-        )
-    }
-
-    // MARK: - Actions
-
-    public func windowAppeared() {
-        if isPreviewMode { return }
-        refreshPermissionStatus()
+        }
     }
 
     public func cleanupModelTapped(_ model: CleanupModel) {
@@ -327,20 +232,18 @@ public final class OnboardingModel {
 
     public func selectedModelChanged() {
         modelDownloadViewModel.selectedModelChanged()
-        transientMessage = nil
         lastError = nil
     }
 
     public func microphonePermissionButtonTapped() async {
         if isPreviewMode {
             microphonePermissionState = .authorized
-            microphoneAuthorized = true
             lastError = nil
             return
         }
 
         let granted = await permissionsClient.requestMicrophonePermission()
-        await refreshPermissionStatusAsync()
+        await refreshPermissionStatus()
 
         if granted || microphoneAuthorized {
             lastError = nil
@@ -356,87 +259,39 @@ public final class OnboardingModel {
         lastError = "Microphone access is required to record audio."
     }
 
-    public func accessibilityPermissionButtonTapped() {
-        if isPreviewMode {
-            accessibilityAuthorized = true
-            transientMessage = nil
-            return
-        }
-
-        Task {
-            await ensureAccessibilityPermission()
-        }
-    }
-
-    public func downloadModel() async {
-        await modelDownloadViewModel.downloadModel()
-        transientMessage = modelDownloadViewModel.transientMessage
-        lastError = modelDownloadViewModel.lastError
-    }
-
     public func minimizeToMiniWindow() {
         onMinimize?()
     }
 
     public func completeSetup() {
         $hasCompletedSetup.withLock { $0 = true }
-        permissionMonitorTask?.cancel()
         onCompleted?()
     }
-
-    // MARK: - Private
 
     private func ensureAccessibilityPermission() async {
         if isPreviewMode {
             accessibilityAuthorized = true
-            transientMessage = nil
             lastError = nil
             return
         }
 
         await permissionsClient.promptForAccessibilityPermission()
-        await refreshPermissionStatusAsync()
+        await refreshPermissionStatus()
 
         if accessibilityAuthorized {
             lastError = nil
-            transientMessage = nil
             return
         }
 
         await permissionsClient.openGuidedAccessibilityPrivacySettings()
         lastError = "Accessibility access is required to continue."
-        transientMessage = "Turn on Accessibility in System Settings, then return to Petal."
     }
 
-    private func refreshPermissionStatus() {
-        if isPreviewMode { return }
-        Task { await refreshPermissionStatusAsync() }
-    }
-
-    private func refreshPermissionStatusAsync() async {
-        if isPreviewMode { return }
+    private func refreshPermissionStatus() async {
         microphonePermissionState = await permissionsClient.microphonePermissionState()
-        microphoneAuthorized = microphonePermissionState == .authorized
         accessibilityAuthorized = await permissionsClient.hasAccessibilityPermission()
     }
-
-    private func startPermissionMonitoring() {
-        permissionMonitorTask?.cancel()
-        permissionMonitorTask = Task { [weak self] in
-            while !Task.isCancelled {
-                guard let self else { return }
-                await self.refreshPermissionStatusAsync()
-                try? await self.clock.sleep(for: .seconds(1))
-            }
-        }
-    }
-
-    deinit {
-        permissionMonitorTask?.cancel()
-    }
 }
-
-// MARK: - Page Metadata
 
 extension OnboardingModel.Page {
     public var primaryTitle: String {
@@ -453,8 +308,6 @@ extension OnboardingModel.Page {
         }
     }
 }
-
-// MARK: - Preview Support
 
 extension OnboardingModel {
     public static func makePreview(

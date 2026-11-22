@@ -9,30 +9,18 @@
 /* Begin PBXBuildFile section */
 		A10000010000000000000002 /* KeyboardShortcuts in Frameworks */ = {isa = PBXBuildFile; productRef = A10000040000000000000002 /* KeyboardShortcuts */; };
 		A10000010000000000000005 /* Dependencies in Frameworks */ = {isa = PBXBuildFile; productRef = A10000040000000000000005 /* Dependencies */; };
-		A10000010000000000000006 /* IssueReporting in Frameworks */ = {isa = PBXBuildFile; productRef = A10000040000000000000006 /* IssueReporting */; };
 		A10000010000000000000007 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = A10000040000000000000007 /* Sparkle */; };
 		B10000010000000000000001 /* Shared in Frameworks */ = {isa = PBXBuildFile; productRef = B10000040000000000000001 /* Shared */; };
 		B10000010000000000000002 /* AudioClient in Frameworks */ = {isa = PBXBuildFile; productRef = B10000040000000000000002 /* AudioClient */; };
-		B10000010000000000000003 /* PermissionsClient in Frameworks */ = {isa = PBXBuildFile; productRef = B10000040000000000000003 /* PermissionsClient */; };
-		B10000010000000000000004 /* PasteClient in Frameworks */ = {isa = PBXBuildFile; productRef = B10000040000000000000004 /* PasteClient */; };
-		B10000010000000000000005 /* KeyboardClient in Frameworks */ = {isa = PBXBuildFile; productRef = B10000040000000000000005 /* KeyboardClient */; };
-		B10000010000000000000006 /* FloatingCapsuleClient in Frameworks */ = {isa = PBXBuildFile; productRef = B10000040000000000000006 /* FloatingCapsuleClient */; };
-		B10000010000000000000007 /* TranscriptionClient in Frameworks */ = {isa = PBXBuildFile; productRef = B10000040000000000000007 /* TranscriptionClient */; };
 		B10000010000000000000009 /* HistoryClient in Frameworks */ = {isa = PBXBuildFile; productRef = B10000040000000000000009 /* HistoryClient */; };
-		B1000001000000000000000A /* SoundClient in Frameworks */ = {isa = PBXBuildFile; productRef = B1000004000000000000000A /* SoundClient */; };
-		B1000001000000000000000B /* LogClient in Frameworks */ = {isa = PBXBuildFile; productRef = B1000004000000000000000B /* LogClient */; };
-		B1000001000000000000000C /* Onboarding in Frameworks */ = {isa = PBXBuildFile; productRef = B1000004000000000000000C /* Onboarding */; };
 		B1000001000000000000000E /* UI in Frameworks */ = {isa = PBXBuildFile; productRef = B1000004000000000000000E /* UI */; };
 		B1000001000000000000000F /* WindowClient in Frameworks */ = {isa = PBXBuildFile; productRef = B1000004000000000000000F /* WindowClient */; };
-		B10000010000000000000010 /* FoundationModelClient in Frameworks */ = {isa = PBXBuildFile; productRef = B10000040000000000000010 /* FoundationModelClient */; };
-		B10000010000000000000011 /* DoubleTapClient in Frameworks */ = {isa = PBXBuildFile; productRef = B10000040000000000000011 /* DoubleTapClient */; };
 		B10000010000000000000012 /* PlaybackDuckingClient in Frameworks */ = {isa = PBXBuildFile; productRef = B10000040000000000000012 /* PlaybackDuckingClient */; };
-		B10000010000000000000013 /* LocalCleanupClient in Frameworks */ = {isa = PBXBuildFile; productRef = B10000040000000000000013 /* LocalCleanupClient */; };
 		B10000010000000000000015 /* CloudCleanupClient in Frameworks */ = {isa = PBXBuildFile; productRef = B10000040000000000000015 /* CloudCleanupClient */; };
 		B10000010000000000000016 /* CloudCleanupFeature in Frameworks */ = {isa = PBXBuildFile; productRef = B10000040000000000000016 /* CloudCleanupFeature */; };
 		B10000010000000000000017 /* RouterFeature in Frameworks */ = {isa = PBXBuildFile; productRef = B10000040000000000000017 /* RouterFeature */; };
-		B10000010000000000000018 /* SystemContextClient in Frameworks */ = {isa = PBXBuildFile; productRef = B10000040000000000000018 /* SystemContextClient */; };
 		B10000010000000000000019 /* PetalCLI in Frameworks */ = {isa = PBXBuildFile; productRef = B10000040000000000000019 /* PetalCLI */; };
+		B1000001000000000000001A /* AppFeature in Frameworks */ = {isa = PBXBuildFile; productRef = B1000004000000000000001A /* AppFeature */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -69,30 +57,18 @@
 			files = (
 				A10000010000000000000002 /* KeyboardShortcuts in Frameworks */,
 				A10000010000000000000005 /* Dependencies in Frameworks */,
-				A10000010000000000000006 /* IssueReporting in Frameworks */,
 				A10000010000000000000007 /* Sparkle in Frameworks */,
 				B10000010000000000000001 /* Shared in Frameworks */,
 				B10000010000000000000002 /* AudioClient in Frameworks */,
-				B10000010000000000000003 /* PermissionsClient in Frameworks */,
-				B10000010000000000000004 /* PasteClient in Frameworks */,
-				B10000010000000000000005 /* KeyboardClient in Frameworks */,
-				B10000010000000000000006 /* FloatingCapsuleClient in Frameworks */,
-				B10000010000000000000007 /* TranscriptionClient in Frameworks */,
 				B10000010000000000000009 /* HistoryClient in Frameworks */,
-				B1000001000000000000000A /* SoundClient in Frameworks */,
-				B1000001000000000000000B /* LogClient in Frameworks */,
-				B1000001000000000000000C /* Onboarding in Frameworks */,
 				B1000001000000000000000E /* UI in Frameworks */,
 				B1000001000000000000000F /* WindowClient in Frameworks */,
-				B10000010000000000000010 /* FoundationModelClient in Frameworks */,
-				B10000010000000000000011 /* DoubleTapClient in Frameworks */,
 				B10000010000000000000012 /* PlaybackDuckingClient in Frameworks */,
-				B10000010000000000000013 /* LocalCleanupClient in Frameworks */,
 				B10000010000000000000015 /* CloudCleanupClient in Frameworks */,
 				B10000010000000000000016 /* CloudCleanupFeature in Frameworks */,
 				B10000010000000000000017 /* RouterFeature in Frameworks */,
-				B10000010000000000000018 /* SystemContextClient in Frameworks */,
 				B10000010000000000000019 /* PetalCLI in Frameworks */,
+				B1000001000000000000001A /* AppFeature in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -140,30 +116,18 @@
 			packageProductDependencies = (
 				A10000040000000000000002 /* KeyboardShortcuts */,
 				A10000040000000000000005 /* Dependencies */,
-				A10000040000000000000006 /* IssueReporting */,
 				A10000040000000000000007 /* Sparkle */,
 				B10000040000000000000001 /* Shared */,
 				B10000040000000000000002 /* AudioClient */,
-				B10000040000000000000003 /* PermissionsClient */,
-				B10000040000000000000004 /* PasteClient */,
-				B10000040000000000000005 /* KeyboardClient */,
-				B10000040000000000000006 /* FloatingCapsuleClient */,
-				B10000040000000000000007 /* TranscriptionClient */,
 				B10000040000000000000009 /* HistoryClient */,
-				B1000004000000000000000A /* SoundClient */,
-				B1000004000000000000000B /* LogClient */,
-				B1000004000000000000000C /* Onboarding */,
 				B1000004000000000000000E /* UI */,
 				B1000004000000000000000F /* WindowClient */,
-				B10000040000000000000010 /* FoundationModelClient */,
-				B10000040000000000000011 /* DoubleTapClient */,
 				B10000040000000000000012 /* PlaybackDuckingClient */,
-				B10000040000000000000013 /* LocalCleanupClient */,
 				B10000040000000000000015 /* CloudCleanupClient */,
 				B10000040000000000000016 /* CloudCleanupFeature */,
 				B10000040000000000000017 /* RouterFeature */,
-				B10000040000000000000018 /* SystemContextClient */,
 				B10000040000000000000019 /* PetalCLI */,
+				B1000004000000000000001A /* AppFeature */,
 			);
 			productName = petal;
 			productReference = 51F869592F469BEA004C06DD /* petal.app */;
@@ -197,7 +161,6 @@
 				A10000020000000000000001 /* XCLocalSwiftPackageReference "mlx-voxtral-swift" */,
 				B10000020000000000000001 /* XCLocalSwiftPackageReference "PetalKit" */,
 				A10000030000000000000003 /* XCRemoteSwiftPackageReference "swift-dependencies" */,
-				A10000030000000000000005 /* XCRemoteSwiftPackageReference "xctest-dynamic-overlay" */,
 				A10000030000000000000006 /* XCRemoteSwiftPackageReference "Sparkle" */,
 			);
 			preferredProjectObjectVersion = 77;
@@ -519,14 +482,6 @@
 				minimumVersion = 1.17.2;
 			};
 		};
-		A10000030000000000000005 /* XCRemoteSwiftPackageReference "xctest-dynamic-overlay" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/pointfreeco/xctest-dynamic-overlay";
-			requirement = {
-				kind = upToNextMajorVersion;
-				minimumVersion = 1.13.1;
-			};
-		};
 		A10000030000000000000006 /* XCRemoteSwiftPackageReference "Sparkle" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/sparkle-project/Sparkle";
@@ -547,11 +502,6 @@
 			package = A10000030000000000000003 /* XCRemoteSwiftPackageReference "swift-dependencies" */;
 			productName = Dependencies;
 		};
-		A10000040000000000000006 /* IssueReporting */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = A10000030000000000000005 /* XCRemoteSwiftPackageReference "xctest-dynamic-overlay" */;
-			productName = IssueReporting;
-		};
 		A10000040000000000000007 /* Sparkle */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = A10000030000000000000006 /* XCRemoteSwiftPackageReference "Sparkle" */;
@@ -565,41 +515,9 @@
 			isa = XCSwiftPackageProductDependency;
 			productName = AudioClient;
 		};
-		B10000040000000000000003 /* PermissionsClient */ = {
-			isa = XCSwiftPackageProductDependency;
-			productName = PermissionsClient;
-		};
-		B10000040000000000000004 /* PasteClient */ = {
-			isa = XCSwiftPackageProductDependency;
-			productName = PasteClient;
-		};
-		B10000040000000000000005 /* KeyboardClient */ = {
-			isa = XCSwiftPackageProductDependency;
-			productName = KeyboardClient;
-		};
-		B10000040000000000000006 /* FloatingCapsuleClient */ = {
-			isa = XCSwiftPackageProductDependency;
-			productName = FloatingCapsuleClient;
-		};
-		B10000040000000000000007 /* TranscriptionClient */ = {
-			isa = XCSwiftPackageProductDependency;
-			productName = TranscriptionClient;
-		};
 		B10000040000000000000009 /* HistoryClient */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = HistoryClient;
-		};
-		B1000004000000000000000A /* SoundClient */ = {
-			isa = XCSwiftPackageProductDependency;
-			productName = SoundClient;
-		};
-		B1000004000000000000000B /* LogClient */ = {
-			isa = XCSwiftPackageProductDependency;
-			productName = LogClient;
-		};
-		B1000004000000000000000C /* Onboarding */ = {
-			isa = XCSwiftPackageProductDependency;
-			productName = Onboarding;
 		};
 		B1000004000000000000000E /* UI */ = {
 			isa = XCSwiftPackageProductDependency;
@@ -609,21 +527,9 @@
 			isa = XCSwiftPackageProductDependency;
 			productName = WindowClient;
 		};
-		B10000040000000000000010 /* FoundationModelClient */ = {
-			isa = XCSwiftPackageProductDependency;
-			productName = FoundationModelClient;
-		};
-		B10000040000000000000011 /* DoubleTapClient */ = {
-			isa = XCSwiftPackageProductDependency;
-			productName = DoubleTapClient;
-		};
 		B10000040000000000000012 /* PlaybackDuckingClient */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = PlaybackDuckingClient;
-		};
-		B10000040000000000000013 /* LocalCleanupClient */ = {
-			isa = XCSwiftPackageProductDependency;
-			productName = LocalCleanupClient;
 		};
 		B10000040000000000000015 /* CloudCleanupClient */ = {
 			isa = XCSwiftPackageProductDependency;
@@ -637,13 +543,13 @@
 			isa = XCSwiftPackageProductDependency;
 			productName = RouterFeature;
 		};
-		B10000040000000000000018 /* SystemContextClient */ = {
-			isa = XCSwiftPackageProductDependency;
-			productName = SystemContextClient;
-		};
 		B10000040000000000000019 /* PetalCLI */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = PetalCLI;
+		};
+		B1000004000000000000001A /* AppFeature */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = AppFeature;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

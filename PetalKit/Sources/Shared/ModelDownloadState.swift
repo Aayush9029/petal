@@ -16,9 +16,14 @@ public enum ModelDownloadState: Sendable, Equatable {
         public var speedText: String?
 
         public init(fraction: Double, statusText: String, speedText: String? = nil) {
-            self.fraction = fraction
+            self.fraction = min(max(fraction, 0), 1)
             self.statusText = statusText
-            self.speedText = speedText
+            if let speedText {
+                self.speedText = speedText
+            } else if let start = statusText.lastIndex(of: "("), let end = statusText.lastIndex(of: ")"), start < end {
+                let speed = statusText[statusText.index(after: start)..<end]
+                self.speedText = speed.hasSuffix("/s") ? String(speed) : nil
+            }
         }
 
         public var summaryText: String {

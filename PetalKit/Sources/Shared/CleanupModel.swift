@@ -39,12 +39,10 @@ public enum CleanupModel: String, CaseIterable, Identifiable, Sendable, Codable 
         }
     }
 
-    /// Runs on-device through the local MLX cleanup runtime and needs a one-time download.
     public var isLocal: Bool {
         self == .petalW1
     }
 
-    /// Before the picker existed, cleanup ran only with the Apple Intelligence toggle on and Smart mode selected.
     public static func removeRetiredSettings() {
         @Dependency(\.defaultAppStorage) var store
         for key in ["s1_mini_styling", "s1_mini_structure", "s1_mini_context", "s1_mini_system_prompt"] {
@@ -52,6 +50,7 @@ public enum CleanupModel: String, CaseIterable, Identifiable, Sendable, Codable 
         }
     }
 
+    // Older releases stored cleanup as a toggle plus the transcription mode.
     static var legacyDefault: Self {
         @Dependency(\.defaultAppStorage) var store
         let wasRefining = store.bool(forKey: "apple_intelligence_enabled")

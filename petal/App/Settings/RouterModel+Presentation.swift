@@ -11,7 +11,6 @@ extension RouterModel.Style {
         }
     }
 
-    /// The route cards show the app name above, so "Custom Prompt" reads clearly there.
     var nodeTitle: String {
         switch self {
         case let .preset(preset): preset.title

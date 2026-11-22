@@ -1,10 +1,8 @@
 import AppKit
 import QuartzCore
 
-/// The render server runs the fill animation, so the Settings window does not update SwiftUI on every frame.
 final class HoldDurationTrackView: NSView {
     struct Style: Equatable {
-        /// The part of the track the fill reaches, from 0 to 1.
         var span: Double
         var fillDuration: Double
         var holdDuration: Double
@@ -36,7 +34,7 @@ final class HoldDurationTrackView: NSView {
         nil
     }
 
-    /// The track sits inside a card's button, so clicks pass through to it.
+    // The parent button must receive clicks on the embedded AppKit view.
     override func hitTest(_ point: NSPoint) -> NSView? {
         nil
     }
@@ -74,7 +72,6 @@ final class HoldDurationTrackView: NSView {
         fillLayer.add(fillAnimation(style: style, height: height, fullWidth: fullWidth), forKey: "fill")
     }
 
-    /// Grows from a dot to the full span, holds, then hides until the cycle ends.
     private func fillAnimation(style: Style, height: CGFloat, fullWidth: CGFloat) -> CAAnimation {
         let cycle = style.cycle
         let dotEnds = fullWidth > height ? style.fillDuration * height / fullWidth : style.fillDuration
@@ -95,7 +92,6 @@ final class HoldDurationTrackView: NSView {
         group.duration = cycle
         group.repeatCount = .infinity
         group.isRemovedOnCompletion = false
-        // Every card shares one wall-clock cycle, so a restart lands on the same phase.
         let phase = Date().timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: cycle)
         group.beginTime = fillLayer.convertTime(CACurrentMediaTime(), from: nil) - phase
         return group

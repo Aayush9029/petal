@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Groups glass shapes so they render in one pass. Zero spacing keeps neighboring cards from merging.
+// Zero spacing keeps adjacent glass cards separate.
 struct SettingsGlassContainer<Content: View>: View {
     @ViewBuilder let content: Content
 

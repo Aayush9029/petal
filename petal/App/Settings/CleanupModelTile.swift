@@ -5,7 +5,6 @@ struct CleanupModelTile: View {
     let model: CleanupModel
     let isSelected: Bool
     var isAvailable = true
-    /// `nil` when the model needs no download.
     var downloadState: ModelDownloadState?
     var sizeLabel: String?
     var detail: String?

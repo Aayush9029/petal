@@ -1,15 +1,11 @@
 import Shared
 import SwiftUI
 
-/// The floating capsule as one glass drop that carries the content of every
-/// phase and moves like liquid: it drops in, splits, pulses, and lifts away.
 struct CapsuleStage: View {
     private typealias Curve = CapsuleChoreography
 
     enum Material: Equatable {
-        /// Dark glass drawn by `FutureGlass.metal`.
         case future
-        /// System Liquid Glass, macOS 26 and later.
         case systemGlass
 
         init?(style: FloatingCapsuleBackgroundStyle) {
@@ -36,7 +32,6 @@ struct CapsuleStage: View {
     @State private var secondaryConfirmsDelete = false
     @State private var isPillHovered = false
     @State private var isSecondaryHovered = false
-    /// The user confirmed the delete, so the capsule pops instead of shrinking.
     @State private var discardsRecording = false
     @State private var stageOrigin = CGPoint.zero
 
@@ -48,8 +43,6 @@ struct CapsuleStage: View {
                     .transition(.opacity)
             }
 
-            // Once the motion settles, only the caustic shimmer changes, so a low frame rate is
-            // enough. The orbit while processing moves fast and needs the full frame rate.
             TimelineView(.animation(
                 minimumInterval: isSettled && !timeline.isOrbiting ? 1.0 / 30.0 : nil,
                 paused: isSettled && (reduceMotion || !timeline.isPresented)
@@ -107,14 +100,14 @@ struct CapsuleStage: View {
         }
         .task(id: isPillHovered || isSecondaryHovered) {
             guard !(isPillHovered || isSecondaryHovered), interaction == .hovered else { return }
-            // Crossing the gap between the pill and the stop drop must not collapse the split.
+            // Keep the split open while the pointer crosses the gap.
             try? await Task.sleep(for: .milliseconds(150))
             guard !Task.isCancelled, interaction == .hovered else { return }
             interaction = .idle
         }
         .task(id: interaction) {
             guard interaction == .confirmingCancel else { return }
-            try? await Task.sleep(for: .seconds(4))
+            try? await Task.sleep(for: FloatingCapsuleState.cancelConfirmationTimeout)
             guard !Task.isCancelled, interaction == .confirmingCancel else { return }
             interaction = isPillHovered || isSecondaryHovered ? .hovered : .idle
         }
@@ -125,7 +118,7 @@ struct CapsuleStage: View {
                 guard !Task.isCancelled else { return }
             }
             motion.isSettled = true
-            // The last phase stays mounted for the dismissal. Its animated content must not run in the hidden panel.
+            // The dismissal keeps the last phase mounted after the panel hides.
             if !timeline.isPresented {
                 displayedPhase = .hidden
             }
@@ -134,7 +127,6 @@ struct CapsuleStage: View {
 
     private var timeline: CapsuleTimeline { motion.timeline }
 
-    /// The settled pill and stop drop, with a margin so the pointer can cross the gap between them.
     private var hitRegion: CGRect? {
         guard timeline.isPresented else { return nil }
         let frame = timeline.frame(at: timeline.settledTime)
@@ -161,13 +153,11 @@ struct CapsuleStage: View {
 
     private static let deleteGlow: SIMD3<Double> = [0.36, 0.06, 0.08]
 
-    /// The capsule asks whether to delete the recording.
     private var confirmsDelete: Bool {
         displayedPhase == .confirmCancel || interaction == .confirmingCancel
             || (interaction == .submitted && discardsRecording)
     }
 
-    /// The spectral highlights are much quieter on system glass, and on Future glass in dark mode.
     private var highlightStrength: Double {
         switch material {
         case .future: colorScheme == .dark ? 0.5 : 0.7
@@ -187,8 +177,6 @@ struct CapsuleStage: View {
             orbitIsStill: reduceMotion
         )
     }
-
-    // MARK: - Content
 
     private var pillContent: some View {
         ZStack {
@@ -243,11 +231,8 @@ struct CapsuleStage: View {
         .accessibilityLabel(secondaryConfirmsDelete ? "Confirm delete recording" : "Cancel recording")
     }
 
-    // MARK: - Events
-
     private func phaseChanged(from old: FloatingCapsuleState.Phase, to new: FloatingCapsuleState.Phase) {
         let cue = CapsuleCue.transition(from: old, to: new, isPresented: timeline.isPresented)
-        // Confirming with the delete button, or with Y in the cancel prompt, discards the recording.
         let discards = discardsRecording || (old == .confirmCancel && new == .hidden)
         if new != .recording {
             interaction = .idle
@@ -292,7 +277,6 @@ struct CapsuleStage: View {
     }
 }
 
-/// Future glass is near black in every appearance; system glass follows the appearance.
 private struct DarkContentOnFutureGlass: ViewModifier {
     let material: CapsuleStage.Material
 
@@ -305,7 +289,6 @@ private struct DarkContentOnFutureGlass: ViewModifier {
     }
 }
 
-/// Places the glass and the content of one frame on the stage.
 struct CapsuleScene<Pill: View, Secondary: View>: View {
     let frame: CapsuleFrame
     var material = CapsuleStage.Material.future
@@ -356,7 +339,6 @@ extension CapsuleScene {
     }
 }
 
-/// Centers content on a glass blob and clips it to the blob's current squircle.
 private struct CapsuleBlobContent: ViewModifier {
     var blob: CapsuleFrame.Blob
     var opacity: Double

@@ -1,6 +1,7 @@
 import Foundation
 import os
 import Shared
+import SystemContextClient
 
 private let logger = Logger(subsystem: "com.optimalapps.petal", category: "CloudCleanupClient")
 
@@ -9,17 +10,19 @@ struct CloudCleanupRuntime: Sendable {
     static let modelCheckSystemPrompt = "Reply with the word OK."
 
     var send: @Sendable (URLRequest) async throws -> (Data, URLResponse)
-    var context: CloudRuntimeContext
 
     func clean(_ transcript: String, configuration: CloudCleanupConfiguration) async throws -> CloudCleanupResult {
+        @Dependency(\.systemContextClient) var context
+        @Dependency(\.timeZone) var timeZone
+        @Dependency(\.locale) var locale
         let screenshot = configuration.tools.contains(.screen) ? await context.screenshot() : nil
         let used = CloudCleanupPrompt.usedVariables(in: configuration.systemPrompt)
         let variables = CloudCleanupPrompt.variables(
-            timeZone: context.timeZone,
-            locale: context.locale,
-            appName: used.contains(.app) ? await context.appName() : nil,
-            windowTitle: used.contains(.window) ? await context.windowTitle() : nil,
-            userName: context.userName()
+            timeZone: timeZone,
+            locale: locale,
+            appName: used.contains(.app) ? await context.frontmostAppName() : nil,
+            windowTitle: used.contains(.window) ? await context.frontmostWindowTitle() : nil,
+            userName: used.contains(.name) || used.contains(.firstName) ? context.userFullName() : ""
         )
         let promptTools = screenshot == nil ? configuration.tools.subtracting([.screen]) : configuration.tools
         let system = CloudCleanupPrompt.system(configuration.systemPrompt, tools: promptTools, variables: variables)
@@ -38,7 +41,7 @@ struct CloudCleanupRuntime: Sendable {
                 toolCalls += calls.map(\.name)
                 var results: [CloudToolResult] = []
                 for call in calls {
-                    results.append(CloudToolResult(call: call, output: await output(for: call)))
+                    results.append(CloudToolResult(call: call, output: await output(for: call, enabledTools: configuration.tools)))
                 }
                 api.appendToolResults(results)
             case .paused:
@@ -61,10 +64,11 @@ struct CloudCleanupRuntime: Sendable {
         var check = configuration
         check.tools = []
         var api = Self.api(for: check, system: Self.modelCheckSystemPrompt, transcript: "OK")
-        for _ in 1 ... 2 {
-            guard let response = try await nextResponse(&api, provider: check.connection.provider) else { continue }
-            _ = try api.receive(response)
-            return
+        while true {
+            if let response = try await nextResponse(&api, provider: check.connection.provider) {
+                _ = try api.receive(response)
+                return
+            }
         }
     }
 
@@ -81,16 +85,19 @@ struct CloudCleanupRuntime: Sendable {
         }
     }
 
-    func output(for call: CloudToolCall) async -> String {
-        switch call.name {
-        case CloudTool.dateTime.functionName:
-            CloudCleanupPrompt.dateTimeToolOutput(now: context.now(), timeZone: context.timeZone)
-        case CloudTool.clipboard.functionName:
-            CloudCleanupPrompt.textToolOutput(await context.clipboardText(), emptyMessage: "The clipboard has no text.")
-        case CloudTool.selectedText.functionName:
-            CloudCleanupPrompt.textToolOutput(await context.selectedText(), emptyMessage: "No text is selected.")
+    private func output(for call: CloudToolCall, enabledTools: Set<CloudTool>) async -> String {
+        @Dependency(\.systemContextClient) var context
+        switch enabledTools.first(where: { $0.functionName == call.name }) {
+        case .dateTime:
+            @Dependency(\.date.now) var now
+            @Dependency(\.timeZone) var timeZone
+            return CloudCleanupPrompt.dateTimeToolOutput(now: now, timeZone: timeZone)
+        case .clipboard:
+            return CloudCleanupPrompt.textToolOutput(await context.clipboardText(), emptyMessage: "The clipboard has no text.")
+        case .selectedText:
+            return CloudCleanupPrompt.textToolOutput(await context.selectedText(), emptyMessage: "No text is selected.")
         default:
-            (["error": .string("Unknown tool \(call.name).")] as JSONValue).encodedString()
+            return (["error": .string("Unknown tool \(call.name).")] as JSONValue).encodedString()
         }
     }
 

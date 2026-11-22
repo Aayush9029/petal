@@ -1,15 +1,11 @@
 import CoreGraphics
 import Foundation
 
-/// The events of one capsule session. Frames are a pure function of these
-/// events and the time, so any instant can be rendered or tested on its own.
 struct CapsuleTimeline: Equatable, Sendable {
     private typealias Curve = CapsuleChoreography
 
     enum DismissStyle: Equatable, Sendable {
-        /// Merge, shrink, and lift away: the session finished.
         case shrink
-        /// The glass pops into droplets: the recording was discarded.
         case burst
     }
 
@@ -44,7 +40,6 @@ struct CapsuleTimeline: Equatable, Sendable {
             .max() ?? 0
     }
 
-    /// The time after which the frame no longer changes.
     var settledTime: Double {
         if let dismissedAt {
             let duration = dismissStyle == .burst && !reduceMotion
@@ -89,20 +84,17 @@ struct CapsuleTimeline: Equatable, Sendable {
         split.retarget(isSplit ? 1 : 0, at: time)
     }
 
-    /// The pointer is over the stop drop or over the Transcribe pill.
     mutating func setHover(stop: Bool, transcribe: Bool, at time: Double) {
         guard isPresented else { return }
         stopHover.retarget(stop ? 1 : 0, at: time)
         transcribeHover.retarget(transcribe ? 1 : 0, at: time)
     }
 
-    /// The recording is about to be deleted: the highlights turn red.
     mutating func setDanger(_ isDanger: Bool, at time: Double) {
         guard isPresented else { return }
         danger.retarget(isDanger ? 1 : 0, at: time)
     }
 
-    /// The highlight orbits the rim while the capsule processes.
     mutating func setOrbit(_ isOrbiting: Bool, at time: Double) {
         guard isPresented else { return }
         if isOrbiting {
@@ -114,13 +106,11 @@ struct CapsuleTimeline: Equatable, Sendable {
         }
     }
 
-    /// Head position of the orbiting highlight in turns around the rim, and its strength.
-    /// The highlight speeds up from rest when processing starts and coasts to rest when it ends.
     func orbit(at time: Double) -> (turns: Double, strength: Double) {
         guard let orbitStart, time > orbitStart else { return (0, 0) }
         let ramp = Curve.orbitRamp
         let speed = Curve.orbitTurnsPerSecond
-        // Distance covered by a speed that eases from 0 to 1 over `ramp` seconds.
+        // Integral of the eased speed over the acceleration ramp.
         func easedDistance(_ elapsed: Double) -> Double {
             let u = Curve.clamp(elapsed / ramp)
             return ramp * (u * u * u - u * u * u * u / 2) + max(elapsed - ramp, 0)
@@ -134,7 +124,6 @@ struct CapsuleTimeline: Equatable, Sendable {
         if time > end {
             let coast = min(time - end, ramp)
             let u = coast / ramp
-            // The speed falls from its value at the end to rest along an eased curve.
             turns += speed * easedSpeed(running) * ramp * (u - (u * u * u - u * u * u * u / 2))
             strength *= 1 - Curve.smoothstep(0, ramp, time - end)
         }
@@ -183,8 +172,6 @@ struct CapsuleTimeline: Equatable, Sendable {
         var pillX = rest.x - pairShift * splitValue
         var y = rest.y + Curve.riseDistance * rise
 
-        // Tucked, the drop is a small bead at the centre of the pill's end cap,
-        // fully inside the glass, so it can appear and vanish without a visible change.
         let tucked = Curve.tuckedScale * targetHeight
         let tuckedX = rest.x + targetWidth / 2 - targetHeight / 2
         let splitX = rest.x - pairShift + targetWidth / 2 + Curve.gap + secondarySize.width / 2
@@ -207,7 +194,6 @@ struct CapsuleTimeline: Equatable, Sendable {
         var contentOpacity = reduceMotion
             ? Curve.smoothstep(0, Curve.reducedMotionFade, t)
             : Curve.smoothstep(0.24, 0.46, t)
-        // The content waits until the drop is almost full width, so it does not stretch with it.
         var contentBlur = reduceMotion ? 0 : 7 * (1 - Curve.smoothstep(0.22, 0.46, t))
         var secondaryOpacity = Curve.smoothstep(0.55, 0.95, splitValue)
         var secondaryBlur = reduceMotion ? 0 : 6 * (1 - secondaryOpacity)

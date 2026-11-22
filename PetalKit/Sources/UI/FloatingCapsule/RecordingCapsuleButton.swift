@@ -56,7 +56,7 @@ struct RecordingCapsuleButton: View {
         }
         .task(id: interaction) {
             guard interaction == .confirmingCancel else { return }
-            try? await Task.sleep(for: .seconds(4))
+            try? await Task.sleep(for: FloatingCapsuleState.cancelConfirmationTimeout)
             guard !Task.isCancelled, interaction == .confirmingCancel else { return }
             interaction = isHovering ? .hovered : .idle
         }

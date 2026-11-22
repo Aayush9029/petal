@@ -1,4 +1,3 @@
-/// Seeds chosen to stay tidy on a short, wide, wrapping board: travellers move in formation and oscillators keep a margin.
 enum GameOfLifePattern: CaseIterable {
     case spaceshipConvoy
     case pulsars
@@ -7,7 +6,6 @@ enum GameOfLifePattern: CaseIterable {
     case pentadecathlons
     case soup
 
-    /// Generations before the next pattern replaces this one.
     var lifetime: Int {
         switch self {
         case .spaceshipConvoy: 80
@@ -70,7 +68,6 @@ enum GameOfLifePattern: CaseIterable {
             for (x, y) in shape { set(column: column + x, row: row + y) }
         }
 
-        /// Centers as many copies as fit in one row.
         mutating func stampRow(_ shape: [(Int, Int)], width: Int, height: Int, spacing: Int) {
             let count = max(1, (columns + spacing) / (width + spacing))
             let total = count * width + (count - 1) * spacing

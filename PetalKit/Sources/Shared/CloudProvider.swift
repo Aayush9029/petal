@@ -22,12 +22,7 @@ public enum CloudProvider: String, CaseIterable, Identifiable, Sendable, Codable
     }
 
     public var defaultModel: CloudModel.ID {
-        switch self {
-        case .openAI: "gpt-6-luna"
-        case .anthropic: "claude-opus-5-5"
-        case .openRouter: "openai/gpt-6-luna"
-        case .custom: ""
-        }
+        suggestedModels.first?.id ?? ""
     }
 
     public var suggestedModels: IdentifiedArrayOf<CloudModel> {
@@ -77,10 +72,6 @@ public enum CloudProvider: String, CaseIterable, Identifiable, Sendable, Codable
     }
 
     public var requiresAPIKey: Bool { self != .custom }
-
-    public var supportsWebSearch: Bool { self != .custom }
-
-    public var supportsScreenshots: Bool { self != .custom }
 
     public static func owner(ofAPIKey key: String) -> Self? {
         if key.hasPrefix("sk-ant-") { return .anthropic }

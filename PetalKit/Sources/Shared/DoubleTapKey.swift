@@ -9,7 +9,6 @@ public struct DoubleTapKey: Codable, Hashable, Sendable {
         self.isModifier = isModifier
     }
 
-    /// Sentinel representing "no key configured".
     public static let unconfigured = DoubleTapKey(keyCode: -1, isModifier: false)
 
     public var isConfigured: Bool { keyCode >= 0 }
@@ -36,11 +35,11 @@ public struct DoubleTapKey: Codable, Hashable, Sendable {
     // swiftlint:disable:next cyclomatic_complexity
     private static func regularKeyName(for keyCode: Int) -> String {
         switch keyCode {
-        case kVK_Space:         return "\u{2423}"  // Space
-        case kVK_Return:        return "\u{21A9}"  // Return
-        case kVK_Escape:        return "\u{238B}"  // Escape
-        case kVK_Delete:        return "\u{232B}"  // Backspace
-        case kVK_ForwardDelete: return "\u{2326}"  // Forward Delete
+        case kVK_Space:         return "\u{2423}"
+        case kVK_Return:        return "\u{21A9}"
+        case kVK_Escape:        return "\u{238B}"
+        case kVK_Delete:        return "\u{232B}"
+        case kVK_ForwardDelete: return "\u{2326}"
         case kVK_UpArrow:       return "\u{2191}"
         case kVK_DownArrow:     return "\u{2193}"
         case kVK_LeftArrow:     return "\u{2190}"

@@ -1,7 +1,6 @@
 import SwiftUI
 
 extension View {
-    /// Selected cards fill with the primary color and flip the content's color scheme, so text and symbols stay readable.
     func settingsSelection(_ isSelected: Bool, in shape: some InsettableShape) -> some View {
         modifier(SettingsSelectionModifier(isSelected: isSelected, shape: shape))
     }

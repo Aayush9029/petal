@@ -1,6 +1,5 @@
 import Foundation
 
-/// Instructions that replace the default cleanup prompt while the user dictates into one app or website.
 public struct CleanupRoute: Codable, Equatable, Identifiable, Sendable {
     public typealias ID = Tagged<Self, UUID>
 
@@ -21,7 +20,6 @@ public struct CleanupRoute: Codable, Equatable, Identifiable, Sendable {
     public var action: Action
     /// Kept while the action is `pasteAsSaid`, so turning cleanup back on restores it.
     public var prompt: String
-    /// Cleanup engine for this route. `nil` uses the one chosen in Intelligence.
     public var cleanupModel: CleanupModel?
 
     public init(
@@ -48,7 +46,6 @@ public struct CleanupRoute: Codable, Equatable, Identifiable, Sendable {
         cleanupModel = try? container.decodeIfPresent(CleanupModel.self, forKey: .cleanupModel)
     }
 
-    /// Accepts what people paste, such as "https://www.github.com/apple", and keeps only "github.com".
     public static func domain(from input: String) -> String? {
         var text = input.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         guard !text.isEmpty else { return nil }
@@ -66,7 +63,6 @@ public struct CleanupRoute: Codable, Equatable, Identifiable, Sendable {
 }
 
 public extension Collection where Element == CleanupRoute {
-    /// A website route wins over an app route, so a browser can use one style on GitHub and another everywhere else.
     func route(for focusedApp: FocusedApp?) -> CleanupRoute? {
         guard let focusedApp else { return nil }
         if let host = focusedApp.website,

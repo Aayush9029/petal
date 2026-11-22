@@ -13,17 +13,22 @@ import Testing
 @Suite(.dependencies {
     $0.keychainClient = .inMemory()
     $0.uuid = .incrementing
-    $0.applicationsClient.runningApplications = { [.mail, .slack, .terminal] }
+    $0.applicationsClient.runningApplications = {
+        AsyncStream { continuation in
+            continuation.yield([.mail, .slack, .terminal])
+            continuation.finish()
+        }
+    }
     $0.applicationsClient.chooseApplication = { .notes }
 })
 struct RouterModelTests {
     @Test
-    func `adding an open app starts it on the suggested style and selects it`() {
+    func `adding an open app starts it on the suggested style and selects it`() throws {
         let model = RouterModel(cloud: CloudCleanupModel())
 
         model.runningAppTapped(.mail)
 
-        let route = try! #require(model.routes.first)
+        let route = try #require(model.routes.first)
         expectNoDifference(route.trigger, .app(.mail))
         #expect(route.prompt == CloudPromptPreset.email.prompt)
         #expect(model.selection == .route(route.id))
@@ -42,17 +47,13 @@ struct RouterModelTests {
         #expect(model.selection == .route(model.routes[0].id))
     }
 
-    @Test(.dependencies { $0.continuousClock = TestClock() })
+    @Test
     func `open apps with a route are not offered again`() async {
         let model = RouterModel(cloud: CloudCleanupModel())
-        let task = Task { await model.task() }
-        while model.runningApps.isEmpty {
-            await Task.yield()
-        }
+        await model.task()
         model.runningAppTapped(.slack)
 
         #expect(model.addableRunningApps == [.mail, .terminal])
-        task.cancel()
     }
 
     @Test
@@ -80,13 +81,10 @@ struct RouterModelTests {
         #expect(model.selectedStyle == .preset(.professional))
     }
 
-    @Test(.dependencies { $0.continuousClock = TestClock() })
+    @Test
     func `typing filters open apps, and Return adds the only match`() async {
         let model = RouterModel(cloud: CloudCleanupModel())
-        let task = Task { await model.task() }
-        while model.runningApps.isEmpty {
-            await Task.yield()
-        }
+        await model.task()
         model.addRouteButtonTapped()
 
         model.addRouteQuery = "term"
@@ -96,7 +94,6 @@ struct RouterModelTests {
 
         expectNoDifference(model.selectedRoute?.trigger, .app(.terminal))
         #expect(model.destination == nil)
-        task.cancel()
     }
 
     @Test

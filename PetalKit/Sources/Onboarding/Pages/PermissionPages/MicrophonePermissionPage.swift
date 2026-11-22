@@ -18,7 +18,6 @@ struct MicrophonePermissionPage: View {
 #Preview("Microphone - Pending") {
     OnboardingView(model: .makePreview(page: .microphone) { model in
         model.microphonePermissionState = .notDetermined
-        model.microphoneAuthorized = false
     })
 }
 

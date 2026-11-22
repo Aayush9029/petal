@@ -20,19 +20,20 @@ public enum PasteResult: Equatable, Sendable {
 
 @DependencyClient
 public struct PasteClient: Sendable {
+    public var copy: @MainActor @Sendable (String) -> Void = { _ in }
     public var paste: @Sendable (_ text: String, _ restoreClipboard: Bool) async -> PasteResult = { _, _ in .copiedOnly }
-    /// Presses Return in the front app, which sends the message in chat apps and runs the command in terminals.
     public var pressReturn: @Sendable () async -> Void = {}
 }
 
 extension PasteClient: DependencyKey {
     public static var liveValue: Self {
         return Self(
+            copy: { text in _ = LivePasteRuntime.write(text, to: .general) },
             paste: { text, restoreClipboard in
-                await LivePasteRuntimeContainer.shared.paste(text: text, restoreClipboard: restoreClipboard)
+                await LivePasteRuntime.shared.paste(text: text, restoreClipboard: restoreClipboard)
             },
             pressReturn: {
-                await LivePasteRuntimeContainer.shared.pressReturn()
+                await LivePasteRuntime.shared.pressReturn()
             }
         )
     }
@@ -41,6 +42,7 @@ extension PasteClient: DependencyKey {
 extension PasteClient: TestDependencyKey {
     public static var testValue: Self {
         Self(
+            copy: { _ in },
             paste: { _, _ in .pasted },
             pressReturn: {}
         )
@@ -56,9 +58,12 @@ public extension DependencyValues {
 
 @MainActor
 private final class LivePasteRuntime {
+    static let shared = LivePasteRuntime()
+
     private typealias PasteboardSnapshot = [[NSPasteboard.PasteboardType: Data]]
 
-    private var pendingRestore: (task: Task<Void, Never>, snapshot: PasteboardSnapshot)?
+    private var pendingRestore: (changeCount: Int, snapshot: PasteboardSnapshot)?
+    private var restoreTask: Task<Void, Never>?
 
     /// Electron apps such as VS Code read the clipboard some time after Command-V, so an early restore pastes the old content.
     private static let restoreDelay: Duration = .milliseconds(700)
@@ -67,36 +72,41 @@ private final class LivePasteRuntime {
     func paste(text: String, restoreClipboard: Bool) async -> PasteResult {
         let pasteboard = NSPasteboard.general
 
-        // A restore that still waits holds the real clipboard content. The clipboard now holds the last transcript.
-        let waitingSnapshot = pendingRestore?.snapshot
-        pendingRestore?.task.cancel()
+        let waitingSnapshot = pendingRestore.flatMap { $0.changeCount == pasteboard.changeCount ? $0.snapshot : nil }
+        restoreTask?.cancel()
+        restoreTask = nil
         pendingRestore = nil
         let snapshot = restoreClipboard ? waitingSnapshot ?? snapshotPasteboard(pasteboard) : nil
 
-        pasteboard.clearContents()
-        guard pasteboard.setString(text, forType: .string) else {
-            return .copiedOnly
-        }
-        let transcriptChangeCount = pasteboard.changeCount
-
+        guard Self.write(text, to: pasteboard) else { return .copiedOnly }
         await waitForModifierRelease()
-        guard postCommandV() else {
+        // Clipboard managers can rewrite the pasteboard during the wait.
+        if pasteboard.string(forType: .string) != text, !Self.write(text, to: pasteboard) { return .copiedOnly }
+        let transcriptChangeCount = pasteboard.changeCount
+        if let snapshot { pendingRestore = (transcriptChangeCount, snapshot) }
+
+        guard !Task.isCancelled, postCommandV() else {
+            if pendingRestore?.changeCount == transcriptChangeCount { pendingRestore = nil }
             return .copiedOnly
         }
 
         if let snapshot {
-            let task = Task { [weak self] in
-                try? await Task.sleep(for: Self.restoreDelay)
-                guard !Task.isCancelled, let self else { return }
+            restoreTask = Task { [weak self] in
+                do { try await Task.sleep(for: Self.restoreDelay) } catch { return }
+                guard let self, self.pendingRestore?.changeCount == transcriptChangeCount else { return }
                 self.pendingRestore = nil
-                // A different change count means the user copied something new, and that content stays.
+                self.restoreTask = nil
                 guard pasteboard.changeCount == transcriptChangeCount else { return }
                 self.restorePasteboard(pasteboard, snapshot: snapshot)
             }
-            pendingRestore = (task, snapshot)
         }
 
         return .pasted
+    }
+
+    static func write(_ text: String, to pasteboard: NSPasteboard) -> Bool {
+        pasteboard.clearContents()
+        return pasteboard.setString(text, forType: .string)
     }
 
     /// A held shortcut key, such as Option or Control, turns Command-V into a different shortcut in the front app.
@@ -104,7 +114,7 @@ private final class LivePasteRuntime {
         let held: CGEventFlags = [.maskAlternate, .maskControl, .maskShift, .maskCommand, .maskSecondaryFn]
         let deadline = ContinuousClock.now + Self.modifierReleaseTimeout
         while !CGEventSource.flagsState(.hidSystemState).isDisjoint(with: held), ContinuousClock.now < deadline {
-            try? await Task.sleep(for: .milliseconds(20))
+            do { try await Task.sleep(for: .milliseconds(20)) } catch { return }
         }
     }
 
@@ -176,9 +186,4 @@ private final class LivePasteRuntime {
 
         pasteboard.writeObjects(items)
     }
-}
-
-@MainActor
-private enum LivePasteRuntimeContainer {
-    static let shared = LivePasteRuntime()
 }

@@ -87,19 +87,17 @@ struct CloudCleanupModelTests {
         }
     }
 
-    @Test(arguments: [
+    @Test(.dependencies {
+        $0.cloudCleanupClient.verifyKey = { _ in
+            Issue.record("Sent a request for another provider's key")
+        }
+    }, arguments: [
         (CloudProvider.openAI, "sk-ant-api03-abc", "This is an Anthropic key. Choose Anthropic above, or paste an OpenAI key."),
         (.anthropic, "sk-or-v1-abc", "This is an OpenRouter key. Choose OpenRouter above, or paste an Anthropic key."),
         (.openRouter, "sk-proj-abc", "This is an OpenAI key. Choose OpenAI above, or paste an OpenRouter key."),
     ])
     func `a key for another provider fails before any request`(provider: CloudProvider, key: String, message: String) async {
-        let model = withDependencies {
-            $0.cloudCleanupClient.verifyKey = { _ in
-                Issue.record("Sent a request for another provider's key")
-            }
-        } operation: {
-            CloudCleanupModel()
-        }
+        let model = CloudCleanupModel()
         model.providerTapped(provider)
         model.apiKey = key
 
@@ -129,6 +127,48 @@ struct CloudCleanupModelTests {
         model.verification = .verified
         model.serverURLInput = "http://localhost:1234/v1"
         expectNoDifference(model.verification, .idle)
+    }
+
+    @Test
+    func `switching providers during model discovery cannot check the next provider with the previous key`() async {
+        let model = CloudCleanupModel()
+        model.apiKey = "sk-test"
+        await withDependencies {
+            $0.cloudCleanupClient.availableModels = { _ in
+                await model.providerTapped(.anthropic)
+                return []
+            }
+            $0.cloudCleanupClient.checkModel = { _ in
+                Issue.record("Checked a model after switching providers")
+            }
+        } operation: {
+            await model.verifyButtonTapped()
+        }
+
+        #expect(model.provider == .anthropic)
+        #expect(model.verification == .idle)
+        #expect(model.configuration == nil)
+    }
+
+    @Test
+    func `removing a custom server key discards the models loading with that key`() async throws {
+        try keychainClient.setString("test", CloudProvider.custom.keychainAccount)
+        let model = CloudCleanupModel()
+        model.task()
+        model.providerTapped(.custom)
+        model.serverURLInput = "http://localhost:11434/v1"
+        await withDependencies {
+            $0.cloudCleanupClient.availableModels = { connection in
+                #expect(connection.apiKey == "test")
+                await model.removeKeyButtonTapped()
+                return [CloudModel(id: "private-model")]
+            }
+        } operation: {
+            await model.modelPickerOpened()
+        }
+
+        #expect(!model.hasSavedKey)
+        #expect(model.modelList == .idle)
     }
 
     @Test

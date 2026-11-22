@@ -1,6 +1,5 @@
 import SwiftUI
 
-/// A still Future capsule behind arbitrary content, for previews of the style.
 public struct FutureCapsuleSwatch<Content: View>: View {
     private let content: Content
     private let margin: CGFloat = 12

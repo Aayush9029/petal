@@ -1,31 +1,26 @@
 import MLX
 import MLXLMCommon
 
-/// Greedy decoding with prompt-lookup speculation. Cleaned text mostly copies the transcript, so the next tokens
-/// usually already appear in the prompt. Each round drafts them from the prompt and verifies all of them in one
-/// forward pass. Verification keeps only tokens that plain greedy decoding also picks.
-///
-/// A verify round must wait for the GPU, but plain decoding overlaps graph building with GPU work. On an M4 Pro,
-/// speculation is 1.5x faster for full 768-token chunks and 20% slower for typical short dictation.
 struct PromptLookupDecoder {
     let model: any LanguageModel
     let stopTokens: Set<Int>
-    var maxDraftTokens = 8
-    var maxNGram = 3
+    private let maxDraftTokens = 8
+    private let maxNGram = 3
     /// Single-token matches are mostly rejected, and a rejected round costs more than a plain step.
-    var minNGram = 2
+    private let minNGram = 2
 
-    var speculationMinPromptTokens = 320
+    // Short prompts run faster with plain decoding because it overlaps GPU and CPU work.
+    private let speculationMinPromptTokens = 320
 
     private static let prefill = PrefillParameters(stepSize: 1024)
 
-    func decode(prompt: [Int], maxTokens: Int) throws -> (tokens: [Int], forwardPasses: Int) {
+    func decode(prompt: [Int], maxTokens: Int) throws -> [Int] {
         prompt.count < speculationMinPromptTokens
             ? try decodePlain(prompt: prompt, maxTokens: maxTokens)
             : try decodeSpeculative(prompt: prompt, maxTokens: maxTokens)
     }
 
-    private func decodePlain(prompt: [Int], maxTokens: Int) throws -> (tokens: [Int], forwardPasses: Int) {
+    private func decodePlain(prompt: [Int], maxTokens: Int) throws -> [Int] {
         var iterator = try TokenIterator(
             input: LMInput(tokens: MLXArray(prompt)),
             model: model,
@@ -39,13 +34,12 @@ struct PromptLookupDecoder {
             generated.append(token)
             if generated.count.isMultiple(of: 32) { try Task.checkCancellation() }
         }
-        return (generated, generated.count + 1)
+        return generated
     }
 
-    private func decodeSpeculative(prompt: [Int], maxTokens: Int) throws -> (tokens: [Int], forwardPasses: Int) {
+    private func decodeSpeculative(prompt: [Int], maxTokens: Int) throws -> [Int] {
         let cache = try model.newCache(parameters: nil)
         var next: Int
-        var forwardPasses = 1
         switch try model.prepare(LMInput(tokens: MLXArray(prompt)), cache: cache, state: nil, prefill: Self.prefill) {
         case let .tokens(remaining):
             next = greedy(model(remaining[text: .newAxis], cache: cache, state: nil).logits[0..., (-1)..., 0...])[0]
@@ -63,7 +57,6 @@ struct PromptLookupDecoder {
             let draft = draftTokens(history: history, limit: min(maxDraftTokens, maxTokens - generated.count))
             let verify = LMInput.Text(tokens: MLXArray([next] + draft))
             let predicted = greedy(model(verify[text: .newAxis], cache: cache, state: nil).logits)
-            forwardPasses += 1
 
             var accepted = 0
             while accepted < draft.count, predicted[accepted] == draft[accepted], !stopTokens.contains(draft[accepted]) {
@@ -74,14 +67,13 @@ struct PromptLookupDecoder {
             _ = trimPromptCache(cache, numTokens: draft.count - accepted)
             next = predicted[accepted]
         }
-        return (Array(generated.prefix(maxTokens)), forwardPasses)
+        return generated
     }
 
     private func greedy(_ logits: MLXArray) -> [Int] {
         argMax(logits[0], axis: -1).asArray(Int.self)
     }
 
-    /// Finds the latest earlier occurrence of the history's final n-gram and proposes what followed it.
     private func draftTokens(history: [Int], limit: Int) -> [Int] {
         guard limit > 0 else { return [] }
         for n in stride(from: min(maxNGram, history.count - 1), through: minNGram, by: -1) {

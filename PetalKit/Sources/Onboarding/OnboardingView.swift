@@ -1,4 +1,3 @@
-import AppKit
 import SwiftUI
 import UI
 
@@ -15,18 +14,17 @@ public struct OnboardingView: View {
             backAction: model.moveBack,
             primaryTitle: model.currentPrimaryTitle,
             primaryDisabled: model.primaryDisabled,
-            primaryAction: model.primaryActionTapped,
+            primaryAction: { Task { await model.primaryActionTapped() } },
             primaryActionDelay: model.currentPage.primaryActionDelay
         ) {
             Group {
                 switch model.currentPage {
                 case .welcome:
-                    WelcomePage()
+                    WelcomePage(model: model)
                         .xSpacing(.center)
 
                 case .model:
                     ModelSelectionPage(model: model)
-                        
 
                 case .shortcut:
                     ShortcutPage(model: model)
@@ -56,39 +54,9 @@ public struct OnboardingView: View {
         .onChange(of: model.selectedModelID) { _, _ in
             model.selectedModelChanged()
         }
-        .onAppear {
-            model.windowAppeared()
-            DispatchQueue.main.async {
-                ensureOnboardingWindowsAreVisible()
-            }
-        }
-    }
-
-    private func ensureOnboardingWindowsAreVisible() {
-        let onboardingTitles = Set(["Petal Onboarding", "Petal Settings"])
-
-        for window in NSApp.windows where onboardingTitles.contains(window.title) {
-            guard let screenFrame = (window.screen ?? NSScreen.main)?.visibleFrame else {
-                window.center()
-                continue
-            }
-
-            var origin = window.frame.origin
-            let maxX = screenFrame.maxX - window.frame.width
-            let maxY = screenFrame.maxY - window.frame.height
-
-            if origin.x < screenFrame.minX || origin.x > maxX || origin.y < screenFrame.minY || origin.y > maxY {
-                origin = NSPoint(
-                    x: screenFrame.midX - (window.frame.width / 2),
-                    y: screenFrame.midY - (window.frame.height / 2)
-                )
-                window.setFrameOrigin(origin)
-            }
-        }
+        .task { await model.monitorPermissions() }
     }
 }
-
-// MARK: - Previews
 
 #Preview("Welcome") {
     OnboardingView(model: .makePreview(page: .welcome))

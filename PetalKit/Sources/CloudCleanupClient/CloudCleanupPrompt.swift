@@ -51,10 +51,9 @@ enum CloudCleanupPrompt {
     }
 
     static func system(_ prompt: String, tools: Set<CloudTool>, variables: [CloudPromptVariable: String]) -> String {
-        let rendered = render(prompt, variables: variables).trimmingCharacters(in: .whitespacesAndNewlines)
-        let sections = [rendered]
-            + (CloudPromptTranscript.isMentioned(in: prompt) ? [] : [CloudPromptTranscript.sentence])
-            + CloudTool.allCases.filter(tools.contains).map(instructions(for:))
+        let sections = CloudPromptTranscript.instructions(for: prompt).map {
+            render($0, variables: variables).trimmingCharacters(in: .whitespacesAndNewlines)
+        } + CloudTool.allCases.filter(tools.contains).map(instructions(for:))
         return sections.filter { !$0.isEmpty }.joined(separator: "\n\n")
     }
 
@@ -91,9 +90,8 @@ enum CloudCleanupPrompt {
         ]
     }
 
-    /// Without the tags, chat models answer questions in the transcript instead of cleaning them.
     static func user(_ transcript: String) -> String {
-        "<transcript>\n\(transcript.trimmingCharacters(in: .whitespacesAndNewlines))\n</transcript>"
+        "\(CloudPromptTranscript.tag)\n\(transcript.trimmingCharacters(in: .whitespacesAndNewlines))\n\(CloudPromptTranscript.closingTag)"
     }
 
     static let screenshotMediaType = "image/jpeg"

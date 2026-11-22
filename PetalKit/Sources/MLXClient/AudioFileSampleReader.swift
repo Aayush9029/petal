@@ -1,5 +1,5 @@
-/// Feeds saved audio through the same streaming decoder used for microphone input.
-/// Pulling one chunk at a time avoids a second, unbounded queue of the entire file.
+import Shared
+
 actor AudioFileSampleReader {
     private let samples: [Float]
     private var offset = 0
@@ -10,7 +10,7 @@ actor AudioFileSampleReader {
 
     func next() -> [Float]? {
         guard offset < samples.count else { return nil }
-        let end = min(offset + 16_000, samples.count)
+        let end = min(offset + speechSampleRate, samples.count)
         defer { offset = end }
         return Array(samples[offset..<end])
     }

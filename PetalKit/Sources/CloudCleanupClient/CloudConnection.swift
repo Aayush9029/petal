@@ -29,6 +29,15 @@ public struct CloudConnection: Equatable, Sendable {
         return url
     }
 
+    var authenticationHeaders: [String: String] {
+        switch provider {
+        case .anthropic:
+            ["x-api-key": apiKey, "anthropic-version": "2023-06-01"]
+        case .openAI, .openRouter, .custom:
+            apiKey.isEmpty ? [:] : ["Authorization": "Bearer \(apiKey)"]
+        }
+    }
+
     func requireAPIKey() throws {
         if provider.requiresAPIKey, apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             throw CloudCleanupError.missingAPIKey(provider)

@@ -1,5 +1,4 @@
 extension CloudPromptPreset {
-    /// The style a new route starts with, so adding Mail gives email formatting without another tap.
     public static func suggested(for trigger: CleanupRoute.Trigger) -> Self {
         switch trigger {
         case let .app(app):

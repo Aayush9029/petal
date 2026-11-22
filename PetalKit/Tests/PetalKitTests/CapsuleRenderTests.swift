@@ -4,7 +4,6 @@ import SwiftUI
 import Testing
 @testable import UI
 
-/// Renders stage capsule frames offscreen for visual review.
 /// Run with `TEST_RUNNER_PETAL_CAPSULE_CAPTURE_DIR=<dir> xcodebuild test …`.
 @MainActor
 @Suite(.enabled(if: ProcessInfo.processInfo.environment["PETAL_CAPSULE_CAPTURE_DIR"] != nil))
@@ -24,7 +23,6 @@ struct CapsuleRenderTests {
         var interaction: CapsuleRecordingInteraction = .idle
     }
 
-    /// The session as it is known at `time`: events that have not happened yet are left out.
     private static func timeline(at time: Double) -> CapsuleTimeline {
         let events: [(Double, (inout CapsuleTimeline, Double) -> Void)] = [
             (0, { $0.present(size: CapsuleTimeline.defaultSize, glow: FloatingCapsuleState.Phase.recording.capsuleGlow, at: $1) }),
@@ -126,7 +124,6 @@ struct CapsuleRenderTests {
         }
     }
 
-    /// Processing spin, delete confirmation, and the delete burst, for both glass materials.
     @Test func renderSpinConfirmAndBurst() throws {
         let directory = URL(fileURLWithPath: try #require(ProcessInfo.processInfo.environment["PETAL_CAPSULE_CAPTURE_DIR"]))
             .appendingPathComponent("states")

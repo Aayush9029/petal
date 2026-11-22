@@ -2,8 +2,6 @@
 #include <SwiftUI/SwiftUI_Metal.h>
 using namespace metal;
 
-// Superellipse exponent of the corners. 2 is a circle; Apple-style continuous
-// corners sit a little above it, which squares the capsule ends slightly.
 constant float kSquircle = 2.15;
 constant int kBands = 8;
 
@@ -14,7 +12,6 @@ static float superRadius(float2 c) {
     return powr(powr(a.x, kSquircle) + powr(a.y, kSquircle), 1.0 / kSquircle);
 }
 
-// Approximate signed distance to a squircle-capped capsule with half size h.
 static float squircle(float2 p, float2 h) {
     h = max(h, 1e-3);
     float r = min(h.x, h.y);
@@ -45,7 +42,6 @@ static float2 fieldNormal(Shapes s, float2 p, float e) {
     return g / max(length(g), 1e-5);
 }
 
-// Visible-light weights for a band s in [0, 1], red to violet.
 static float3 spectrum(float s) {
     float r = exp(-sq((s - 0.12) / 0.22)) + 0.3 * exp(-sq((s - 0.98) / 0.12));
     float g = exp(-sq((s - 0.48) / 0.20));
@@ -53,7 +49,6 @@ static float3 spectrum(float s) {
     return float3(r, g, b);
 }
 
-// 1 inside a shape's round end caps, 0 along its flat sides.
 static float capWeight(float2 p, float4 shape) {
     float r = min(shape.z, shape.w);
     float2 q = abs(p - shape.xy) - (shape.zw - r);
@@ -66,13 +61,7 @@ static float bloom(float2 p, float4 shape, float2 spread) {
     return exp(-dot(q, q));
 }
 
-// The capsule floats over other apps and cannot read them, so the lens images
-// a fixed light field instead: a dim violet room with two bright lines that
-// cross under the glass, like the folded wallpaper of the original scene.
-// The lines drift and breathe slowly (caustic.x = seconds). The lower line
-// also tilts back and forth, wider and brighter with the smoothed microphone
-// level (caustic.y), so the caustic arcs sway along the caps while you speak.
-// Before a delete (caustic.z) the light turns red.
+// The overlay cannot sample windows beneath it, so the lens bends a synthetic light field.
 static float3 environment(float2 p, float4 pill, float4 caustic) {
     float2 q = (p - pill.xy) / max(pill.w, 1e-3);
     float aspect = max(pill.z / pill.w, 1.0);
@@ -99,18 +88,13 @@ struct Lens {
     float transmission;
 };
 
-// The end caps are domes: the slope steepens toward the rim and bends rays
-// inward, so the rim shows the light field from deep under the glass. A line
-// under the cap focuses a few points inside the rim into a bright caustic
-// arc, and shorter wavelengths bend more, which splits the arc into a spectrum.
-// Only the round end caps focus light, through a band in their lower shoulder.
+// The dome focuses shorter wavelengths closer to the rim.
 static Lens endCapLens(float2 position, float2 n, float depth, Shapes shapes, float4 caustic) {
     float4 pill = shapes.pill;
     float4 secondary = shapes.secondary;
     float pillDistance = squircle(position - pill.xy, pill.zw);
     float secondaryDistance = secondary.z > 0.01 ? squircle(position - secondary.xy, secondary.zw) : 1e6;
     bool inPill = pillDistance < secondaryDistance;
-    // Each shape's own thickness, so a drop that appears or leaves does not change the other's caustic.
     float thickness = min(inPill ? pill.w : secondary.w, 49.0);
     float shoulder = 0.55 * thickness;
     float slope = sq(saturate(1.0 - depth / shoulder));
@@ -157,9 +141,7 @@ static float rimTurns(float2 p, float4 pill) {
     return fract(s / perimeter);
 }
 
-// Brightness of the highlight that orbits the rim while the capsule processes:
-// a bright head with a soft comet tail. orbit: x = head in turns, y = strength,
-// z = 1 for an even, still glow (Reduce Motion).
+// Orbit packs turns, strength, and the Reduce Motion flag into xyz.
 static float orbitLight(float2 p, float4 pill, float4 orbit) {
     if (orbit.y <= 0.001) { return 0.0; }
     if (orbit.z > 0.5) { return 0.45 * orbit.y; }
@@ -173,8 +155,6 @@ static float hash11(float n) { return fract(sin(n * 12.9898) * 43758.5453); }
 
 constant int kDroplets = 16;
 
-// A discarded recording: small glass droplets fly out of the shapes and fade.
-// Dark beads match the Future glass; clear beads match system glass.
 static float4 burstDroplets(float2 p, float4 pill, float4 secondary, float age, bool clearBeads) {
     float4 result = 0.0;
     float life = (1.0 - smoothstep(0.20, 0.50, age)) * smoothstep(0.0, 0.06, age);
@@ -238,10 +218,8 @@ static float4 burstDroplets(float2 p, float4 pill, float4 secondary, float age, 
     float danger = saturate(caustic.z);
     float highlightStrength = caustic.w;
 
-    // Premultiplied colour of everything outside the glass: ripple, droplets, and shadow.
     float4 outside = 0.0;
 
-    // Ripple: a decaying wave packet that leaves the squircle that sent it.
     float age = ripple.z;
     if (ripple.w > 0.0 && age > 0.0 && age < 2.2) {
         float2 rp = position - ripple.xy;
@@ -274,13 +252,11 @@ static float4 burstDroplets(float2 p, float4 pill, float4 secondary, float age, 
         return half4(outside);
     }
 
-    // Soft contact shadow under the glass.
     float shadowField = field(shapes, position - float2(0.0, 5.0 * scale));
     float shadow = 0.42 * exp(-max(shadowField, 0.0) / (9.0 * scale)) * visibility;
     shadow *= smoothstep(-1.0, 2.0 * scale, sd);
     outside = outside * (1.0 - shadow) + float4(0.0, 0.0, 0.0, shadow);
 
-    // Before a delete, a red glow pulses softly around the rim.
     if (danger > 0.001) {
         float pulse = 0.85 + 0.15 * sin(caustic.x * 4.0);
         float halo = 0.45 * danger * pulse * exp(-max(sd, 0.0) / (3.0 * scale)) * smoothstep(-1.0, 1.0, sd) * visibility;
@@ -296,7 +272,6 @@ static float4 burstDroplets(float2 p, float4 pill, float4 secondary, float age, 
     float depth = -sd;
     Lens lens = endCapLens(position, n, depth, shapes, caustic);
 
-    // Thick dark glass: almost opaque, with a soft lift toward the base.
     float halfHeight = max(pill.w, 1e-3);
     float lower = smoothstep(0.0, 1.0, (position.y - pill.y) / halfHeight);
     float3 tint = float3(0.038, 0.032, 0.045);
@@ -304,8 +279,6 @@ static float4 burstDroplets(float2 p, float4 pill, float4 secondary, float age, 
     float3 body = mix(darkBody, lens.refracted, 0.25 * saturate(lens.transmission))
         + causticHighlight(lens) * highlightStrength;
 
-    // Bloom from the label inside the glass.
-    // Hovering Transcribe brightens the label bloom; hovering Stop fills the drop with a red glow.
     float3 bloomColor = glow.rgb * bloom(position, pill, float2(pill.z * 0.56, pill.w * 0.38)) * glow.a
         * (1.0 + 0.8 * hover.y);
     float stopGlow = 0.0;
@@ -318,7 +291,6 @@ static float4 burstDroplets(float2 p, float4 pill, float4 secondary, float age, 
     }
     body += bloomColor * smoothstep(0.0, 6.0 * scale, depth);
 
-    // Rim light: a hairline with a cool key from the top left and a lift along the base.
     float key = max(dot(n, normalize(float2(-0.55, -0.85))), 0.0);
     float base = max(dot(n, float2(0.0, 1.0)), 0.0);
     float rim = exp(-sq((sd + 0.55 * line) / (0.55 * line)));
@@ -328,7 +300,6 @@ static float4 burstDroplets(float2 p, float4 pill, float4 secondary, float age, 
     body += float3(0.10, 0.10, 0.13) * exp(-depth / (2.5 * line)) * (0.4 + key);
     body += float3(0.70, 0.08, 0.11) * danger * exp(-depth / (5.0 * line));
 
-    // The processing highlight runs in a band just inside the rim.
     float orbitBand = exp(-sq((depth - 1.8 * line) / (1.6 * line))) + 0.25 * exp(-depth / (7.0 * line));
     float3 orbitColor = mix(float3(0.62, 0.50, 1.30), float3(1.20, 0.36, 0.40), danger);
     body += orbitColor * orbitLight(position, pill, orbit) * orbitBand * highlightStrength;
@@ -337,10 +308,7 @@ static float4 burstDroplets(float2 p, float4 pill, float4 secondary, float age, 
     return half4(float4(body, 1.0) * coverage + outside * (1.0 - coverage));
 }
 
-/// The rim and spectral end cap glints of the Future glass, drawn with premultiplied
-/// alpha over system Liquid Glass. Arguments match `petalFutureGlass`. The rim adds a
-/// light hairline that faces the key light and a faint shade that faces away from it,
-/// so the system glass gets the same depth.
+// Uses the same packed arguments as petalFutureGlass.
 [[ stitchable ]] half4 petalGlassGlints(float2 position, half4 color,
                                         float4 pill, float4 secondary, float4 optics, float4 caustic) {
     float scale = optics.x;
@@ -371,7 +339,6 @@ static float4 burstDroplets(float2 p, float4 pill, float4 secondary, float age, 
     light += float3(0.85, 0.85, 0.92) * exp(-depth / (2.5 * line)) * key * 0.10;
     light *= coverage;
 
-    // A soft shade along the rim that faces away from the light.
     float shade = 0.16 * exp(-sq((sd + 0.9 * line) / (0.9 * line))) * away * optics.z;
     float lightAlpha = saturate(max(light.r, max(light.g, light.b)));
     return half4(half3(light), half(saturate(lightAlpha + shade * (1.0 - lightAlpha))));

@@ -1,6 +1,5 @@
 import SwiftUI
 
-/// An idle-state easter egg: Conway's Game of Life on the same pixel grid as the waveforms.
 public struct GameOfLifeView: View {
     private let simulation: GameOfLifeSimulation
     private let tint: Color
@@ -11,7 +10,7 @@ public struct GameOfLifeView: View {
 
     private static let opacitySteps = 8
 
-    /// The host owns `simulation`, so the board continues where it stopped when this view returns.
+    // The popup owns the simulation so hiding it preserves the board.
     public init(simulation: GameOfLifeSimulation, tint: Color = .accentColor, isPaused: Bool = false) {
         self.simulation = simulation
         self.tint = tint
@@ -37,7 +36,6 @@ public struct GameOfLifeView: View {
         .accessibilityHidden(true)
     }
 
-    /// One path for each opacity step keeps a frame to a few fills, whatever the population.
     private func draw(in context: GraphicsContext, size: CGSize) {
         let columns = simulation.columns
         let originX = (size.width - metrics.width(bars: columns)) / 2

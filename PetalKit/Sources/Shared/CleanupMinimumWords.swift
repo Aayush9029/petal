@@ -1,6 +1,5 @@
 import Foundation
 
-/// Short replies like "OK" or "wow" gain nothing from cleanup, so they skip the model and paste as said.
 public enum CleanupMinimumWords: Int, CaseIterable, Identifiable, Sendable, Codable {
     case any = 1
     case two = 2

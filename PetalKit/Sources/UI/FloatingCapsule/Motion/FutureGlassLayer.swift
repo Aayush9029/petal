@@ -1,13 +1,11 @@
 import SwiftUI
 
-/// Draws the Future glass of one frame with `FutureGlass.metal`.
 struct FutureGlassLayer: View {
     let frame: CapsuleFrame
     let size: CGSize
     var showsRipple = true
     var scale = CapsuleChoreography.shaderScale
     var light = CapsuleLight()
-    /// Clear droplets for a burst over system glass, dark ones over Future glass.
     var clearDroplets = false
 
     private static let library = ShaderLibrary.bundle(.module)

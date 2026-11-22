@@ -7,24 +7,22 @@ import Shared
 @MainActor
 @Observable
 public final class ModelDownloadModel {
-    @ObservationIgnored @Shared(.selectedModelID) public var selectedModelID = ModelOption.defaultOption.rawValue
+    @ObservationIgnored @Shared(.selectedModelID) public var selectedModelID
 
     public var state: ModelDownloadState = .notDownloaded
     public var lastError: String?
-    public var transientMessage: String?
-    public var onDownloadCompleted: (@MainActor () -> Void)?
+    public var onDownloadCompleted: (@MainActor (ModelOption) -> Void)?
 
     public private(set) var downloadingModelOption: ModelOption?
     public private(set) var deletingModelOptions: Set<ModelOption> = []
 
     @ObservationIgnored @Dependency(\.downloadClient) private var downloadClient
 
-    public init(isPreviewMode: Bool = false) {
-        if isPreviewMode {
-            $selectedModelID.withLock { $0 = ModelOption.defaultOption.rawValue }
-            return
-        }
+    @ObservationIgnored private var attempt = 0
 
+    public init() {}
+
+    public func task() {
         $selectedModelID.withLock { $0 = ModelOption.from(modelID: $0).rawValue }
         refreshDownloadStateForSelectedModel()
     }
@@ -63,12 +61,13 @@ public final class ModelDownloadModel {
     }
 
     public func cancelButtonTapped() {
+        guard state.isActive || state.isPaused else { return }
+        attempt += 1
         downloadClient.cancelDownload()
         resetToIdle()
     }
 
     public func isModelDownloaded(_ option: ModelOption) -> Bool {
-        guard option.requiresDownload else { return true }
         guard !deletingModelOptions.contains(option) else { return false }
         return downloadClient.isModelDownloaded(option)
     }
@@ -103,27 +102,10 @@ public final class ModelDownloadModel {
     }
 
     public func selectedModelChanged() {
-        transientMessage = nil
         lastError = nil
 
         if state.isActive || state.isPaused { return }
         refreshDownloadStateForSelectedModel()
-    }
-
-    public func downloadModel() async {
-        await downloadButtonTapped()
-    }
-
-    public func pauseDownload() {
-        pauseButtonTapped()
-    }
-
-    public func resumeDownload() async {
-        await resumeButtonTapped()
-    }
-
-    public func cancelDownload() {
-        cancelButtonTapped()
     }
 
     private func startDownload(_ option: ModelOption?) async {
@@ -137,45 +119,37 @@ public final class ModelDownloadModel {
         guard !state.isActive else { return }
         guard !deletingModelOptions.contains(option) else { return }
 
+        attempt += 1
+        let current = attempt
         downloadingModelOption = option
         state = .preparing
-        transientMessage = nil
         lastError = nil
 
         do {
             try await downloadClient.downloadModel(option) { [weak self] update in
                 Task { @MainActor [weak self] in
-                    guard let self else { return }
-                    applyProgressUpdate(update)
+                    guard let self, attempt == current, state.isActive else { return }
+                    state = .downloading(update)
                 }
             }
 
-            state = .downloaded
+            guard attempt == current else { return }
             downloadingModelOption = nil
-            if option.rawValue == selectedModelID {
-                onDownloadCompleted?()
+            if option == selectedModelOption {
+                state = .downloaded
+            } else {
+                refreshDownloadStateForSelectedModel()
             }
-            transientMessage = "Model ready. Click Finish Setup to continue."
+            onDownloadCompleted?(option)
             lastError = nil
-        } catch is CancellationError {
-            downloadingModelOption = nil
-        } catch let error as DownloadClientFailure {
-            handleDownloadFailure(error)
         } catch {
-            handleDownloadFailure(.failed(error.localizedDescription))
+            guard attempt == current else { return }
+            if error is CancellationError {
+                resetToIdle()
+            } else {
+                handleDownloadFailure(error as? DownloadClientFailure ?? .failed(error.localizedDescription))
+            }
         }
-    }
-
-    private func applyProgressUpdate(_ update: DownloadProgress) {
-        if state.isPaused { return }
-
-        let fraction = min(max(update.fractionCompleted, 0), 1)
-        let progress = ModelDownloadState.Progress(
-            fraction: fraction,
-            statusText: update.status,
-            speedText: update.speedText
-        )
-        state = .downloading(progress)
     }
 
     private func handleDownloadFailure(_ failure: DownloadClientFailure) {
@@ -194,16 +168,12 @@ public final class ModelDownloadModel {
     }
 
     private func refreshDownloadStateForSelectedModel() {
-        if isSelectedModelDownloaded {
-            state = .downloaded
-        } else {
-            state = .notDownloaded
-        }
+        state = isSelectedModelDownloaded ? .downloaded : .notDownloaded
     }
 
     private func resetToIdle() {
         downloadingModelOption = nil
-        state = .notDownloaded
+        refreshDownloadStateForSelectedModel()
         lastError = nil
     }
 }

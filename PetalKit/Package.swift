@@ -8,8 +8,6 @@ extension Target.Dependency {
     static let ui: Self = "UI"
     static let modelDownloadFeature: Self = "ModelDownloadFeature"
     static let mlxClient: Self = "MLXClient"
-    static let audioTrimClient: Self = "AudioTrimClient"
-    static let audioSpeedClient: Self = "AudioSpeedClient"
     static let permissionsClient: Self = "PermissionsClient"
     static let downloadClient: Self = "DownloadClient"
     static let historyClient: Self = "HistoryClient"
@@ -59,14 +57,13 @@ let package = Package(
         .library(name: "UI", targets: ["UI"]),
         .library(name: "ModelDownloadFeature", targets: ["ModelDownloadFeature"]),
         .library(name: "Onboarding", targets: ["Onboarding"]),
+        .library(name: "AppFeature", targets: ["AppFeature"]),
         .library(name: "AudioClient", targets: ["AudioClient"]),
         .library(name: "PermissionsClient", targets: ["PermissionsClient"]),
         .library(name: "PasteClient", targets: ["PasteClient"]),
         .library(name: "KeyboardClient", targets: ["KeyboardClient"]),
         .library(name: "FloatingCapsuleClient", targets: ["FloatingCapsuleClient"]),
         .library(name: "MLXClient", targets: ["MLXClient"]),
-        .library(name: "AudioTrimClient", targets: ["AudioTrimClient"]),
-        .library(name: "AudioSpeedClient", targets: ["AudioSpeedClient"]),
         .library(name: "TranscriptionClient", targets: ["TranscriptionClient"]),
         .library(name: "DownloadClient", targets: ["DownloadClient"]),
         .library(name: "HistoryClient", targets: ["HistoryClient"]),
@@ -157,6 +154,17 @@ let package = Package(
             ]
         ),
         .target(
+            name: "AppFeature",
+            dependencies: [
+                .shared, .ui, .modelDownloadFeature, .permissionsClient, .historyClient,
+                .windowClient, .foundationModelClient, .soundClient, .doubleTapClient,
+                .logClient, .playbackDuckingClient, .localCleanupClient, .cloudCleanupClient,
+                .systemContextClient, .cloudCleanupFeature, .keyboardShortcuts,
+                "Onboarding", "RouterFeature", "AudioClient", "PasteClient", "KeyboardClient",
+                "FloatingCapsuleClient", "TranscriptionClient",
+            ]
+        ),
+        .target(
             name: "Onboarding",
             dependencies: [
                 .assets,
@@ -166,12 +174,9 @@ let package = Package(
                 .permissionsClient,
                 .foundationModelClient,
                 .keyboardShortcuts,
-                .sauce,
                 .soundClient,
             ]
         ),
-
-        // MARK: - Clients
 
         .target(
             name: "AudioClient",
@@ -214,26 +219,12 @@ let package = Package(
             dependencies: [
                 .shared,
                 .logClient,
-                .voxtralCore,
+                .downloadClient,
                 .mlx,
                 .mlxAudioCore,
                 .mlxAudioSTT,
                 .fluidAudio,
                 .whisperKit,
-            ]
-        ),
-        .target(
-            name: "AudioTrimClient",
-            dependencies: [
-                .dependencies,
-                .dependenciesMacros,
-            ]
-        ),
-        .target(
-            name: "AudioSpeedClient",
-            dependencies: [
-                .dependencies,
-                .dependenciesMacros,
             ]
         ),
         .target(
@@ -247,6 +238,7 @@ let package = Package(
             name: "LocalCleanupClient",
             dependencies: [
                 .shared,
+                .logClient,
                 .downloadClient,
                 .voxtralCore,
                 .mlx,
@@ -288,8 +280,6 @@ let package = Package(
             dependencies: [
                 .shared,
                 .logClient,
-                .audioTrimClient,
-                .audioSpeedClient,
                 .mlxClient,
             ]
         ),
@@ -297,7 +287,8 @@ let package = Package(
             name: "DownloadClient",
             dependencies: [
                 .shared,
-                .mlxClient,
+                .fluidAudio,
+                .voxtralCore,
             ]
         ),
         .target(
@@ -310,7 +301,8 @@ let package = Package(
             name: "SoundClient",
             dependencies: [
                 .assets,
-                .shared,
+                .dependencies,
+                .dependenciesMacros,
             ]
         ),
         .target(
@@ -337,7 +329,6 @@ let package = Package(
             dependencies: [
                 .dependencies,
                 .dependenciesMacros,
-                .casePaths,
             ]
         ),
         .target(
@@ -363,8 +354,6 @@ let package = Package(
                 "PasteClient",
                 "KeyboardClient",
                 "FloatingCapsuleClient",
-                "AudioTrimClient",
-                "AudioSpeedClient",
                 "MLXClient",
                 "TranscriptionClient",
                 "LocalCleanupClient",
@@ -378,6 +367,7 @@ let package = Package(
                 "LogClient",
                 "PlaybackDuckingClient",
                 "PetalCLI",
+                "AppFeature",
             ]
         ),
     ]

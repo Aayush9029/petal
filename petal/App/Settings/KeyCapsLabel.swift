@@ -1,6 +1,5 @@
 import SwiftUI
 
-/// Shows a fixed shortcut, such as a two-step chord, as key caps.
 struct KeyCapsLabel: View {
     let keys: [String]
 

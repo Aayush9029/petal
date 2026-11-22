@@ -1,3 +1,4 @@
+import AppFeature
 import SwiftUI
 
 struct RouterNoticeBanner: View {
@@ -22,7 +23,6 @@ struct RouterNoticeBanner: View {
         switch notice {
         case .cleanupOff: "Text cleanup is off, so Petal pastes every dictation as you said it."
         case .petalW1: "Petal W1 uses its own style. Routes set to As Said or to their own intelligence still apply."
-        case .smartTranscription: "Smart transcription applies its own instructions, so routes do not run."
         }
     }
 
@@ -35,7 +35,6 @@ struct RouterNoticeBanner: View {
     VStack {
         RouterNoticeBanner(notice: .cleanupOff) {}
         RouterNoticeBanner(notice: .petalW1) {}
-        RouterNoticeBanner(notice: .smartTranscription) {}
     }
     .frame(width: 470)
     .padding()

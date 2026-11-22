@@ -1,3 +1,4 @@
+import AppFeature
 import AppKit
 import Observation
 import Shared
@@ -46,8 +47,6 @@ final class StatusItemController: NSObject {
         observeViewModel()
     }
 
-    // MARK: - Popup
-
     private func statusItemClicked() {
         guard let popup else { return }
         if popup.isVisible || popup.wasJustDismissed {
@@ -65,12 +64,10 @@ final class StatusItemController: NSObject {
         return window.convertToScreen(button.convert(button.bounds, to: nil))
     }
 
-    // MARK: - Status observation
-
     private func observeViewModel() {
         withObservationTracking {
             applyStatus()
-        } onChange: {
+        } onChange: { [weak self] in
             Task { @MainActor [weak self] in
                 self?.observeViewModel()
             }
@@ -92,14 +89,11 @@ final class StatusItemController: NSObject {
 
         if state.isAnimated {
             startAnimating()
-            renderAnimationFrame()
         } else {
             stopAnimating()
             button.image = staticImage(for: state)
         }
     }
-
-    // MARK: - Pixel animation
 
     private func startAnimating() {
         guard animationTimer == nil else { return }

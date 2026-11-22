@@ -1,7 +1,6 @@
 import Shared
 import SwiftUI
 
-/// Chooses the speech model for each kind of work: dictation needs a fast model, and an audio file can wait for a more accurate one.
 struct SpeechModelRoutes: View {
     let models: [ModelOption]
     let dictationModel: ModelOption?

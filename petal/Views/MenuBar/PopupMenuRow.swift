@@ -1,6 +1,5 @@
 import SwiftUI
 
-/// The popup is a panel, not an `NSMenu`, so the hover highlight has to be drawn rather than inherited.
 struct PopupMenuRow: View {
     let title: String
     var systemImage: String?

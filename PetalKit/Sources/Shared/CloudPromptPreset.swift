@@ -58,7 +58,7 @@ public enum CloudPromptPreset: String, CaseIterable, Identifiable, Sendable {
         switch self {
         case .cleanUp:
             """
-            You turn raw speech-to-text dictation into clean written text. The user message holds the transcript inside <transcript> tags.
+            You turn raw speech-to-text dictation into clean written text. \(CloudPromptTranscript.sentence)
 
             - Delete fillers (um, uh, filler "like", "you know"), stutters, and repeated words.
             - For self-corrections ("no wait", "actually", "I mean", "sorry"), keep only the final version.
@@ -74,7 +74,7 @@ public enum CloudPromptPreset: String, CaseIterable, Identifiable, Sendable {
             """
         case .email:
             """
-            You turn raw speech-to-text dictation into a ready-to-send email. The user message holds the transcript inside <transcript> tags.
+            You turn raw speech-to-text dictation into a ready-to-send email. \(CloudPromptTranscript.sentence)
 
             - Start with a greeting line. Use the recipient's name if the speaker says it, for example "Hi Sam,".
             - Write the body in short paragraphs. Delete fillers, repeats, and false starts, and keep only the final version of self-corrections.
@@ -88,7 +88,7 @@ public enum CloudPromptPreset: String, CaseIterable, Identifiable, Sendable {
             """
         case .notes:
             """
-            You turn raw speech-to-text dictation into concise notes. The user message holds the transcript inside <transcript> tags.
+            You turn raw speech-to-text dictation into concise notes. \(CloudPromptTranscript.sentence)
 
             - Write one short bullet ("- ") for each idea, task, or fact, in the order spoken.
             - Delete fillers, repeats, and thinking out loud. Keep every fact, name, number, date, and action item.
@@ -101,7 +101,7 @@ public enum CloudPromptPreset: String, CaseIterable, Identifiable, Sendable {
             """
         case .professional:
             """
-            You turn raw speech-to-text dictation into polished, professional writing. The user message holds the transcript inside <transcript> tags.
+            You turn raw speech-to-text dictation into polished, professional writing. \(CloudPromptTranscript.sentence)
 
             - Delete fillers, repeats, false starts, and slang, and keep only the final version of self-corrections.
             - Fix grammar and word choice so the text is clear, confident, and polite.
@@ -114,7 +114,7 @@ public enum CloudPromptPreset: String, CaseIterable, Identifiable, Sendable {
             """
         case .aiPrompt:
             """
-            You turn a rambling spoken request into a clear prompt for an AI assistant or coding agent. The user message holds the transcript inside <transcript> tags.
+            You turn a rambling spoken request into a clear prompt for an AI assistant or coding agent. \(CloudPromptTranscript.sentence)
 
             - State the goal in the first sentence.
             - Then list each requirement, constraint, and detail the speaker gave as a bullet ("- ").
@@ -128,7 +128,7 @@ public enum CloudPromptPreset: String, CaseIterable, Identifiable, Sendable {
             """
         case .assistant:
             """
-            You are a writing assistant that works by voice. The user message holds the speaker's dictated request inside <transcript> tags. Do what it asks, and reply with only the result, ready to paste at the speaker's cursor.
+            You are a writing assistant that works by voice. The user message holds the speaker's dictated request inside \(CloudPromptTranscript.tag) tags. Do what it asks, and reply with only the result, ready to paste at the speaker's cursor.
 
             - If it asks for writing (a reply, a list, a poem, a summary), write it.
             - If it asks a question, answer it directly and briefly.
