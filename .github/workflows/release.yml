@@ -8,16 +8,16 @@ env:
   SCHEME: petal
   PRODUCT_NAME: petal
   BUNDLE_ID: com.optimalapps.petal
-  XCODE_VERSION: "26.5"
+  XCODE_VERSION: "27.1"
   DMG_NAME_PREFIX: Petal
-  SPARKLE_VERSION: "2.10.0"
+  SPARKLE_VERSION: "2.10.1"
 
 permissions:
   contents: write
 
 jobs:
   build-and-release:
-    runs-on: macos-26
+    runs-on: xcode-27
     timeout-minutes: 45
 
     steps:

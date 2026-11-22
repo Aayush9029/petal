@@ -1,4 +1,4 @@
-// swift-tools-version: 6.2
+// swift-tools-version: 6.4
 
 import PackageDescription
 
@@ -86,24 +86,22 @@ let package = Package(
         .library(name: "PetalCLI", targets: ["PetalCLI"]),
     ],
     dependencies: [
-        .package(url: "https://github.com/FluidInference/FluidAudio.git", exact: "0.18.3"),
+        .package(url: "https://github.com/FluidInference/FluidAudio.git", exact: "0.18.4"),
         .package(name: "MLXVoxtralSwift", path: "../mlx-voxtral-swift"),
-        .package(url: "https://github.com/pointfreeco/swift-dependencies", from: "1.17.1"),
+        .package(url: "https://github.com/pointfreeco/swift-dependencies", from: "1.17.2"),
         .package(url: "https://github.com/pointfreeco/swift-custom-dump", from: "1.7.3"),
         .package(url: "https://github.com/pointfreeco/swift-sharing", from: "2.10.1"),
         .package(url: "https://github.com/pointfreeco/swift-identified-collections", from: "1.1.1"),
         .package(url: "https://github.com/pointfreeco/swift-case-paths", from: "1.10.0"),
         .package(url: "https://github.com/pointfreeco/swift-tagged", from: "0.10.0"),
-        // 0.5 needs swift-tools 6.4, which the Xcode 26.5 release runner cannot load.
-        .package(url: "https://github.com/pointfreeco/swift-debug-snapshots", "0.4.3" ..< "0.5.0"),
+        .package(url: "https://github.com/pointfreeco/swift-debug-snapshots", from: "0.5.3"),
         .package(name: "KeyboardShortcuts", path: "KeyboardShortcuts"),
         .package(url: "https://github.com/Clipy/Sauce.git", from: "2.5.2"),
-        .package(url: "https://github.com/Neywa-Labs/mlx-audio-swift.git", from: "0.1.9"),
-        .package(url: "https://github.com/argmaxinc/argmax-oss-swift", from: "1.1.0"),
+        .package(url: "https://github.com/Neywa-Labs/mlx-audio-swift.git", from: "0.2.1"),
+        .package(url: "https://github.com/argmaxinc/argmax-oss-swift", from: "1.1.1"),
         .package(url: "https://github.com/ml-explore/mlx-swift", .upToNextMinor(from: "0.33.0")),
-        // No mlx-swift-lm release supports mlx-swift 0.33 yet, which mlx-audio-swift 0.1.9 needs.
-        .package(url: "https://github.com/ml-explore/mlx-swift-lm", revision: "6e3fe5d5648826c4e979b55df422462cc8e88a9b"),
-        .package(url: "https://github.com/huggingface/swift-transformers", from: "1.3.4"),
+        .package(url: "https://github.com/ml-explore/mlx-swift-lm", from: "3.33.0"),
+        .package(url: "https://github.com/huggingface/swift-transformers", from: "1.4.0"),
     ],
     targets: [
         .target(

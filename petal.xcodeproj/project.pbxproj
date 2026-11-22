@@ -516,7 +516,7 @@
 			repositoryURL = "https://github.com/pointfreeco/swift-dependencies";
 			requirement = {
 				kind = upToNextMajorVersion;
-				minimumVersion = 1.17.1;
+				minimumVersion = 1.17.2;
 			};
 		};
 		A10000030000000000000005 /* XCRemoteSwiftPackageReference "xctest-dynamic-overlay" */ = {
@@ -532,7 +532,7 @@
 			repositoryURL = "https://github.com/sparkle-project/Sparkle";
 			requirement = {
 				kind = upToNextMajorVersion;
-				minimumVersion = 2.10.0;
+				minimumVersion = 2.10.1;
 			};
 		};
 /* End XCRemoteSwiftPackageReference section */
