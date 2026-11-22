@@ -132,8 +132,6 @@ final class AppModel {
     @ObservationIgnored private var warmupTask: Task<Void, Never>?
     @ObservationIgnored private var cleanupWarmupTask: Task<Void, Never>?
     @ObservationIgnored private var pasteLastTranscriptionTask: Task<Void, Never>?
-    @ObservationIgnored private var menuBarFlashTask: Task<Void, Never>?
-    @ObservationIgnored private var downloadStateObserverTask: Task<Void, Never>?
     @ObservationIgnored private var isShowingMiniDownload = false
     @ObservationIgnored private var activeHistorySessionID: UUID?
     @ObservationIgnored private var recordingModel: ModelOption?
@@ -143,7 +141,6 @@ final class AppModel {
     @ObservationIgnored private var pendingSendAfterPaste = false
     @ObservationIgnored private var lastTranscript: String?
     @ObservationIgnored private var isPlaybackDucked = false
-    var menuBarFlashOn = true
     @ObservationIgnored private var estimatedTranscriptionRTF = 2.2
     private var toggleActivationThresholdSeconds: Double { pushToTalkThreshold.seconds }
     nonisolated private static let deepLinkStartTimeoutSeconds = 12.0
@@ -245,25 +242,6 @@ final class AppModel {
             }
         case .error:
             return "Error"
-        }
-    }
-
-    var menuBarSymbolName: String {
-        if modelDownloadViewModel.state.isActive || modelDownloadViewModel.state.isPaused {
-            return menuBarFlashOn ? "arrow.down.circle.dotted" : "arrow.down.circle"
-        }
-
-        switch sessionState {
-        case .idle: return "waveform.badge.mic"
-        case .recording: return "record.circle.fill"
-        case let .processing(stage):
-            switch stage {
-            case .trimming: return "scissors"
-            case .speeding: return "figure.run"
-            case .transcribing: return "hourglass"
-            case .refining: return "apple.intelligence"
-            }
-        case .error: return "exclamationmark.triangle.fill"
         }
     }
 
@@ -1303,26 +1281,6 @@ final class AppModel {
             self?.minimizeToMiniDownload()
         }
         onboardingModel = model
-        startDownloadStateObserver()
-    }
-
-    private func startDownloadStateObserver() {
-        downloadStateObserverTask?.cancel()
-        downloadStateObserverTask = Task { [weak self] in
-            guard let self else { return }
-            var wasDownloading = false
-            while !Task.isCancelled {
-                try? await self.clock.sleep(for: .milliseconds(300))
-                guard !Task.isCancelled else { return }
-                let isDownloading = self.modelDownloadViewModel.state.isActive || self.modelDownloadViewModel.state.isPaused
-                if isDownloading, !wasDownloading {
-                    self.startMenuBarFlash()
-                } else if !isDownloading, wasDownloading {
-                    self.stopMenuBarFlash()
-                }
-                wasDownloading = isDownloading
-            }
-        }
     }
 
     private func minimizeToMiniDownload() {
@@ -1381,7 +1339,6 @@ final class AppModel {
         isShowingMiniDownload = false
         miniDownloadRestoreTask?.cancel()
         miniDownloadRestoreTask = nil
-        stopMenuBarFlash()
 
         Task {
             await windowClient.close(WindowConfig.miniDownload.id)
@@ -1389,29 +1346,7 @@ final class AppModel {
         }
     }
 
-    private func startMenuBarFlash() {
-        menuBarFlashTask?.cancel()
-        menuBarFlashOn = true
-        menuBarFlashTask = Task { [weak self] in
-            guard let self else { return }
-            while !Task.isCancelled {
-                try? await self.clock.sleep(for: .milliseconds(800))
-                guard !Task.isCancelled else { return }
-                self.menuBarFlashOn.toggle()
-            }
-        }
-    }
-
-    private func stopMenuBarFlash() {
-        menuBarFlashTask?.cancel()
-        menuBarFlashTask = nil
-        menuBarFlashOn = true
-    }
-
     private func handleOnboardingCompleted() {
-        stopMenuBarFlash()
-        downloadStateObserverTask?.cancel()
-        downloadStateObserverTask = nil
         miniDownloadRestoreTask?.cancel()
         miniDownloadRestoreTask = nil
         isShowingMiniDownload = false
@@ -1523,7 +1458,7 @@ final class AppModel {
         if isAwaitingCancelRecordingConfirmation {
             switch keyPress {
             case .character("y"):
-                Task { await handleConfirmationKeyPress(keyPress) }
+                Task { await handleConfirmationKeyPress() }
                 return true
             case .escape:
                 // Don't capture — let it pass through to the focused app.
@@ -1567,7 +1502,7 @@ final class AppModel {
         await stopRecordingAndTranscribe()
     }
 
-    private func handleConfirmationKeyPress(_ keyPress: KeyPress) async {
+    private func handleConfirmationKeyPress() async {
         let isCurrentlyRecording = await audioClient.isRecording()
         guard isCurrentlyRecording else { return }
         cancelRecordingFromConfirmation()
@@ -1930,9 +1865,6 @@ final class AppModel {
         }
 
         if !hasCompletedSetup || onboardingModel != nil {
-            stopMenuBarFlash()
-            downloadStateObserverTask?.cancel()
-            downloadStateObserverTask = nil
             miniDownloadRestoreTask?.cancel()
             miniDownloadRestoreTask = nil
             isShowingMiniDownload = false
@@ -2535,8 +2467,6 @@ final class AppModel {
         transcriptionProgressTask?.cancel()
         permissionMonitorTask?.cancel()
         miniDownloadRestoreTask?.cancel()
-        menuBarFlashTask?.cancel()
-        downloadStateObserverTask?.cancel()
         pasteLastTranscriptionTask?.cancel()
     }
 }

@@ -2,7 +2,6 @@ import Shared
 import SwiftUI
 
 struct SettingsPaneLayout<Content: View>: View {
-    let tab: SettingsTab
     @ViewBuilder let content: () -> Content
 
     var body: some View {

@@ -67,11 +67,6 @@ public final class ModelDownloadModel {
         resetToIdle()
     }
 
-    public func deleteModelButtonTapped() async {
-        guard let option = selectedModelOption else { return }
-        await deleteModel(option)
-    }
-
     public func isModelDownloaded(_ option: ModelOption) -> Bool {
         guard option.requiresDownload else { return true }
         guard !deletingModelOptions.contains(option) else { return false }

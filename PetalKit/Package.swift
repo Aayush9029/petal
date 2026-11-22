@@ -5,7 +5,6 @@ import PackageDescription
 extension Target.Dependency {
     static let assets: Self = "Assets"
     static let shared: Self = "Shared"
-    static let models: Self = "PetalModels"
     static let ui: Self = "UI"
     static let modelDownloadFeature: Self = "ModelDownloadFeature"
     static let mlxClient: Self = "MLXClient"
@@ -43,7 +42,6 @@ extension Target.Dependency {
     static let mlxAudioCore: Self = .product(name: "MLXAudioCore", package: "mlx-audio-swift")
     static let mlxAudioSTT: Self = .product(name: "MLXAudioSTT", package: "mlx-audio-swift")
     static let whisperKit: Self = .product(name: "WhisperKit", package: "argmax-oss-swift")
-    static let onnxRuntime: Self = .product(name: "onnxruntime", package: "onnxruntime-swift-package-manager")
     static let mlx: Self = .product(name: "MLX", package: "mlx-swift")
     static let mlxLLM: Self = .product(name: "MLXLLM", package: "mlx-swift-lm")
     static let mlxLMCommon: Self = .product(name: "MLXLMCommon", package: "mlx-swift-lm")
@@ -58,7 +56,6 @@ let package = Package(
     products: [
         .library(name: "Assets", targets: ["Assets"]),
         .library(name: "Shared", targets: ["Shared"]),
-        .library(name: "PetalModels", targets: ["PetalModels"]),
         .library(name: "UI", targets: ["UI"]),
         .library(name: "ModelDownloadFeature", targets: ["ModelDownloadFeature"]),
         .library(name: "Onboarding", targets: ["Onboarding"]),
@@ -103,7 +100,6 @@ let package = Package(
         .package(url: "https://github.com/Clipy/Sauce.git", from: "2.5.2"),
         .package(url: "https://github.com/Neywa-Labs/mlx-audio-swift.git", from: "0.1.9"),
         .package(url: "https://github.com/argmaxinc/argmax-oss-swift", from: "1.1.0"),
-        .package(url: "https://github.com/microsoft/onnxruntime-swift-package-manager", from: "1.24.2"),
         .package(url: "https://github.com/ml-explore/mlx-swift", .upToNextMinor(from: "0.33.0")),
         // No mlx-swift-lm release supports mlx-swift 0.33 yet, which mlx-audio-swift 0.1.9 needs.
         .package(url: "https://github.com/ml-explore/mlx-swift-lm", revision: "6e3fe5d5648826c4e979b55df422462cc8e88a9b"),
@@ -124,12 +120,6 @@ let package = Package(
                 .tagged,
                 .keyboardShortcuts,
                 .casePaths,
-            ]
-        ),
-        .target(
-            name: "PetalModels",
-            dependencies: [
-                .shared,
             ]
         ),
         .target(
@@ -173,7 +163,6 @@ let package = Package(
             dependencies: [
                 .assets,
                 .shared,
-                .models,
                 .ui,
                 .modelDownloadFeature,
                 .permissionsClient,
@@ -195,20 +184,23 @@ let package = Package(
         .target(
             name: "PermissionsClient",
             dependencies: [
-                .shared,
+                .dependencies,
+                .dependenciesMacros,
             ]
         ),
         .target(
             name: "PasteClient",
             dependencies: [
-                .shared,
+                .dependencies,
+                .dependenciesMacros,
                 .sauce,
             ]
         ),
         .target(
             name: "KeyboardClient",
             dependencies: [
-                .shared,
+                .dependencies,
+                .dependenciesMacros,
                 .sauce,
             ]
         ),
@@ -230,25 +222,27 @@ let package = Package(
                 .mlxAudioSTT,
                 .fluidAudio,
                 .whisperKit,
-                .onnxRuntime,
             ]
         ),
         .target(
             name: "AudioTrimClient",
             dependencies: [
-                .shared,
+                .dependencies,
+                .dependenciesMacros,
             ]
         ),
         .target(
             name: "AudioSpeedClient",
             dependencies: [
-                .shared,
+                .dependencies,
+                .dependenciesMacros,
             ]
         ),
         .target(
             name: "FoundationModelClient",
             dependencies: [
-                .shared,
+                .dependencies,
+                .dependenciesMacros,
             ]
         ),
         .target(
@@ -364,11 +358,9 @@ let package = Package(
                 .dependenciesTestSupport,
                 .customDump,
                 .shared,
-                .models,
                 .ui,
                 .modelDownloadFeature,
                 .permissionsClient,
-                "Onboarding",
                 "AudioClient",
                 "PasteClient",
                 "KeyboardClient",
@@ -377,20 +369,16 @@ let package = Package(
                 "AudioSpeedClient",
                 "MLXClient",
                 "TranscriptionClient",
-                "FoundationModelClient",
                 "LocalCleanupClient",
                 "KeychainClient",
                 "CloudCleanupClient",
                 "CloudCleanupFeature",
                 "ApplicationsClient",
                 "RouterFeature",
-                "SystemContextClient",
                 "DownloadClient",
                 "HistoryClient",
-                "SoundClient",
                 "LogClient",
                 "PlaybackDuckingClient",
-                "DoubleTapClient",
                 "PetalCLI",
             ]
         ),

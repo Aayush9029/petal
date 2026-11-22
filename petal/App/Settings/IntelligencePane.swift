@@ -9,7 +9,7 @@ struct IntelligencePane: View {
     @State private var modelPendingDelete: CleanupModel?
 
     var body: some View {
-        SettingsPaneLayout(tab: .intelligence) {
+        SettingsPaneLayout {
             SettingsPanelSection(title: "Text Cleanup") {
                 SettingsGlassContainer {
                     HStack(spacing: 8) {

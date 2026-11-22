@@ -7,14 +7,10 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		A10000010000000000000001 /* VoxtralCore in Frameworks */ = {isa = PBXBuildFile; productRef = A10000040000000000000001 /* VoxtralCore */; };
 		A10000010000000000000002 /* KeyboardShortcuts in Frameworks */ = {isa = PBXBuildFile; productRef = A10000040000000000000002 /* KeyboardShortcuts */; };
-		A10000010000000000000003 /* Sauce in Frameworks */ = {isa = PBXBuildFile; productRef = A10000040000000000000003 /* Sauce */; };
-		A10000010000000000000004 /* Sharing in Frameworks */ = {isa = PBXBuildFile; productRef = A10000040000000000000004 /* Sharing */; };
 		A10000010000000000000005 /* Dependencies in Frameworks */ = {isa = PBXBuildFile; productRef = A10000040000000000000005 /* Dependencies */; };
 		A10000010000000000000006 /* IssueReporting in Frameworks */ = {isa = PBXBuildFile; productRef = A10000040000000000000006 /* IssueReporting */; };
 		A10000010000000000000007 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = A10000040000000000000007 /* Sparkle */; };
-		A10000010000000000000008 /* MacControlCenterUI in Frameworks */ = {isa = PBXBuildFile; productRef = A10000040000000000000008 /* MacControlCenterUI */; };
 		B10000010000000000000001 /* Shared in Frameworks */ = {isa = PBXBuildFile; productRef = B10000040000000000000001 /* Shared */; };
 		B10000010000000000000002 /* AudioClient in Frameworks */ = {isa = PBXBuildFile; productRef = B10000040000000000000002 /* AudioClient */; };
 		B10000010000000000000003 /* PermissionsClient in Frameworks */ = {isa = PBXBuildFile; productRef = B10000040000000000000003 /* PermissionsClient */; };
@@ -22,19 +18,16 @@
 		B10000010000000000000005 /* KeyboardClient in Frameworks */ = {isa = PBXBuildFile; productRef = B10000040000000000000005 /* KeyboardClient */; };
 		B10000010000000000000006 /* FloatingCapsuleClient in Frameworks */ = {isa = PBXBuildFile; productRef = B10000040000000000000006 /* FloatingCapsuleClient */; };
 		B10000010000000000000007 /* TranscriptionClient in Frameworks */ = {isa = PBXBuildFile; productRef = B10000040000000000000007 /* TranscriptionClient */; };
-		B10000010000000000000008 /* DownloadClient in Frameworks */ = {isa = PBXBuildFile; productRef = B10000040000000000000008 /* DownloadClient */; };
 		B10000010000000000000009 /* HistoryClient in Frameworks */ = {isa = PBXBuildFile; productRef = B10000040000000000000009 /* HistoryClient */; };
 		B1000001000000000000000A /* SoundClient in Frameworks */ = {isa = PBXBuildFile; productRef = B1000004000000000000000A /* SoundClient */; };
 		B1000001000000000000000B /* LogClient in Frameworks */ = {isa = PBXBuildFile; productRef = B1000004000000000000000B /* LogClient */; };
 		B1000001000000000000000C /* Onboarding in Frameworks */ = {isa = PBXBuildFile; productRef = B1000004000000000000000C /* Onboarding */; };
-		B1000001000000000000000D /* PetalModels in Frameworks */ = {isa = PBXBuildFile; productRef = B1000004000000000000000D /* PetalModels */; };
 		B1000001000000000000000E /* UI in Frameworks */ = {isa = PBXBuildFile; productRef = B1000004000000000000000E /* UI */; };
 		B1000001000000000000000F /* WindowClient in Frameworks */ = {isa = PBXBuildFile; productRef = B1000004000000000000000F /* WindowClient */; };
 		B10000010000000000000010 /* FoundationModelClient in Frameworks */ = {isa = PBXBuildFile; productRef = B10000040000000000000010 /* FoundationModelClient */; };
 		B10000010000000000000011 /* DoubleTapClient in Frameworks */ = {isa = PBXBuildFile; productRef = B10000040000000000000011 /* DoubleTapClient */; };
 		B10000010000000000000012 /* PlaybackDuckingClient in Frameworks */ = {isa = PBXBuildFile; productRef = B10000040000000000000012 /* PlaybackDuckingClient */; };
 		B10000010000000000000013 /* LocalCleanupClient in Frameworks */ = {isa = PBXBuildFile; productRef = B10000040000000000000013 /* LocalCleanupClient */; };
-		B10000010000000000000014 /* KeychainClient in Frameworks */ = {isa = PBXBuildFile; productRef = B10000040000000000000014 /* KeychainClient */; };
 		B10000010000000000000015 /* CloudCleanupClient in Frameworks */ = {isa = PBXBuildFile; productRef = B10000040000000000000015 /* CloudCleanupClient */; };
 		B10000010000000000000016 /* CloudCleanupFeature in Frameworks */ = {isa = PBXBuildFile; productRef = B10000040000000000000016 /* CloudCleanupFeature */; };
 		B10000010000000000000017 /* RouterFeature in Frameworks */ = {isa = PBXBuildFile; productRef = B10000040000000000000017 /* RouterFeature */; };
@@ -74,14 +67,10 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				A10000010000000000000001 /* VoxtralCore in Frameworks */,
 				A10000010000000000000002 /* KeyboardShortcuts in Frameworks */,
-				A10000010000000000000003 /* Sauce in Frameworks */,
-				A10000010000000000000004 /* Sharing in Frameworks */,
 				A10000010000000000000005 /* Dependencies in Frameworks */,
 				A10000010000000000000006 /* IssueReporting in Frameworks */,
 				A10000010000000000000007 /* Sparkle in Frameworks */,
-				A10000010000000000000008 /* MacControlCenterUI in Frameworks */,
 				B10000010000000000000001 /* Shared in Frameworks */,
 				B10000010000000000000002 /* AudioClient in Frameworks */,
 				B10000010000000000000003 /* PermissionsClient in Frameworks */,
@@ -89,19 +78,16 @@
 				B10000010000000000000005 /* KeyboardClient in Frameworks */,
 				B10000010000000000000006 /* FloatingCapsuleClient in Frameworks */,
 				B10000010000000000000007 /* TranscriptionClient in Frameworks */,
-				B10000010000000000000008 /* DownloadClient in Frameworks */,
 				B10000010000000000000009 /* HistoryClient in Frameworks */,
 				B1000001000000000000000A /* SoundClient in Frameworks */,
 				B1000001000000000000000B /* LogClient in Frameworks */,
 				B1000001000000000000000C /* Onboarding in Frameworks */,
-				B1000001000000000000000D /* PetalModels in Frameworks */,
 				B1000001000000000000000E /* UI in Frameworks */,
 				B1000001000000000000000F /* WindowClient in Frameworks */,
 				B10000010000000000000010 /* FoundationModelClient in Frameworks */,
 				B10000010000000000000011 /* DoubleTapClient in Frameworks */,
 				B10000010000000000000012 /* PlaybackDuckingClient in Frameworks */,
 				B10000010000000000000013 /* LocalCleanupClient in Frameworks */,
-				B10000010000000000000014 /* KeychainClient in Frameworks */,
 				B10000010000000000000015 /* CloudCleanupClient in Frameworks */,
 				B10000010000000000000016 /* CloudCleanupFeature in Frameworks */,
 				B10000010000000000000017 /* RouterFeature in Frameworks */,
@@ -152,14 +138,10 @@
 			);
 			name = petal;
 			packageProductDependencies = (
-				A10000040000000000000001 /* VoxtralCore */,
 				A10000040000000000000002 /* KeyboardShortcuts */,
-				A10000040000000000000003 /* Sauce */,
-				A10000040000000000000004 /* Sharing */,
 				A10000040000000000000005 /* Dependencies */,
 				A10000040000000000000006 /* IssueReporting */,
 				A10000040000000000000007 /* Sparkle */,
-				A10000040000000000000008 /* MacControlCenterUI */,
 				B10000040000000000000001 /* Shared */,
 				B10000040000000000000002 /* AudioClient */,
 				B10000040000000000000003 /* PermissionsClient */,
@@ -167,19 +149,16 @@
 				B10000040000000000000005 /* KeyboardClient */,
 				B10000040000000000000006 /* FloatingCapsuleClient */,
 				B10000040000000000000007 /* TranscriptionClient */,
-				B10000040000000000000008 /* DownloadClient */,
 				B10000040000000000000009 /* HistoryClient */,
 				B1000004000000000000000A /* SoundClient */,
 				B1000004000000000000000B /* LogClient */,
 				B1000004000000000000000C /* Onboarding */,
-				B1000004000000000000000D /* PetalModels */,
 				B1000004000000000000000E /* UI */,
 				B1000004000000000000000F /* WindowClient */,
 				B10000040000000000000010 /* FoundationModelClient */,
 				B10000040000000000000011 /* DoubleTapClient */,
 				B10000040000000000000012 /* PlaybackDuckingClient */,
 				B10000040000000000000013 /* LocalCleanupClient */,
-				B10000040000000000000014 /* KeychainClient */,
 				B10000040000000000000015 /* CloudCleanupClient */,
 				B10000040000000000000016 /* CloudCleanupFeature */,
 				B10000040000000000000017 /* RouterFeature */,
@@ -218,10 +197,8 @@
 				A10000020000000000000001 /* XCLocalSwiftPackageReference "mlx-voxtral-swift" */,
 				B10000020000000000000001 /* XCLocalSwiftPackageReference "PetalKit" */,
 				A10000030000000000000003 /* XCRemoteSwiftPackageReference "swift-dependencies" */,
-				A10000030000000000000004 /* XCRemoteSwiftPackageReference "swift-sharing" */,
 				A10000030000000000000005 /* XCRemoteSwiftPackageReference "xctest-dynamic-overlay" */,
 				A10000030000000000000006 /* XCRemoteSwiftPackageReference "Sparkle" */,
-				A10000030000000000000007 /* XCRemoteSwiftPackageReference "MacControlCenterUI" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 51F8695A2F469BEA004C06DD /* Products */;
@@ -542,14 +519,6 @@
 				minimumVersion = 1.17.1;
 			};
 		};
-		A10000030000000000000004 /* XCRemoteSwiftPackageReference "swift-sharing" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/pointfreeco/swift-sharing";
-			requirement = {
-				kind = upToNextMajorVersion;
-				minimumVersion = 2.10.1;
-			};
-		};
 		A10000030000000000000005 /* XCRemoteSwiftPackageReference "xctest-dynamic-overlay" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/pointfreeco/xctest-dynamic-overlay";
@@ -566,33 +535,12 @@
 				minimumVersion = 2.10.0;
 			};
 		};
-		A10000030000000000000007 /* XCRemoteSwiftPackageReference "MacControlCenterUI" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/orchetect/MacControlCenterUI";
-			requirement = {
-				kind = upToNextMajorVersion;
-				minimumVersion = 2.7.4;
-			};
-		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
-		A10000040000000000000001 /* VoxtralCore */ = {
-			isa = XCSwiftPackageProductDependency;
-			productName = VoxtralCore;
-		};
 		A10000040000000000000002 /* KeyboardShortcuts */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = KeyboardShortcuts;
-		};
-		A10000040000000000000003 /* Sauce */ = {
-			isa = XCSwiftPackageProductDependency;
-			productName = Sauce;
-		};
-		A10000040000000000000004 /* Sharing */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = A10000030000000000000004 /* XCRemoteSwiftPackageReference "swift-sharing" */;
-			productName = Sharing;
 		};
 		A10000040000000000000005 /* Dependencies */ = {
 			isa = XCSwiftPackageProductDependency;
@@ -608,11 +556,6 @@
 			isa = XCSwiftPackageProductDependency;
 			package = A10000030000000000000006 /* XCRemoteSwiftPackageReference "Sparkle" */;
 			productName = Sparkle;
-		};
-		A10000040000000000000008 /* MacControlCenterUI */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = A10000030000000000000007 /* XCRemoteSwiftPackageReference "MacControlCenterUI" */;
-			productName = MacControlCenterUI;
 		};
 		B10000040000000000000001 /* Shared */ = {
 			isa = XCSwiftPackageProductDependency;
@@ -642,10 +585,6 @@
 			isa = XCSwiftPackageProductDependency;
 			productName = TranscriptionClient;
 		};
-		B10000040000000000000008 /* DownloadClient */ = {
-			isa = XCSwiftPackageProductDependency;
-			productName = DownloadClient;
-		};
 		B10000040000000000000009 /* HistoryClient */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = HistoryClient;
@@ -661,10 +600,6 @@
 		B1000004000000000000000C /* Onboarding */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = Onboarding;
-		};
-		B1000004000000000000000D /* PetalModels */ = {
-			isa = XCSwiftPackageProductDependency;
-			productName = PetalModels;
 		};
 		B1000004000000000000000E /* UI */ = {
 			isa = XCSwiftPackageProductDependency;
@@ -689,10 +624,6 @@
 		B10000040000000000000013 /* LocalCleanupClient */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = LocalCleanupClient;
-		};
-		B10000040000000000000014 /* KeychainClient */ = {
-			isa = XCSwiftPackageProductDependency;
-			productName = KeychainClient;
 		};
 		B10000040000000000000015 /* CloudCleanupClient */ = {
 			isa = XCSwiftPackageProductDependency;

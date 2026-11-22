@@ -11,8 +11,6 @@ enum MenuBarIconRenderer {
     static let grid = 9
     static let canvas: CGFloat = 18
 
-    private static let center = CGPoint(x: 4, y: 4)
-
     /// Inset applied when redrawing the petal into the menu bar canvas. Kept
     /// small because the source artwork already carries ~10% internal margin;
     /// stacking a large inset on top made the glyph read smaller than adjacent

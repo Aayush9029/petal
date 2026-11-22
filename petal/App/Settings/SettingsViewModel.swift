@@ -320,10 +320,6 @@ final class SettingsViewModel {
         }
     }
 
-    func downloadButtonTapped() async {
-        await downloadModel.downloadButtonTapped()
-    }
-
     func modelOptionTapped(_ option: ModelOption) -> ModelOption? {
         guard !downloadModel.isDeletingModel(option) else { return nil }
 
@@ -386,10 +382,6 @@ final class SettingsViewModel {
 
     func cancelButtonTapped() {
         downloadModel.cancelButtonTapped()
-    }
-
-    func deleteModelButtonTapped() async {
-        await downloadModel.deleteModelButtonTapped()
     }
 
     func deleteDownloadedModel(_ option: ModelOption) async {

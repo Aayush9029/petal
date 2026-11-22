@@ -83,7 +83,7 @@ struct GeneralPane: View {
     @Bindable var viewModel: SettingsViewModel
 
     var body: some View {
-        SettingsPaneLayout(tab: .general) {
+        SettingsPaneLayout {
             SettingsPanel {
                 SettingsControlRow(
                     title: "Recording Shortcut",
@@ -227,7 +227,7 @@ struct RecordingPane: View {
     @Bindable var viewModel: SettingsViewModel
 
     var body: some View {
-        SettingsPaneLayout(tab: .recording) {
+        SettingsPaneLayout {
             SettingsPanel {
                 SettingsControlRow(title: "Microphone", symbol: "mic", tint: .pink) {
                     SettingsMenuPicker(
@@ -313,7 +313,7 @@ struct TranscriptionPane: View {
     @State private var destination: TranscriptionDestination?
 
     var body: some View {
-        SettingsPaneLayout(tab: .transcription) {
+        SettingsPaneLayout {
             SettingsSection(title: "Speech Model") {
                 SettingsGlassContainer {
                     LazyVGrid(columns: [GridItem(.flexible(), spacing: 10), GridItem(.flexible())], spacing: 10) {
@@ -528,7 +528,7 @@ struct AdvancedPane: View {
     @State private var historyAlert: HistoryAlert?
 
     var body: some View {
-        SettingsPaneLayout(tab: .advanced) {
+        SettingsPaneLayout {
             SettingsPanelSection(title: "Storage") {
                 SettingsControlRow(
                     title: "Save History",

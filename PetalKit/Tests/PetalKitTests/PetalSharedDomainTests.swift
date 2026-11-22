@@ -160,10 +160,10 @@ func modelProviderGroupsPreserveProviderAndCatalogOrder() {
     expectNoDifference(
         groups.map(ProviderGroupSnapshot.init),
         [
-            ProviderGroupSnapshot(provider: .nvidia, title: "NVIDIA", options: [.parakeetTDTCTC110M, .parakeetUnified06B, .parakeetTDT06BV3]),
-            ProviderGroupSnapshot(provider: .mlxAudio, title: "Qwen", options: [.qwen3ASR17B8bit]),
-            ProviderGroupSnapshot(provider: .whisperKit, title: "Whisper", options: [.whisperLargeV3Turbo]),
-            ProviderGroupSnapshot(provider: .voxtralCore, title: "Voxtral", options: [.mini3b8bit]),
+            ProviderGroupSnapshot(provider: .nvidia, options: [.parakeetTDTCTC110M, .parakeetUnified06B, .parakeetTDT06BV3]),
+            ProviderGroupSnapshot(provider: .mlxAudio, options: [.qwen3ASR17B8bit]),
+            ProviderGroupSnapshot(provider: .whisperKit, options: [.whisperLargeV3Turbo]),
+            ProviderGroupSnapshot(provider: .voxtralCore, options: [.mini3b8bit]),
         ]
     )
 }
@@ -178,45 +178,23 @@ func modelProviderGroupsExcludePinnedDownloadOption() {
     expectNoDifference(
         groups.map(ProviderGroupSnapshot.init),
         [
-            ProviderGroupSnapshot(provider: .nvidia, title: "NVIDIA", options: [.parakeetTDTCTC110M]),
-            ProviderGroupSnapshot(provider: .mlxAudio, title: "Qwen", options: [.qwen3ASR17B8bit]),
+            ProviderGroupSnapshot(provider: .nvidia, options: [.parakeetTDTCTC110M]),
+            ProviderGroupSnapshot(provider: .mlxAudio, options: [.qwen3ASR17B8bit]),
         ]
     )
 }
 
-@Test
-func modelProviderListDisplayNamesUseProductLabels() {
-    expectNoDifference(
-        [
-            ModelProvider.appleSpeech.modelListDisplayName,
-            ModelProvider.mlxAudio.modelListDisplayName,
-            ModelProvider.nvidia.modelListDisplayName,
-            ModelProvider.whisperKit.modelListDisplayName,
-            ModelProvider.voxtralCore.modelListDisplayName,
-        ],
-        [
-            "Built In",
-            "Qwen",
-            "NVIDIA",
-            "Whisper",
-            "Voxtral",
-        ]
-    )
-}
 private struct ProviderGroupSnapshot: Equatable {
     var provider: ModelProvider
-    var title: String
     var options: [ModelOption]
 
     init(_ group: ModelOptionProviderGroup) {
         provider = group.provider
-        title = group.title
         options = Array(group.options)
     }
 
-    init(provider: ModelProvider, title: String, options: [ModelOption]) {
+    init(provider: ModelProvider, options: [ModelOption]) {
         self.provider = provider
-        self.title = title
         self.options = options
     }
 }

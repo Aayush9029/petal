@@ -8,33 +8,12 @@ public struct ModelOptionProviderGroup: Identifiable, Equatable, Sendable {
     public var provider: ModelProvider
     public var options: IdentifiedArrayOf<ModelOption>
 
-    public var title: String {
-        provider.modelListDisplayName
-    }
-
     public init(
         provider: ModelProvider,
         options: IdentifiedArrayOf<ModelOption>
     ) {
         self.provider = provider
         self.options = options
-    }
-}
-
-public extension ModelProvider {
-    var modelListDisplayName: String {
-        switch self {
-        case .appleSpeech:
-            return "Built In"
-        case .mlxAudio:
-            return "Qwen"
-        case .nvidia:
-            return "NVIDIA"
-        case .whisperKit:
-            return "Whisper"
-        case .voxtralCore:
-            return "Voxtral"
-        }
     }
 }
 

@@ -122,7 +122,7 @@ final class LiveDoubleTapRuntime {
     private func handleModifierEvent(event: CGEvent, key: DoubleTapKey, now: Date) {
         let flags = event.flags
         let isDown = isModifierDown(flags: flags, keyCode: key.keyCode)
-        let hasConcurrent = hasConcurrentModifiersForModifier(flags: flags, keyCode: key.keyCode)
+        let hasConcurrent = hasConcurrentModifiersForModifier(flags: flags)
 
         if hasConcurrent {
             resetIfNotHeld()
@@ -216,7 +216,7 @@ final class LiveDoubleTapRuntime {
         }
     }
 
-    private func hasConcurrentModifiersForModifier(flags: CGEventFlags, keyCode: Int) -> Bool {
+    private func hasConcurrentModifiersForModifier(flags: CGEventFlags) -> Bool {
         var count = 0
         if flags.contains(.maskCommand) { count += 1 }
         if flags.contains(.maskShift) { count += 1 }

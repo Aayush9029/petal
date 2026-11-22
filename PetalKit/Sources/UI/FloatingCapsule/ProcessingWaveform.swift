@@ -88,15 +88,6 @@ public struct IntelligenceProcessingWaveform: View {
     private let metrics: WaveformMetrics
     private let isAnimated: Bool
 
-    public init(bars: Int = 13, rows: Int = 5, isAnimated: Bool = true) {
-        self.init(
-            bars: bars,
-            rows: rows,
-            metrics: .standard,
-            isAnimated: isAnimated
-        )
-    }
-
     init(
         bars: Int,
         rows: Int,

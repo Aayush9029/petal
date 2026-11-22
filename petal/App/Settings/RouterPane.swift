@@ -9,7 +9,7 @@ struct RouterPane: View {
     private var router: RouterModel { viewModel.router }
 
     var body: some View {
-        SettingsPaneLayout(tab: .router) {
+        SettingsPaneLayout {
             if let notice = viewModel.routerNotice {
                 RouterNoticeBanner(notice: notice, onOpenIntelligence: onOpenIntelligence)
             }

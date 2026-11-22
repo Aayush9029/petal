@@ -1,5 +1,5 @@
 {
-  "originHash" : "70ba5cc7f88f557933944adb3d2ec297755b65eaa3afbb4e34860559bd30f2ef",
+  "originHash" : "60b5fec089fb5ed3e034504628499bc8aff8a4f5e0998ede6af471128c320822",
   "pins" : [
     {
       "identity" : "argmax-oss-swift",
@@ -38,24 +38,6 @@
       }
     },
     {
-      "identity" : "maccontrolcenterui",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/orchetect/MacControlCenterUI",
-      "state" : {
-        "revision" : "086922750e4286477431be75032218350441db3c",
-        "version" : "2.7.4"
-      }
-    },
-    {
-      "identity" : "menubarextraaccess",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/orchetect/MenuBarExtraAccess",
-      "state" : {
-        "revision" : "e93e3a5b814714bf4d4cea67bf63a6b6a8323968",
-        "version" : "1.3.1"
-      }
-    },
-    {
       "identity" : "mlx-audio-swift",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/Neywa-Labs/mlx-audio-swift.git",
@@ -79,15 +61,6 @@
       "location" : "https://github.com/ml-explore/mlx-swift-lm",
       "state" : {
         "revision" : "6e3fe5d5648826c4e979b55df422462cc8e88a9b"
-      }
-    },
-    {
-      "identity" : "onnxruntime-swift-package-manager",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/microsoft/onnxruntime-swift-package-manager",
-      "state" : {
-        "revision" : "b7fb7f7dea8a2469e6335d95a61b8f36d0dc83b2",
-        "version" : "1.24.2"
       }
     },
     {

@@ -18,18 +18,8 @@ public enum PixelEQ {
     /// Corner radius as a fraction of `cell`.
     public static let cornerRatio: CGFloat = 0.3
 
-    /// Center-to-center horizontal pitch of adjacent bars.
-    public static var pitchX: CGFloat { cell + gapX }
     /// Corner radius for a cell.
     public static var corner: CGFloat { cell * cornerRatio }
-
-    public static func width(bars: Int) -> CGFloat {
-        CGFloat(bars) * cell + CGFloat(max(bars - 1, 0)) * gapX
-    }
-
-    public static func height(maxHalf: Int) -> CGFloat {
-        cell + CGFloat(max(maxHalf, 0) * 2) * pitchY
-    }
 
     /// Number of lit half-rows above/below the center for a `0…1` value, given
     /// the maximum half-rows available. `0 → just the center cell`, producing

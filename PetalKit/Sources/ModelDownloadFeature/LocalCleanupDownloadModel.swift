@@ -21,8 +21,6 @@ public final class LocalCleanupDownloadModel {
 
     public var sizeLabel: String { LocalCleanupClient.sizeLabel(for: model) ?? "" }
 
-    public var modelDirectoryURL: URL? { localCleanupClient.modelDirectoryURL(model) }
-
     public func task() {
         guard !state.isActive else { return }
         state = localCleanupClient.isDownloaded(model) ? .downloaded : .notDownloaded
