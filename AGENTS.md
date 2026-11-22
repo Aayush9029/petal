@@ -21,6 +21,7 @@ Petal is a free, open-source macOS menu bar app for local-first dictation. The u
 - `PetalKit/KeyboardShortcuts` and `mlx-voxtral-swift/` are vendored local packages. Edit them only for a Petal need.
 - Speech models run on device through FluidAudio (CoreML), argmax, MLX (`mlx-audio-swift`, `mlx-swift-lm`), and ONNX Runtime. Petal W1, the on-device cleanup model, runs through MLX.
 - `aria2c` ships inside the app bundle for model downloads. The release signs it separately (`scripts/release/sign-aria2c.sh`).
+- `PetalMain` runs `PetalKit/PetalCLI` instead of the app when the first argument is a CLI command (`transcribe`, `models`, `help`, `--help`, `--version`). The CLI runs inside the app bundle because MLX needs the Metal library that only the Xcode build bundles.
 - The URL scheme is `petal://` (for example `petal://start`, `petal://setup`). The Raycast extension in `../petal-raycast` uses it. Do not rename a deep link without a change to that extension.
 - Petal writes `~/Documents/petal/history/history.json` and `~/Documents/petal/model-catalog.json`. `../petal-raycast` reads both files, so keep their format compatible.
 

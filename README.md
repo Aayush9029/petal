@@ -52,6 +52,21 @@ Petal can also clean up your dictation with a cloud model. Use your own OpenAI, 
 - In Settings > Router, each app or website route can use its own intelligence (Apple Intelligence, Petal W1, or Cloud Model) instead of the default. A Cloud Model route uses the provider, model, and tools from Settings > Intelligence.
 - Petal keeps your keys in the macOS keychain and sends the transcript, and the screenshot when Screen is on, only to the provider that you choose.
 
+## Command Line
+
+The Petal app binary is also a command-line tool. It transcribes audio files with the speech models that you downloaded in Petal, and it uses the model that you selected in Settings unless you give `--model`.
+
+```sh
+alias petal=/Applications/Petal.app/Contents/MacOS/petal
+
+petal models                                   # list the models; * marks the default
+petal transcribe meeting.m4a                   # print the transcript
+petal transcribe memo.wav -m parakeet-unified-en-0.6b -o memo.txt
+cat clip.mp3 | petal transcribe - --json | jq -r .text
+```
+
+The transcript goes to standard output, and progress and errors go to standard error. Ctrl-C stops a transcription and exits with code 130. Run `petal --help` for all options.
+
   
 <a aria-label="Download iOS Version" href="https://apps.apple.com/ml/app/petal-ai-voice-recorder/id6759932376">
     <img width="100%" alt="petal-ios-app" src="https://github.com/user-attachments/assets/2c45a446-99a0-4ce0-9236-81c4667014a6" />

@@ -86,6 +86,7 @@ let package = Package(
         .library(name: "CloudCleanupFeature", targets: ["CloudCleanupFeature"]),
         .library(name: "ApplicationsClient", targets: ["ApplicationsClient"]),
         .library(name: "RouterFeature", targets: ["RouterFeature"]),
+        .library(name: "PetalCLI", targets: ["PetalCLI"]),
     ],
     dependencies: [
         .package(url: "https://github.com/FluidInference/FluidAudio.git", exact: "0.18.3"),
@@ -347,6 +348,16 @@ let package = Package(
                 .casePaths,
             ]
         ),
+        .target(
+            name: "PetalCLI",
+            dependencies: [
+                .dependencies,
+                .sharing,
+                .shared,
+                .downloadClient,
+                "TranscriptionClient",
+            ]
+        ),
         .testTarget(
             name: "PetalKitTests",
             dependencies: [
@@ -380,6 +391,7 @@ let package = Package(
                 "LogClient",
                 "PlaybackDuckingClient",
                 "DoubleTapClient",
+                "PetalCLI",
             ]
         ),
     ]

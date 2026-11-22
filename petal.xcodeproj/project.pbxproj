@@ -39,6 +39,7 @@
 		B10000010000000000000016 /* CloudCleanupFeature in Frameworks */ = {isa = PBXBuildFile; productRef = B10000040000000000000016 /* CloudCleanupFeature */; };
 		B10000010000000000000017 /* RouterFeature in Frameworks */ = {isa = PBXBuildFile; productRef = B10000040000000000000017 /* RouterFeature */; };
 		B10000010000000000000018 /* SystemContextClient in Frameworks */ = {isa = PBXBuildFile; productRef = B10000040000000000000018 /* SystemContextClient */; };
+		B10000010000000000000019 /* PetalCLI in Frameworks */ = {isa = PBXBuildFile; productRef = B10000040000000000000019 /* PetalCLI */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -105,6 +106,7 @@
 				B10000010000000000000016 /* CloudCleanupFeature in Frameworks */,
 				B10000010000000000000017 /* RouterFeature in Frameworks */,
 				B10000010000000000000018 /* SystemContextClient in Frameworks */,
+				B10000010000000000000019 /* PetalCLI in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -182,6 +184,7 @@
 				B10000040000000000000016 /* CloudCleanupFeature */,
 				B10000040000000000000017 /* RouterFeature */,
 				B10000040000000000000018 /* SystemContextClient */,
+				B10000040000000000000019 /* PetalCLI */,
 			);
 			productName = petal;
 			productReference = 51F869592F469BEA004C06DD /* petal.app */;
@@ -706,6 +709,10 @@
 		B10000040000000000000018 /* SystemContextClient */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = SystemContextClient;
+		};
+		B10000040000000000000019 /* PetalCLI */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = PetalCLI;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

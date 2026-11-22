@@ -7,7 +7,6 @@ import Sparkle
 import SwiftUI
 import WindowClient
 
-@main
 @MainActor
 struct PetalApp: App {
     @State private var model: AppModel
