@@ -6,9 +6,9 @@ SCHEME="petal"
 PRODUCT_NAME="petal"
 SIGNING_IDENTITY="Developer ID Application: Optimal Life Technologies, Inc (6Q29HJZ4AG)"
 TEAM_ID="6Q29HJZ4AG"
-API_KEY_ID="KDZQQND374"
-API_ISSUER_ID="32b44455-4bec-4cb8-8fbf-eb06754dda95"
-SPARKLE_VERSION="2.10.0"
+API_KEY_ID="27TQ78XRSX"
+API_ISSUER_ID="dbe9e3f9-9c90-4472-b041-5f360ee3dc7c"
+SPARKLE_VERSION="2.10.1"
 
 # Use absolute path to avoid xcbeautify shell wrappers
 XCODEBUILD=/usr/bin/xcodebuild
