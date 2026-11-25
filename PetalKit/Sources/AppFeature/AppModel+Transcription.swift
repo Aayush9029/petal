@@ -401,7 +401,7 @@ extension AppModel {
 
     func defaultTranscriptionRTF(for model: ModelOption?) -> Double {
         switch model {
-        case .qwen3ASR17B8bit, .mini3b8bit: 1.5
+        case .qwen3ASR17B8bit, .orukFourier2B8bit, .mini3b8bit: 1.5
         case .parakeetUnified06B, .nemotronUnified06B, .parakeetTDT06BV3: 2.0
         case .parakeetTDTCTC110M: 2.5
         case .whisperLargeV3Turbo: 0.85

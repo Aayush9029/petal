@@ -54,6 +54,7 @@ public struct ModelDescriptor: Sendable, Equatable {
 public enum ModelOption: String, CaseIterable, Identifiable, Sendable {
     case appleSpeech = "apple-speech"
     case qwen3ASR17B8bit = "qwen3-asr-1.7b-8bit"
+    case orukFourier2B8bit = "oruk-fourier-2b-8bit"
     case parakeetUnified06B = "parakeet-unified-en-0.6b"
     case nemotronUnified06B = "nemotron-unified-0.6b"
     case parakeetTDT06BV3 = "parakeet-tdt-0.6b-v3"
@@ -62,7 +63,7 @@ public enum ModelOption: String, CaseIterable, Identifiable, Sendable {
     case mini3b8bit = "voxtral-realtime-4b-2602-4bit"
 
     private static let downloadableOptions: [Self] = [
-        .parakeetTDTCTC110M, .qwen3ASR17B8bit, .parakeetUnified06B, .nemotronUnified06B,
+        .parakeetTDTCTC110M, .qwen3ASR17B8bit, .orukFourier2B8bit, .parakeetUnified06B, .nemotronUnified06B,
         .parakeetTDT06BV3, .whisperLargeV3Turbo, .mini3b8bit,
     ]
 
@@ -109,6 +110,20 @@ public enum ModelOption: String, CaseIterable, Identifiable, Sendable {
                 size: "~2.5 GB",
                 quantization: "8-bit MLX",
                 parameters: "1.7B",
+                provider: .mlxAudio,
+                recommended: false,
+                speedScore: 3,
+                smartScore: 5
+            )
+        case .orukFourier2B8bit:
+            return ModelDescriptor(
+                id: rawValue,
+                repoID: "oruk/oruk-fourier-2b",
+                name: "Oruk Fourier 2B",
+                summary: "High-accuracy English speech recognition on Apple Silicon (noncommercial, CC BY-NC 4.0).",
+                size: "~2.5 GB",
+                quantization: "8-bit MLX",
+                parameters: "2B",
                 provider: .mlxAudio,
                 recommended: false,
                 speedScore: 3,
@@ -270,6 +285,8 @@ public enum ModelOption: String, CaseIterable, Identifiable, Sendable {
              "mlx-community/qwen3-asr-0.6b-4bit", "fluidinference/qwen3-asr-0.6b-coreml/f32",
              "fluidinference/qwen3-asr-0.6b-coreml/int8":
             return .qwen3ASR17B8bit
+        case "oruk-fourier-2b", "fourier-2b":
+            return .orukFourier2B8bit
         case "nemotron-unified", "nvidia/nemotron-labs-unified-asr-0.6b":
             return .nemotronUnified06B
         case "mlx-community/parakeet-tdt-0.6b-v3":

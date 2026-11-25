@@ -520,8 +520,8 @@ public class ModelDownloader {
         activeGIDs = []
     }
 
-    private static func fetchModelFiles(repoId: String, subfolder: String? = nil) async throws -> [HuggingFaceTreeItem] {
-        var urlString = "https://huggingface.co/api/models/\(repoId)/tree/main"
+    private static func fetchModelFiles(repoId: String, revision: String = "main", subfolder: String? = nil) async throws -> [HuggingFaceTreeItem] {
+        var urlString = "https://huggingface.co/api/models/\(repoId)/tree/\(revision)"
         if let subfolder {
             urlString += "/\(subfolder)"
         }
@@ -613,12 +613,14 @@ public class ModelDownloader {
     ///
     /// - Parameters:
     ///   - repoId: HuggingFace repository (e.g. "argmaxinc/whisperkit-coreml").
+    ///   - revision: Optional Git revision (branch, tag, or commit SHA). Defaults to "main".
     ///   - subfolder: Optional path inside the repo to scope the download (e.g. "f32").
     ///   - destination: Local directory to save files into.
     ///   - fileFilter: Predicate applied to each *local* relative path. `nil` accepts all files.
     ///   - progress: Callback receiving (fraction, status string) updates.
     public static func downloadFromHuggingFace(
         repoId: String,
+        revision: String = "main",
         subfolder: String?,
         destination: URL,
         fileFilter: ((String) -> Bool)?,
@@ -630,7 +632,7 @@ public class ModelDownloader {
 
         try FileManager.default.createDirectory(at: destination, withIntermediateDirectories: true)
 
-        let files = try await fetchModelFiles(repoId: repoId, subfolder: subfolder)
+        let files = try await fetchModelFiles(repoId: repoId, revision: revision, subfolder: subfolder)
         let prefix = subfolder.map { $0 + "/" } ?? ""
 
         let filteredFiles = files.filter { item in
@@ -711,7 +713,7 @@ public class ModelDownloader {
         var gids: [String] = []
         for file in filteredFiles {
             let encodedPath = encodePathForURL(file.path)
-            let url = "https://huggingface.co/\(repoId)/resolve/main/\(encodedPath)?download=true"
+            let url = "https://huggingface.co/\(repoId)/resolve/\(revision)/\(encodedPath)?download=true"
             let localPath = prefix.isEmpty ? file.path : String(file.path.dropFirst(prefix.count))
             let gid = try await client.addUri([url], options: [
                 "out": localPath
