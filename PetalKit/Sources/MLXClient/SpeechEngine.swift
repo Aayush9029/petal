@@ -21,9 +21,11 @@ actor SpeechEngine {
     }
 
     private let backend: Backend
+    private let supportsSpokenLanguageChoice: Bool
     private var isStreaming = false
 
     init(model: ModelOption) async throws {
+        self.supportsSpokenLanguageChoice = model.supportsSpokenLanguageChoice
         @Dependency(\.downloadClient) var downloads
         @Dependency(\.logClient) var log
         let start = ContinuousClock.now
@@ -92,7 +94,8 @@ actor SpeechEngine {
         case let .qwen(model):
             let (_, audio) = try loadAudioArray(from: url, sampleRate: speechSampleRate)
             // The default 20-minute context hallucinates repetitions on long recordings.
-            let result = model.generate(audio: audio, language: language?.name, chunkDuration: 30)
+            let spokenLanguage = supportsSpokenLanguageChoice ? language?.name : "English"
+            let result = model.generate(audio: audio, language: spokenLanguage, chunkDuration: 30)
             return result.text.split(whereSeparator: \.isWhitespace).joined(separator: " ")
         case .unified:
             let reader = try AudioFileSampleReader(samples: AudioConverter().resampleAudioFile(url))

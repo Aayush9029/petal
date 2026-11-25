@@ -23,6 +23,24 @@ func qwenModelIDsMapToQwen17B() {
 }
 
 @Test
+func orukFourierModelIDsAndMetadata() {
+    #expect(ModelOption.defaultOption == .parakeetTDTCTC110M)
+    #expect(ModelOption.from(modelID: "oruk-fourier-2b-8bit") == .orukFourier2B8bit)
+    #expect(ModelOption.from(modelID: "oruk-fourier-2b") == .orukFourier2B8bit)
+    #expect(ModelOption.from(modelID: "fourier-2b") == .orukFourier2B8bit)
+    #expect(ModelOption.from(modelID: "oruk/oruk-fourier-2b") == .orukFourier2B8bit)
+
+    let descriptor = ModelOption.orukFourier2B8bit.descriptor
+    #expect(descriptor.repoID == "oruk/oruk-fourier-2b")
+    #expect(descriptor.provider == .mlxAudio)
+    #expect(!descriptor.recommended)
+    #expect(!ModelOption.orukFourier2B8bit.supportsSpokenLanguageChoice)
+    #expect(!ModelOption.orukFourier2B8bit.supportsStreamingTranscription)
+    #expect(descriptor.summary.contains("English"))
+    #expect(descriptor.summary.contains("CC BY-NC 4.0"))
+}
+
+@Test
 func parakeetModelIDsMapToTheirCurrentModels() {
     #expect(ModelOption.from(modelID: "parakeet") == .parakeetUnified06B)
     #expect(ModelOption.from(modelID: "parakeet-tdt-0.6b-v2") == .parakeetUnified06B)
